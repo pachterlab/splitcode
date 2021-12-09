@@ -1,32 +1,16 @@
-# Prerequisites
-*.d
+*.DS_Store
 
-# Compiled Object files
-*.slo
-*.lo
-*.o
-*.obj
+build/*
 
-# Precompiled Headers
-*.gch
-*.pch
+*.pyc
 
-# Compiled Dynamic libraries
-*.so
-*.dylib
-*.dll
-
-# Fortran module files
-*.mod
-*.smod
-
-# Compiled Static libraries
-*.lai
-*.la
-*.a
-*.lib
-
-# Executables
-*.exe
-*.out
-*.app
+CMakeCache.txt
+CMakeFiles
+Makefile
+cmake_install.cmake
+CTestTestfile.cmake
+*~
+*.orig
+debug/
+release/
+.snakemake
