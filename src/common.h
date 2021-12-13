@@ -13,9 +13,12 @@ typedef unsigned int uint;
 
 struct ProgramOptions {
   int threads;
+  int nfiles;
+  std::vector<std::string> files;
   
   ProgramOptions() :
-    threads(1)
+    threads(1),
+    nfiles(1)
   {}
 };
 

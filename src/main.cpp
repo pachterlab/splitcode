@@ -15,6 +15,7 @@
 #include <zlib.h>
 
 #include "common.h"
+#include "ProcessReads.h"
 
 
 //#define ERROR_STR "\033[1mError:\033[0m"
@@ -112,8 +113,39 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     PrintCite();
     exit(0);
   }
+  
+  for (int i = optind; i < argc; i++) {
+    opt.files.push_back(argv[i]);
+  }
 }
 
+bool CheckOptions(ProgramOptions& opt) {
+  bool ret = true;
+  if (opt.threads <= 0) {
+    cerr << "Error: invalid number of threads " << opt.threads << endl;
+    ret = false;
+  } else {
+    unsigned int n = std::thread::hardware_concurrency();
+    if (n != 0 && n < opt.threads) {
+      cerr << "Warning: you asked for " << opt.threads
+           << ", but only " << n << " cores on the machine" << endl;
+    }    
+  }
+  if (opt.files.size() == 0) {
+    cerr << ERROR_STR << " Missing read files" << endl;
+    ret = false;
+  } else {
+    struct stat stFileInfo;
+    for (auto& fn : opt.files) {
+      auto intStat = stat(fn.c_str(), &stFileInfo);
+      if (intStat != 0) {
+        cerr << ERROR_STR << " file not found " << fn << endl;
+        ret = false;
+      }
+    }
+  }
+  return ret;
+}
 
 
 int main(int argc, char *argv[]) {
@@ -121,6 +153,10 @@ int main(int argc, char *argv[]) {
   setvbuf(stdout, NULL, _IOFBF, 1048576);
   ProgramOptions opt;
   ParseOptions(argc,argv,opt);
+  if (!CheckOptions(opt)) {
+    usage();
+    exit(1);
+  }
   fflush(stdout);
 
   return 0;
