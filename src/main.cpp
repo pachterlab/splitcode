@@ -52,6 +52,8 @@ void usage() {
   cout << "splitcode " << SPLITCODE_VERSION << endl << endl
        << "Usage: splitcode [arguments] fastq-files" << endl << endl
        << "Options:" << endl
+       << "-N, --nFastqs    Number of FASTQ file(s) per run" << endl
+       << "                 (default: 1) (specify 2 for paired-end)" << endl
        << "-t, --threads    Number of threads to use" << endl
        << "-h, --help       Displays usage information" << endl
        << "    --version    Prints version number" << endl
@@ -63,7 +65,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   int version_flag = 0;
   int cite_flag = 0;
 
-  const char *opt_string = "t:h";
+  const char *opt_string = "t:N:h";
   static struct option long_options[] = {
     // long args
     {"version", no_argument, &version_flag, 1},
@@ -71,6 +73,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     // short args
     {"help", no_argument, 0, 'h'},
     {"threads", required_argument, 0, 't'},
+    {"nFastqs", required_argument, 0, 'N'},
     {0,0,0,0}
   };
   
@@ -95,6 +98,10 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     }
     case 't': {
       stringstream(optarg) >> opt.threads;
+      break;
+    }
+    case 'N': {
+      opt.nfiles = std::stoi(optarg);
       break;
     }
     default: break;
@@ -144,6 +151,17 @@ bool CheckOptions(ProgramOptions& opt) {
       }
     }
   }
+  if (opt.nfiles <= 0) {
+    std::cerr << ERROR_STR << " nFastqs must be a non-zero positive number" << std::endl;
+    ret = false;
+  }
+  else {
+    if (opt.files.size() % opt.nfiles != 0) {
+      std::cerr << ERROR_STR << " incorrect number of FASTQ file(s)" << std::endl;
+      ret = false;
+    }
+  }
+  
   return ret;
 }
 
