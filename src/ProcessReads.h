@@ -121,13 +121,12 @@ public:
 
 class ReadProcessor {
 public:
-  ReadProcessor(const SplitCode& sc, const ProgramOptions& opt, MasterProcessor& mp);
+  ReadProcessor(const ProgramOptions& opt, MasterProcessor& mp);
   ReadProcessor(ReadProcessor && o);
   ~ReadProcessor();
   char *buffer;
   
   size_t bufsize;
-  const SplitCode& sc;
   MasterProcessor& mp;
   int64_t numreads;
   
@@ -136,8 +135,8 @@ public:
   std::vector<std::pair<const char*, int>> quals;
   std::vector<uint32_t> flags;
   
-  std::vector<std::vector<int>> newIDs;
-  std::vector<std::vector<int>> IDs;
+  /*std::vector<std::vector<int>> newIDs;
+  std::vector<std::vector<int>> IDs;*/
   
   void operator()();
   void processBuffer();

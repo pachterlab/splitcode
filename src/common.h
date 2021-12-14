@@ -14,11 +14,13 @@ typedef unsigned int uint;
 struct ProgramOptions {
   int threads;
   int nfiles;
+  bool no_output;
   std::vector<std::string> files;
   
   ProgramOptions() :
     threads(1),
-    nfiles(1)
+    nfiles(1),
+    no_output(false)
   {}
 };
 

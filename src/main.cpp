@@ -157,6 +157,9 @@ int main(int argc, char *argv[]) {
     usage();
     exit(1);
   }
+  SplitCode sc;
+  MasterProcessor MP(sc, opt);
+  ProcessReads(MP, opt);
   fflush(stdout);
 
   return 0;
