@@ -184,8 +184,6 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
   if (ret && sc.tags.size() == 0) {
     std::cerr << ERROR_STR << " No barcodes found" << std::endl;
     ret = false;
-  } else {
-    std::cerr << "* Using a list of " << sc.tags.size() << " barcodes"<< std::endl;
   }
   
   return ret;
@@ -202,6 +200,7 @@ int main(int argc, char *argv[]) {
     usage();
     exit(1);
   }
+  std::cerr << "* Using a list of " << sc.tags.size() << " barcodes"<< std::endl;
   MasterProcessor MP(sc, opt);
   ProcessReads(MP, opt);
   fflush(stdout);
