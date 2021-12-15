@@ -53,6 +53,7 @@ void usage() {
   cout << "splitcode " << SPLITCODE_VERSION << endl << endl
        << "Usage: splitcode [arguments] fastq-files" << endl << endl
        << "Options:" << endl
+       << "-b, --barcodes   List of barcode sequences (comma-separated)" << endl
        << "-N, --nFastqs    Number of FASTQ file(s) per run" << endl
        << "                 (default: 1) (specify 2 for paired-end)" << endl
        << "-t, --threads    Number of threads to use" << endl
@@ -66,7 +67,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   int version_flag = 0;
   int cite_flag = 0;
 
-  const char *opt_string = "t:N:h";
+  const char *opt_string = "t:N:b:h";
   static struct option long_options[] = {
     // long args
     {"version", no_argument, &version_flag, 1},
@@ -75,6 +76,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"help", no_argument, 0, 'h'},
     {"threads", required_argument, 0, 't'},
     {"nFastqs", required_argument, 0, 'N'},
+    {"barcodes", required_argument, 0, 'b'},
     {0,0,0,0}
   };
   
@@ -105,6 +107,10 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
       opt.nfiles = std::stoi(optarg);
       break;
     }
+    case 'b': {
+      stringstream(optarg) >> opt.barcode_str;
+      break;
+    }
     default: break;
     }
   }
@@ -127,7 +133,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   }
 }
 
-bool CheckOptions(ProgramOptions& opt) {
+bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
   bool ret = true;
   if (opt.threads <= 0) {
     cerr << "Error: invalid number of threads " << opt.threads << endl;
@@ -163,6 +169,25 @@ bool CheckOptions(ProgramOptions& opt) {
     }
   }
   
+  if (!opt.barcode_str.empty()) {
+    stringstream ss(opt.barcode_str);
+    while (ss.good()) {
+      string bc;
+      getline(ss, bc, ',');
+      if (!sc.addTag(bc, bc, 0, -1, 0, 0, false, false, false, false)) {
+        std::cerr << ERROR_STR << " Could not finish processing supplied barcode list" << std::endl;
+        ret = false;
+      }
+    }
+  }
+  
+  if (ret && sc.tags.size() == 0) {
+    std::cerr << ERROR_STR << " No barcodes found" << std::endl;
+    ret = false;
+  } else {
+    std::cerr << "* Using a list of " << sc.tags.size() << " barcodes"<< std::endl;
+  }
+  
   return ret;
 }
 
@@ -172,11 +197,11 @@ int main(int argc, char *argv[]) {
   setvbuf(stdout, NULL, _IOFBF, 1048576);
   ProgramOptions opt;
   ParseOptions(argc,argv,opt);
-  if (!CheckOptions(opt)) {
+  SplitCode sc;
+  if (!CheckOptions(opt, sc)) {
     usage();
     exit(1);
   }
-  SplitCode sc;
   MasterProcessor MP(sc, opt);
   ProcessReads(MP, opt);
   fflush(stdout);
