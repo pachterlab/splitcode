@@ -16,6 +16,7 @@
 
 #include "common.h"
 #include "ProcessReads.h"
+#include "SplitCode.h"
 
 
 //#define ERROR_STR "\033[1mError:\033[0m"

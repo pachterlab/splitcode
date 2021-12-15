@@ -1,8 +1,6 @@
 #ifndef SPLITCODE_COMMON_H
 #define SPLITCODE_COMMON_H
 
-#define SPLITCODE_VERSION "0.10.0"
-
 #include <string>
 #include <vector>
 #include <iostream>
