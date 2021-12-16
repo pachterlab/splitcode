@@ -44,6 +44,7 @@ struct SplitCode {
     int32_t pos_end;
     bool discard_read_if_not_present;
     bool not_include_in_barcode;
+    bool is_original_sequence;
   };
 
   
@@ -74,6 +75,7 @@ struct SplitCode {
     SplitCodeTag new_tag;
     new_tag.initiator = false;
     new_tag.terminator = false;
+    new_tag.is_original_sequence = false;
     
     if (seq.length() > 0 && seq[0] == '*') {
       new_tag.initiator = true;
@@ -121,12 +123,17 @@ struct SplitCode {
     generate_hamming_mismatches(seq, mismatch_dist, mismatches);
     for (std::string mismatch_seq : mismatches) {
       if (tags.find(mismatch_seq) != tags.end()) {
-        std::cerr << "Error: Sequence: " << name << " collides with sequence: " << tags[mismatch_seq].name << std::endl;
-        return false;
+        if (tags[mismatch_seq].is_original_sequence) {
+          std::cerr << "Error: Sequence: " << name << " collides with sequence: " << tags[mismatch_seq].name << std::endl;
+          return false;
+        } else {
+          tags.erase(mismatch_seq);
+        }
       }
       tags.insert({mismatch_seq,new_tag});
     }
     
+    new_tag.is_original_sequence = true;
     tags.insert({seq,new_tag});
     return true;
   }
