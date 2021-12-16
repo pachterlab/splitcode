@@ -223,7 +223,7 @@ int main(int argc, char *argv[]) {
     usage();
     exit(1);
   }
-  std::cerr << "* Using a list of " << sc.getNumTags() << " barcodes (map size: " << sc.tags.size() << ")" << std::endl;
+  std::cerr << "* Using a list of " << sc.getNumTags() << " barcodes (map size: " << pretty_num(sc.tags.size()) << ")" << std::endl;
   MasterProcessor MP(sc, opt);
   ProcessReads(MP, opt);
   fflush(stdout);

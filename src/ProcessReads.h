@@ -143,5 +143,6 @@ public:
   void clear();
 };
 
+std::string pretty_num(size_t num);
 
 #endif // SPLITCODE_PROCESSREADS_H
