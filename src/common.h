@@ -16,6 +16,7 @@ struct ProgramOptions {
   std::vector<std::string> files;
   std::string barcode_str;
   std::string distance_str;
+  std::string barcode_identifiers_str;
   
   ProgramOptions() :
     threads(1),
