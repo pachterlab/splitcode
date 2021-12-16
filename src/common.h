@@ -15,6 +15,7 @@ struct ProgramOptions {
   bool no_output;
   std::vector<std::string> files;
   std::string barcode_str;
+  std::string distance_str;
   
   ProgramOptions() :
     threads(1),

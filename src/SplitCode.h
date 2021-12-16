@@ -175,6 +175,14 @@ struct SplitCode {
     //for loop: addTag(...)
   }
   
+  int getNumTags() {
+    std::vector<std::string> names;
+    for (auto& it : tags)
+      names.push_back(it.second.name);
+    std::sort(names.begin(), names.end());
+    return std::unique(names.begin(), names.end()) - names.begin();
+  }
+  
   std::unordered_map<uint64_t, SplitCodeTag> tags;
   
   std::vector<std::vector<int>> idmap;

@@ -54,6 +54,7 @@ void usage() {
        << "Usage: splitcode [arguments] fastq-files" << endl << endl
        << "Options:" << endl
        << "-b, --barcodes   List of barcode sequences (comma-separated)" << endl
+       << "-d, --distances  List of hamming distance (mismatch) thresholds (comma-separated)" << endl
        << "-N, --nFastqs    Number of FASTQ file(s) per run" << endl
        << "                 (default: 1) (specify 2 for paired-end)" << endl
        << "-t, --threads    Number of threads to use" << endl
@@ -67,7 +68,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   int version_flag = 0;
   int cite_flag = 0;
 
-  const char *opt_string = "t:N:b:h";
+  const char *opt_string = "t:N:b:d:h";
   static struct option long_options[] = {
     // long args
     {"version", no_argument, &version_flag, 1},
@@ -77,6 +78,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"threads", required_argument, 0, 't'},
     {"nFastqs", required_argument, 0, 'N'},
     {"barcodes", required_argument, 0, 'b'},
+    {"distances", required_argument, 0, 'd'},
     {0,0,0,0}
   };
   
@@ -109,6 +111,10 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     }
     case 'b': {
       stringstream(optarg) >> opt.barcode_str;
+      break;
+    }
+    case 'd': {
+      stringstream(optarg) >> opt.distance_str;
       break;
     }
     default: break;
@@ -170,15 +176,32 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
   }
   
   if (!opt.barcode_str.empty()) {
-    stringstream ss(opt.barcode_str);
-    while (ss.good()) {
+    stringstream ss1(opt.barcode_str);
+    stringstream ss2(opt.distance_str);
+    while (ss1.good()) {
+      string dist = "0";
+      if (!opt.distance_str.empty()) {
+        if (!ss2.good()) {
+          std::cerr << ERROR_STR << " Number of values in --distances is less than that in --barcodes" << std::endl;
+          ret = false;
+          break;
+        }
+        getline(ss2, dist, ',');
+      }
       string bc;
-      getline(ss, bc, ',');
-      if (!sc.addTag(bc, bc, 0, -1, 0, 0, false, false)) {
+      getline(ss1, bc, ',');
+      if (!sc.addTag(bc, bc, std::stoi(dist), -1, 0, 0, false, false)) {
         std::cerr << ERROR_STR << " Could not finish processing supplied barcode list" << std::endl;
         ret = false;
       }
     }
+    if (!opt.distance_str.empty() && ss2.good()) {
+      std::cerr << ERROR_STR << " Number of values in --distances is greater than that in --barcodes" << std::endl;
+      ret = false;
+    }
+  } else if (!opt.distance_str.empty()) {
+    std::cerr << ERROR_STR << " --distances cannot be supplied unless --barcodes is" << std::endl;
+    ret = false;
   }
   
   if (ret && sc.tags.size() == 0) {
@@ -200,7 +223,7 @@ int main(int argc, char *argv[]) {
     usage();
     exit(1);
   }
-  std::cerr << "* Using a list of " << sc.tags.size() << " barcodes"<< std::endl;
+  std::cerr << "* Using a list of " << sc.getNumTags() << " barcodes"<< std::endl;
   MasterProcessor MP(sc, opt);
   ProcessReads(MP, opt);
   fflush(stdout);
