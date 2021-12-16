@@ -68,8 +68,22 @@ struct SplitCode {
   
   bool addTag(std::string seq, std::string name, uint8_t hamming, 
               int16_t file, int32_t pos_start, int32_t pos_end,
-              bool initiator, bool terminator,
               bool discard_read_if_not_present, bool not_include_in_barcode) {
+    SplitCodeTag new_tag;
+    new_tag.initiator = false;
+    new_tag.terminator = false;
+    
+    if (seq[0] == '*') {
+      new_tag.terminator = true;
+      seq.erase(0,1);
+    } else if (seq[seq.size()-1] == '*') {
+      new_tag.initiator = true;
+      seq.erase(seq.end()-1);
+    }
+    if (seq.length() == 0) {
+      std::cerr << "Error: Sequence: " << name << " is empty" << std::endl;
+      return false;
+    }
     if (seq.length() > 32) {
       std::cerr << "Error: Sequence: " << name << " cannot be longer than 32 bp's" << std::endl;
       return false;
@@ -84,9 +98,6 @@ struct SplitCode {
     
     uint64_t seq_hash = stringToBinary(seq.c_str(), seq.length());
     
-    SplitCodeTag new_tag;
-    new_tag.initiator = initiator;
-    new_tag.terminator = terminator;
     new_tag.name = name;
     new_tag.seq_hash = seq_hash;
     new_tag.hamming = hamming;

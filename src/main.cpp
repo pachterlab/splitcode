@@ -174,7 +174,7 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
     while (ss.good()) {
       string bc;
       getline(ss, bc, ',');
-      if (!sc.addTag(bc, bc, 0, -1, 0, 0, false, false, false, false)) {
+      if (!sc.addTag(bc, bc, 0, -1, 0, 0, false, false)) {
         std::cerr << ERROR_STR << " Could not finish processing supplied barcode list" << std::endl;
         ret = false;
       }
