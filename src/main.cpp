@@ -227,7 +227,7 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
     ret = false;
   }
   
-  if (ret && sc.tags.size() == 0) {
+  if (ret && (sc.getNumTags() == 0 || sc.getMapSize() == 0)) {
     std::cerr << ERROR_STR << " No barcodes found" << std::endl;
     ret = false;
   }
@@ -246,7 +246,7 @@ int main(int argc, char *argv[]) {
     usage();
     exit(1);
   }
-  std::cerr << "* Using a list of " << sc.getNumTags() << " barcodes (map size: " << pretty_num(sc.tags.size()) << ")" << std::endl;
+  std::cerr << "* Using a list of " << sc.getNumTags() << " barcodes (map size: " << pretty_num(sc.getMapSize()) << ")" << std::endl;
   MasterProcessor MP(sc, opt);
   ProcessReads(MP, opt);
   fflush(stdout);

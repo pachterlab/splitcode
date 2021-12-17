@@ -39,12 +39,12 @@ struct SplitCode {
     bool initiator;
     bool terminator;
     std::string name;
+    std::string seq;
     int16_t file;
     int32_t pos_start;
     int32_t pos_end;
     bool discard_read_if_not_present;
     bool not_include_in_barcode;
-    bool is_original_sequence;
   };
 
   
@@ -75,8 +75,8 @@ struct SplitCode {
     SplitCodeTag new_tag;
     new_tag.initiator = false;
     new_tag.terminator = false;
-    new_tag.is_original_sequence = false;
-    
+    uint32_t new_tag_index = tags_vec.size();
+
     if (seq.length() > 0 && seq[0] == '*') {
       new_tag.initiator = true;
       seq.erase(0,1);
@@ -101,6 +101,7 @@ struct SplitCode {
       }
     }
 
+    new_tag.seq = seq;
     new_tag.name = name;
     new_tag.file = file;
     new_tag.pos_start = pos_start;
@@ -109,11 +110,11 @@ struct SplitCode {
     new_tag.not_include_in_barcode = not_include_in_barcode;
     
     if (tags.find(seq) != tags.end()) {
-      std::cerr << "Error: Sequence: " << name << " collides with sequence: " << tags[seq].name << std::endl;
+      std::cerr << "Error: Sequence: " << name << " collides with sequence: " << getTag(seq).name << std::endl;
       return false;
     }
-    for (auto& it: tags) {
-      if (name == it.second.name) {
+    for (auto& it: tags_vec) {
+      if (name == it.name) {
         std::cerr << "Error: Sequence name: " << name << " is present more than once" << std::endl;
         return false;
       }
@@ -123,18 +124,18 @@ struct SplitCode {
     generate_hamming_mismatches(seq, mismatch_dist, mismatches);
     for (std::string mismatch_seq : mismatches) {
       if (tags.find(mismatch_seq) != tags.end()) {
-        if (tags[mismatch_seq].is_original_sequence) {
-          std::cerr << "Error: Sequence: " << name << " collides with sequence: " << tags[mismatch_seq].name << std::endl;
+        if (getTag(mismatch_seq).seq == mismatch_seq) {
+          std::cerr << "Error: Sequence: " << name << " collides with sequence: " << getTag(mismatch_seq).name << std::endl;
           return false;
         } else {
           tags.erase(mismatch_seq);
         }
       }
-      tags.insert({mismatch_seq,new_tag});
+      tags.insert({mismatch_seq,new_tag_index});
     }
     
-    new_tag.is_original_sequence = true;
-    tags.insert({seq,new_tag});
+    tags_vec.push_back(new_tag);
+    tags.insert({seq,new_tag_index});
     return true;
   }
   
@@ -142,15 +143,20 @@ struct SplitCode {
     //for loop: addTag(...)
   }
   
-  int getNumTags() {
-    std::vector<std::string> names;
-    for (auto& it : tags)
-      names.push_back(it.second.name);
-    std::sort(names.begin(), names.end());
-    return std::unique(names.begin(), names.end()) - names.begin();
+  SplitCodeTag getTag(std::string& seq) {
+    return tags_vec[tags[seq]];
   }
   
-  std::unordered_map<std::string, SplitCodeTag> tags;
+  int getNumTags() {
+    return tags_vec.size();
+  }
+  
+  int getMapSize() {
+    return tags.size();
+  }
+  
+  std::vector<SplitCodeTag> tags_vec;
+  std::unordered_map<std::string, uint32_t> tags;
   
   std::vector<std::vector<int>> idmap;
   std::unordered_map<std::vector<int>, int, SortedVectorHasher> idmapinv;
