@@ -60,10 +60,7 @@ int64_t ProcessReads(MasterProcessor& MP, const  ProgramOptions& opt) {
   numreads = MP.numreads;
   std::cerr << std::endl << "done " << std::endl;
   
-  int nummapped = 0;
-  for (auto& n : MP.sc.idcount)
-    nummapped += n;
-  
+  int nummapped = MP.sc.getNumMapped();
 
   std::cerr << "* processed " << pretty_num(numreads) << " reads, "
     << pretty_num(nummapped) << " reads had identifiable barcodes" << std::endl;
@@ -290,9 +287,7 @@ void ReadProcessor::processBuffer() {
 
     if (numreads > 0 && numreads % 1000000 == 0 ) { 
         numreads = 0; // reset counter
-        int nummapped = 0;
-        for (auto& n : mp.sc.idcount)
-          nummapped += n;
+        int nummapped = mp.sc.getNumMapped();
 
         std::cerr << '\r' << (mp.numreads/1000000) << "M reads processed (" 
           << std::fixed << std::setw( 3 ) << std::setprecision( 1 ) << ((100.0*nummapped)/double(mp.numreads))

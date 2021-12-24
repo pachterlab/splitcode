@@ -86,17 +86,13 @@ struct SplitCode {
       seq.erase(seq.end()-1);
     }
     if (seq.length() == 0) {
-      std::cerr << "Error: Sequence: " << name << " is empty" << std::endl;
-      return false;
-    }
-    if (seq.length() > 32) {
-      std::cerr << "Error: Sequence: " << name << " cannot be longer than 32 bp's" << std::endl;
+      std::cerr << "Error: Sequence #" << new_tag_index+1 << ": \"" << name << "\" is empty" << std::endl;
       return false;
     }
     std::transform(seq.begin(), seq.end(), seq.begin(), ::toupper);
     for (int i = 0; i < seq.size(); i++) {
       if (seq[i] != 'A' && seq[i] != 'T' && seq[i] != 'C' && seq[i] != 'G') {
-        std::cerr << "Error: Sequence: " << name << " contains a non-ATCG character" << std::endl;
+        std::cerr << "Error: Sequence #" << new_tag_index+1 << ": \"" << name << "\" contains a non-ATCG character" << std::endl;
         return false;
       }
     }
@@ -110,14 +106,9 @@ struct SplitCode {
     new_tag.not_include_in_barcode = not_include_in_barcode;
     
     if (tags.find(seq) != tags.end()) {
-      std::cerr << "Error: Sequence: " << name << " collides with sequence: " << getTag(seq).name << std::endl;
+      auto i = tags[seq];
+      std::cerr << "Error: Sequence #" << new_tag_index+1 << ": \"" << name << "\" collides with sequence #" << i+1 << ": \"" << getTag(seq).name << "\"" << std::endl;
       return false;
-    }
-    for (auto& it: tags_vec) {
-      if (name == it.name) {
-        std::cerr << "Error: Sequence name: " << name << " is present more than once" << std::endl;
-        return false;
-      }
     }
 
     std::vector<std::string> mismatches;
@@ -125,7 +116,8 @@ struct SplitCode {
     for (std::string mismatch_seq : mismatches) {
       if (tags.find(mismatch_seq) != tags.end()) {
         if (getTag(mismatch_seq).seq == mismatch_seq) {
-          std::cerr << "Error: Sequence: " << name << " collides with sequence: " << getTag(mismatch_seq).name << std::endl;
+          auto i = tags[seq];
+          std::cerr << "Error: Sequence #" << new_tag_index+1 << ": \"" << name << "\" collides with sequence #" << i+1 << ": \"" << getTag(mismatch_seq).name << "\"" << std::endl;
           return false;
         } else {
           tags.erase(mismatch_seq);
@@ -153,6 +145,14 @@ struct SplitCode {
   
   int getMapSize() {
     return tags.size();
+  }
+  
+  int getNumMapped() {
+    int nummapped = 0;
+    for (auto& n : idcount) {
+      nummapped += n;
+    }
+    return nummapped;
   }
   
   std::vector<SplitCodeTag> tags_vec;
