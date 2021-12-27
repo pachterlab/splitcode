@@ -105,46 +105,87 @@ struct SplitCode {
     new_tag.discard_read_if_not_present = discard_read_if_not_present;
     new_tag.not_include_in_barcode = not_include_in_barcode;
     
-    if (tags.find(seq) != tags.end()) {
-      auto i = tags[seq];
-      std::cerr << "Error: Sequence #" << new_tag_index+1 << ": \"" << name << "\" collides with sequence #" << i+1 << ": \"" << getTag(seq).name << "\"" << std::endl;
-      return false;
+    if (tags.find(seq) != tags.end()) { // If we've seen that sequence before
+      const auto& v = tags[seq];
+      uint32_t i;
+      if (checkCollision(new_tag, v, i)) {
+        std::cerr << "Error: Sequence #" << new_tag_index+1 << ": \"" << name << "\" collides with sequence #" << i+1 << ": \"" << tags_vec[i].name << "\"" << std::endl;
+        return false;
+      }
     }
 
     std::vector<std::string> mismatches;
     generate_hamming_mismatches(seq, mismatch_dist, mismatches);
     for (std::string mismatch_seq : mismatches) {
-      if (tags.find(mismatch_seq) != tags.end()) {
-        if (getTag(mismatch_seq).seq == mismatch_seq) {
-          auto i = tags[seq];
-          std::cerr << "Error: Sequence #" << new_tag_index+1 << ": \"" << name << "\" collides with sequence #" << i+1 << ": \"" << getTag(mismatch_seq).name << "\"" << std::endl;
+      if (tags.find(mismatch_seq) != tags.end()) { // If we've seen that sequence (mismatch_seq) before
+        auto& v = tags[mismatch_seq];
+        uint32_t i;
+        bool collision = checkCollision(new_tag, v, i);
+        if (collision && tags_vec[i].seq == mismatch_seq) { // If there is a collision AND the sequence seen before is an original (i.e. non-mismatched-generated) sequence
+          std::cerr << "Error: Sequence #" << new_tag_index+1 << ": \"" << name << "\" collides with sequence #" << i+1 << ": \"" << tags_vec[i].name << "\"" << std::endl;
           return false;
-        } else {
-          tags.erase(mismatch_seq);
+        } else if (collision) { // Deal with collisions between mismatch-generated sequences from different original barcodes
+          v.erase(std::remove(v.begin(), v.end(), i), v.end()); // Remove the previously found sequence from the vector stored in the map
+          if (v.size() == 0) { // If the vector stored in the map is now empty, remove the entry from the map
+            tags.erase(mismatch_seq);
+          }
+          continue; // Because of collision, don't want to update map
         }
       }
-      tags.insert({mismatch_seq,new_tag_index});
+      addToMap(mismatch_seq, new_tag_index);
     }
     
     tags_vec.push_back(new_tag);
-    tags.insert({seq,new_tag_index});
+    addToMap(seq, new_tag_index);
+    
     return true;
+  }
+  
+  bool checkCollision(const SplitCodeTag& tag, const std::vector<uint32_t>& v, uint32_t& i) {
+    for (auto x : v) {
+      if (1==1) { // TODO: Replace with collision checks
+        i = 0; // TODO: ^see above
+        return true;
+      }
+    }
+    return false;
+  }
+  
+  void addToMap(const std::string& seq, uint32_t index) {
+    if (tags.find(seq) != tags.end()) {
+      auto& v = tags[seq];
+      v.reserve(v.size()+1);
+      v.push_back(index);
+    } else {
+      std::vector<uint32_t> v(0);
+      v.reserve(1);
+      v.push_back(index);
+      tags.insert({seq,v});
+    }
   }
   
   void addTags(/*file*/) {
     //for loop: addTag(...)
   }
   
-  SplitCodeTag getTag(std::string& seq) {
-    return tags_vec[tags[seq]];
+  SplitCodeTag getTag(std::string& seq) { // TODO: Specify parameters (e.g. file number, location)
+    return tags_vec[tags[seq][0]];
   }
   
   int getNumTags() {
     return tags_vec.size();
   }
   
-  int getMapSize() {
-    return tags.size();
+  int getMapSize(bool unique = true) {
+    if (unique) {
+      return tags.size();
+    } else {
+      size_t map_size = 0;
+      for (auto it : tags) {
+        map_size += it.second.size();
+      }
+      return map_size;
+    }
   }
   
   int getNumMapped() {
@@ -156,7 +197,7 @@ struct SplitCode {
   }
   
   std::vector<SplitCodeTag> tags_vec;
-  std::unordered_map<std::string, uint32_t> tags;
+  std::unordered_map<std::string, std::vector<uint32_t>> tags;
   
   std::vector<std::vector<int>> idmap;
   std::unordered_map<std::vector<int>, int, SortedVectorHasher> idmapinv;
