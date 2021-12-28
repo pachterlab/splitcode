@@ -8,6 +8,7 @@
 #include <vector>
 #include <unordered_map>
 #include <algorithm>
+#include <sstream>
 
 #include "hash.hpp"
 
@@ -194,6 +195,44 @@ struct SplitCode {
       nummapped += n;
     }
     return nummapped;
+  }
+  
+  static bool parseLocation(const std::string& location, int16_t& file, int32_t& pos_start, int32_t& pos_end, int nFiles = -1) {
+    file = -1;
+    pos_start = 0;
+    pos_end = 0;
+    if (location.empty()) {
+      return true;
+    }
+    char delimeter = ':';
+    if (location.find(',') < location.length()) {
+      delimeter = ','; // If string contains commas, use commas as delimeter
+    }
+    std::stringstream ss_loc(location);
+    std::string location_attribute;
+    int i = 0;
+    try {
+      while (std::getline(ss_loc, location_attribute, delimeter)) {
+        if (!location_attribute.empty()) {
+          if (i == 0) {
+            file = std::stoi(location_attribute);
+          } else if (i == 1) {
+            pos_start = std::stoi(location_attribute);
+          } else if (i == 2) {
+            pos_end = std::stoi(location_attribute);
+          }
+        }
+        i++;
+      }
+      if (i > 3 || file < -1 || (file >= nFiles && nFiles != -1) || pos_start < 0 || pos_end < 0 || (pos_end <= pos_start && pos_end != 0)) {
+        std::cerr << "Error: --locations is malformed; unable to parse \"" << location << "\"" << std::endl;
+        return false;
+      }
+    } catch (std::invalid_argument &e) {
+      std::cerr << "Error: Could not convert \"" << location_attribute << "\" to int in --locations" << std::endl;
+      return false;
+    }
+    return true;
   }
   
   std::vector<SplitCodeTag> tags_vec;
