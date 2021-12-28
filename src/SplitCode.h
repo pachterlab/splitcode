@@ -70,7 +70,7 @@ struct SplitCode {
     }
   }
   
-  bool addTag(std::string seq, std::string name, uint8_t mismatch_dist, 
+  bool addTag(std::string seq, std::string name, uint16_t mismatch_dist, 
               int16_t file, int32_t pos_start, int32_t pos_end,
               bool discard_read_if_not_present, bool not_include_in_barcode) {
     SplitCodeTag new_tag;

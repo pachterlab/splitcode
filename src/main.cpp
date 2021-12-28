@@ -110,7 +110,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
       break;
     }
     case 'N': {
-      opt.nfiles = std::stoi(optarg);
+      stringstream(optarg) >> opt.nfiles;
       break;
     }
     case 'b': {
@@ -193,7 +193,7 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
     stringstream ss3(opt.barcode_identifiers_str);
     stringstream ss4(opt.location_str);
     while (ss1.good()) {
-      string dist = "0";
+      uint16_t dist = 0;
       string name = "";
       string location = "";
       int16_t file;
@@ -205,7 +205,9 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
           ret = false;
           break;
         }
-        getline(ss2, dist, ',');
+        string d;
+        getline(ss2, d, ',');
+        stringstream(d) >> dist;
       }
       if (!opt.barcode_identifiers_str.empty()) {
         if (!ss3.good()) {
@@ -229,7 +231,7 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
       }
       string bc;
       getline(ss1, bc, ',');
-      if (!sc.addTag(bc, name.empty() ? bc : name, std::stoi(dist), file, pos_start, pos_end, false, false)) {
+      if (!sc.addTag(bc, name.empty() ? bc : name, dist, file, pos_start, pos_end, false, false)) {
         std::cerr << ERROR_STR << " Could not finish processing supplied barcode list" << std::endl;
         ret = false;
       }
