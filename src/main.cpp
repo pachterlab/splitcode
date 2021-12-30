@@ -54,7 +54,7 @@ void usage() {
        << "Usage: splitcode [arguments] fastq-files" << endl << endl
        << "Options (for configuring on the command-line):" << endl
        << "-b, --barcodes   List of barcode sequences (comma-separated)" << endl
-       << "-d, --distances  List of hamming distance (mismatch) thresholds (comma-separated)" << endl
+       << "-d, --distances  List of error distance (mismatch:indel:total) thresholds (comma-separated)" << endl
        << "-l, --locations  List of locations (file:pos1:pos2) (comma-separated)" << endl
        << "-i, --ids        List of barcode names/identifiers (comma-separated)" << endl
        << "-f, --minFinds   List of minimum times a barcode must be found in a read (comma-separated)" << endl
@@ -216,24 +216,28 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
     stringstream ss6(opt.min_finds_str);
     stringstream ss7(opt.exclude_str);
     while (ss1.good()) {
-      uint16_t dist = 0;
       uint16_t max_finds = 0;
       uint16_t min_finds = 0;
       bool exclude = false;
       string name = "";
       string location = "";
+      string distance = "";
       int16_t file;
       int32_t pos_start;
       int32_t pos_end;
+      int mismatch, indel, total_dist;
       if (!opt.distance_str.empty()) {
         if (!ss2.good()) {
           std::cerr << ERROR_STR << " Number of values in --distances is less than that in --barcodes" << std::endl;
           ret = false;
           break;
         }
-        string d;
-        getline(ss2, d, ',');
-        stringstream(d) >> dist;
+        getline(ss2, distance, ',');
+      }
+      if (!SplitCode::parseDistance(distance, mismatch, indel, total_dist)) {
+        std::cerr << ERROR_STR << " --distances is invalid" << std::endl;
+        ret = false;
+        break;
       }
       if (!opt.barcode_identifiers_str.empty()) {
         if (!ss3.good()) {
@@ -288,7 +292,7 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
       }
       string bc;
       getline(ss1, bc, ',');
-      if (!sc.addTag(bc, name.empty() ? bc : name, dist, file, pos_start, pos_end, max_finds, min_finds, exclude)) {
+      if (!sc.addTag(bc, name.empty() ? bc : name, mismatch, indel, total_dist, file, pos_start, pos_end, max_finds, min_finds, exclude)) {
         std::cerr << ERROR_STR << " Could not finish processing supplied barcode list" << std::endl;
         ret = false;
       }

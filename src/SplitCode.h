@@ -89,7 +89,7 @@ struct SplitCode {
     }
   }
   
-  bool addTag(std::string seq, std::string name, uint16_t mismatch_dist, 
+  bool addTag(std::string seq, std::string name, int mismatch_dist, int indel_dist, int total_dist,
               int16_t file, int32_t pos_start, int32_t pos_end,
               uint16_t max_finds, uint16_t min_finds, bool not_include_in_barcode) {
     if (init) {
@@ -296,6 +296,47 @@ struct SplitCode {
       }
     } catch (std::invalid_argument &e) {
       std::cerr << "Error: Could not convert \"" << location_attribute << "\" to int in location string" << std::endl;
+      return false;
+    }
+    return true;
+  }
+  
+  static bool parseDistance(const std::string& distance, int& mismatch, int& indel, int& total_dist) {
+    mismatch = 0;
+    indel = 0;
+    total_dist = 0;
+    if (distance.empty()) {
+      return true;
+    }
+    char delimeter = ':';
+    std::stringstream ss_dist(distance);
+    std::string dist_attribute;
+    int i = 0;
+    try {
+      while (std::getline(ss_dist, dist_attribute, delimeter)) {
+        if (!dist_attribute.empty()) {
+          if (i == 0) {
+            mismatch = std::stoi(dist_attribute);
+          } else if (i == 1) {
+            indel = std::stoi(dist_attribute);
+          } else if (i == 2) {
+            total_dist = std::stoi(dist_attribute);
+          }
+        }
+        i++;
+      }
+      if (i > 3 || mismatch < 0 || indel < 0 || total_dist < 0) {
+        std::cerr << "Error: Distance string is malformed; unable to parse \"" << distance << "\"" << std::endl;
+        return false;
+      } else if (total_dist != 0 && (mismatch + indel < total_dist || mismatch > total_dist || indel > total_dist)) {
+        std::cerr << "Error: Distance string is invalid: \"" << distance << "\"" << std::endl;
+        return false;
+      }
+      if (total_dist == 0) {
+        total_dist = mismatch + indel;
+      }
+    } catch (std::invalid_argument &e) {
+      std::cerr << "Error: Could not convert \"" << dist_attribute << "\" to int in distance string" << std::endl;
       return false;
     }
     return true;
