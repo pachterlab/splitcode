@@ -18,6 +18,8 @@ struct ProgramOptions {
   std::string distance_str;
   std::string location_str;
   std::string barcode_identifiers_str;
+  std::string max_finds_str;
+  std::string min_finds_str;
   
   ProgramOptions() :
     threads(1),

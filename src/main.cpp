@@ -52,11 +52,15 @@ void PrintVersion() {
 void usage() {
   cout << "splitcode " << SPLITCODE_VERSION << endl << endl
        << "Usage: splitcode [arguments] fastq-files" << endl << endl
-       << "Options:" << endl
+       << "Options (for configuring on the command-line):" << endl
        << "-b, --barcodes   List of barcode sequences (comma-separated)" << endl
        << "-d, --distances  List of hamming distance (mismatch) thresholds (comma-separated)" << endl
        << "-l, --locations  List of locations (file:pos1:pos2) (comma-separated)" << endl
        << "-i, --ids        List of barcode names/identifiers (comma-separated)" << endl
+       << "-f, --minFinds   List of minimum times a barcode must be found in a read (comma-separated)" << endl
+       << "-F, --maxFinds   List of maximum times a barcode can be found in a read (comma-separated)" << endl
+       << "Options (configurations supplied in a file):" << endl
+       << "Other Options:" << endl
        << "-N, --nFastqs    Number of FASTQ file(s) per run" << endl
        << "                 (default: 1) (specify 2 for paired-end)" << endl
        << "-t, --threads    Number of threads to use" << endl
@@ -70,7 +74,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   int version_flag = 0;
   int cite_flag = 0;
 
-  const char *opt_string = "t:N:b:d:i:l:h";
+  const char *opt_string = "t:N:b:d:i:l:f:F:h";
   static struct option long_options[] = {
     // long args
     {"version", no_argument, &version_flag, 1},
@@ -83,6 +87,8 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"distances", required_argument, 0, 'd'},
     {"locations", required_argument, 0, 'l'},
     {"ids", required_argument, 0, 'i'},
+    {"maxFinds", required_argument, 0, 'F'},
+    {"minFinds", required_argument, 0, 'f'},
     {0,0,0,0}
   };
   
@@ -127,6 +133,14 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     }
     case 'i': {
       stringstream(optarg) >> opt.barcode_identifiers_str;
+      break;
+    }
+    case 'F': {
+      stringstream(optarg) >> opt.max_finds_str;
+      break;
+    }
+    case 'f': {
+      stringstream(optarg) >> opt.min_finds_str;
       break;
     }
     default: break;
@@ -192,8 +206,12 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
     stringstream ss2(opt.distance_str);
     stringstream ss3(opt.barcode_identifiers_str);
     stringstream ss4(opt.location_str);
+    stringstream ss5(opt.max_finds_str);
+    stringstream ss6(opt.min_finds_str);
     while (ss1.good()) {
       uint16_t dist = 0;
+      uint16_t max_finds = 0;
+      uint16_t min_finds = 0;
       string name = "";
       string location = "";
       int16_t file;
@@ -230,9 +248,29 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
         ret = false;
         break;
       }
+      if (!opt.max_finds_str.empty()) {
+        if (!ss5.good()) {
+          std::cerr << ERROR_STR << " Number of values in --maxFinds is less than that in --barcodes" << std::endl;
+          ret = false;
+          break;
+        }
+        string f;
+        getline(ss5, f, ',');
+        stringstream(f) >> max_finds;
+      }
+      if (!opt.min_finds_str.empty()) {
+        if (!ss6.good()) {
+          std::cerr << ERROR_STR << " Number of values in --minFinds is less than that in --barcodes" << std::endl;
+          ret = false;
+          break;
+        }
+        string f;
+        getline(ss6, f, ',');
+        stringstream(f) >> min_finds;
+      }
       string bc;
       getline(ss1, bc, ',');
-      if (!sc.addTag(bc, name.empty() ? bc : name, dist, file, pos_start, pos_end, false, false)) {
+      if (!sc.addTag(bc, name.empty() ? bc : name, dist, file, pos_start, pos_end, max_finds, min_finds, false)) {
         std::cerr << ERROR_STR << " Could not finish processing supplied barcode list" << std::endl;
         ret = false;
       }
@@ -249,6 +287,14 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
       std::cerr << ERROR_STR << " Number of values in --locations is greater than that in --barcodes" << std::endl;
       ret = false;
     }
+    if (!opt.max_finds_str.empty() && ss5.good()) {
+      std::cerr << ERROR_STR << " Number of values in --maxFinds is greater than that in --barcodes" << std::endl;
+      ret = false;
+    }
+    if (!opt.min_finds_str.empty() && ss6.good()) {
+      std::cerr << ERROR_STR << " Number of values in --minFinds is greater than that in --barcodes" << std::endl;
+      ret = false;
+    }
   } else if (!opt.distance_str.empty()) {
     std::cerr << ERROR_STR << " --distances cannot be supplied unless --barcodes is" << std::endl;
     ret = false;
@@ -257,6 +303,12 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
     ret = false;
   } else if (!opt.location_str.empty()) {
     std::cerr << ERROR_STR << " --locations cannot be supplied unless --barcodes is" << std::endl;
+    ret = false;
+  } else if (!opt.max_finds_str.empty()) {
+    std::cerr << ERROR_STR << " --maxFinds cannot be supplied unless --barcodes is" << std::endl;
+    ret = false;
+  } else if (!opt.min_finds_str.empty()) {
+    std::cerr << ERROR_STR << " --minFinds cannot be supplied unless --barcodes is" << std::endl;
     ret = false;
   }
   

@@ -61,6 +61,8 @@ struct SplitCode {
     int16_t file;
     int32_t pos_start;
     int32_t pos_end;
+    uint16_t max_finds;
+    uint16_t min_finds;
     bool discard_read_if_not_present;
     bool not_include_in_barcode;
   };
@@ -89,7 +91,7 @@ struct SplitCode {
   
   bool addTag(std::string seq, std::string name, uint16_t mismatch_dist, 
               int16_t file, int32_t pos_start, int32_t pos_end,
-              bool discard_read_if_not_present, bool not_include_in_barcode) {
+              uint16_t max_finds, uint16_t min_finds, bool not_include_in_barcode) {
     if (init) {
       std::cerr << "Error: Already initialized" << std::endl;
       return false;
@@ -123,13 +125,21 @@ struct SplitCode {
       std::cerr << "Error: Sequence #" << new_tag_index+1 << ": \"" << name << "\" is too long to fit in the supplied location" << std::endl;
       return false;
     }
+    if (max_finds == 0) { // 0 = no restrictions
+      max_finds = -1; // max unsigned int
+    }
+    if (max_finds < min_finds) {
+      std::cerr << "Error: Sequence #" << new_tag_index+1 << ": \"" << name << "\" -- max finds cannot be less than min finds" << std::endl;
+      return false;
+    }
 
     new_tag.seq = seq;
     new_tag.name = name;
     new_tag.file = file;
     new_tag.pos_start = pos_start;
     new_tag.pos_end = pos_end;
-    new_tag.discard_read_if_not_present = discard_read_if_not_present;
+    new_tag.max_finds = max_finds;
+    new_tag.min_finds = min_finds;
     new_tag.not_include_in_barcode = not_include_in_barcode;
     
     if (tags.find(seq) != tags.end()) { // If we've seen that sequence before
