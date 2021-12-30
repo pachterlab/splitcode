@@ -20,6 +20,7 @@ struct ProgramOptions {
   std::string barcode_identifiers_str;
   std::string max_finds_str;
   std::string min_finds_str;
+  std::string exclude_str;
   
   ProgramOptions() :
     threads(1),
