@@ -7,6 +7,7 @@
 #include <iostream>
 #include <vector>
 #include <unordered_map>
+#include <set>
 #include <algorithm>
 #include <sstream>
 
@@ -14,11 +15,27 @@
 
 struct SplitCode {
   SplitCode() {
-    
+    init = false;
+  }
+  
+  void checkInit() { // Initialize if necessary (once initialized, can't add any more barcode tags)
+    if (init) {
+      return;
+    }
+    // Trim out some tags to create the final 'index'
+    for (auto x : tags_to_remove) {
+      auto& v = tags[x.first];
+      v.erase(std::remove(v.begin(), v.end(), x.second), v.end()); // Remove the sequence from the vector stored in the map
+      if (v.size() == 0) { // If the vector stored in the map is now empty, remove the entry from the map
+        tags.erase(x.first);
+      }
+    }
+    tags_to_remove.clear();
+    init = true;
   }
   
   void update(const std::vector<int>& c, const std::vector<std::vector<int>>& IDs, const std::vector<std::vector<int>>& newIDs) {
-    
+    checkInit();
   }
   
   struct SortedVectorHasher {
@@ -73,6 +90,11 @@ struct SplitCode {
   bool addTag(std::string seq, std::string name, uint16_t mismatch_dist, 
               int16_t file, int32_t pos_start, int32_t pos_end,
               bool discard_read_if_not_present, bool not_include_in_barcode) {
+    if (init) {
+      std::cerr << "Error: Already initialized" << std::endl;
+      return false;
+    }
+
     SplitCodeTag new_tag;
     new_tag.initiator = false;
     new_tag.terminator = false;
@@ -97,6 +119,10 @@ struct SplitCode {
         return false;
       }
     }
+    if (pos_end != 0 && pos_end - pos_start < seq.length()) {
+      std::cerr << "Error: Sequence #" << new_tag_index+1 << ": \"" << name << "\" is too long to fit in the supplied location" << std::endl;
+      return false;
+    }
 
     new_tag.seq = seq;
     new_tag.name = name;
@@ -108,8 +134,9 @@ struct SplitCode {
     
     if (tags.find(seq) != tags.end()) { // If we've seen that sequence before
       const auto& v = tags[seq];
-      uint32_t i;
-      if (checkCollision(new_tag, v, i)) {
+      std::vector<uint32_t> vi;
+      if (checkCollision(new_tag, v, vi)) {
+        auto i = vi[0];
         std::cerr << "Error: Sequence #" << new_tag_index+1 << ": \"" << name << "\" collides with sequence #" << i+1 << ": \"" << tags_vec[i].name << "\"" << std::endl;
         return false;
       }
@@ -120,17 +147,17 @@ struct SplitCode {
     for (std::string mismatch_seq : mismatches) {
       if (tags.find(mismatch_seq) != tags.end()) { // If we've seen that sequence (mismatch_seq) before
         auto& v = tags[mismatch_seq];
-        uint32_t i;
-        bool collision = checkCollision(new_tag, v, i);
-        if (collision && tags_vec[i].seq == mismatch_seq) { // If there is a collision AND the sequence seen before is an original (i.e. non-mismatched-generated) sequence
-          std::cerr << "Error: Sequence #" << new_tag_index+1 << ": \"" << name << "\" collides with sequence #" << i+1 << ": \"" << tags_vec[i].name << "\"" << std::endl;
-          return false;
-        } else if (collision) { // Deal with collisions between mismatch-generated sequences from different original barcodes
-          v.erase(std::remove(v.begin(), v.end(), i), v.end()); // Remove the previously found sequence from the vector stored in the map
-          if (v.size() == 0) { // If the vector stored in the map is now empty, remove the entry from the map
-            tags.erase(mismatch_seq);
+        std::vector<uint32_t> vi;
+        bool collision = checkCollision(new_tag, v, vi);
+        if (collision) {
+          for (auto i : vi) {
+            if (collision && tags_vec[i].seq == mismatch_seq) { // If there is a collision AND the sequence seen before is an original (i.e. non-mismatched-generated) sequence
+              std::cerr << "Error: Sequence #" << new_tag_index+1 << ": \"" << name << "\" collides with sequence #" << i+1 << ": \"" << tags_vec[i].name << "\"" << std::endl;
+              return false;
+            }
+            tags_to_remove.insert(std::make_pair(mismatch_seq, i)); // Mark for removal
           }
-          continue; // Because of collision, don't want to update map
+          tags_to_remove.insert(std::make_pair(mismatch_seq, new_tag_index)); // Mark new_tag for removal (we remove later rather than now to account for future addTag(...) collision)
         }
       }
       addToMap(mismatch_seq, new_tag_index);
@@ -142,14 +169,40 @@ struct SplitCode {
     return true;
   }
   
-  bool checkCollision(const SplitCodeTag& tag, const std::vector<uint32_t>& v, uint32_t& i) {
+  bool checkCollision(const SplitCodeTag& tag, const std::vector<uint32_t>& v, std::vector<uint32_t>& vi, bool fill_vi=true) {
+    bool ret = false;
     for (auto x : v) {
-      if (1==1) { // TODO: Replace with collision checks
-        i = 0; // TODO: ^see above
-        return true;
+      if (overlapRegion(tag, tags_vec[x])) {
+        if (!fill_vi) { // If fill_vi is false, no need to check for every collision
+          return true;
+        }
+        vi.push_back(x); // Add the indices of every tag in vector v that collided with the supplied tag to vector vi
+        ret = true;
       }
     }
-    return false;
+    return ret;
+  }
+  
+  bool checkCollision(const SplitCodeTag& tag, const std::vector<uint32_t>& v) {
+    std::vector<uint32_t> vi;
+    return checkCollision(tag, v, vi, false);
+  }
+  
+  bool overlapRegion(int16_t file_1, int32_t pos_start_1, int32_t pos_end_1, int16_t file_2, int32_t pos_start_2, int32_t pos_end_2) {
+    if (file_1 != file_2 && !(file_1 == -1 || file_2 == -1)) {
+      return false;
+    }
+    if (pos_start_1 < pos_start_2 && pos_end_1 <= pos_start_2 && pos_end_1 != 0) {
+      return false;
+    }
+    if (pos_start_2 < pos_start_1 && pos_end_2 <= pos_start_1 && pos_end_2 != 0) {
+      return false;
+    }
+    return true;
+  }
+  
+  bool overlapRegion(const SplitCodeTag& tag1, const SplitCodeTag& tag2) {
+    return overlapRegion(tag1.file, tag1.pos_start, tag1.pos_end, tag2.file, tag2.pos_start, tag2.pos_end);
   }
   
   void addToMap(const std::string& seq, uint32_t index) {
@@ -167,9 +220,11 @@ struct SplitCode {
   
   void addTags(/*file*/) {
     //for loop: addTag(...)
+    checkInit();
   }
   
   SplitCodeTag getTag(std::string& seq) { // TODO: Specify parameters (e.g. file number, location)
+    checkInit();
     return tags_vec[tags[seq][0]];
   }
   
@@ -178,6 +233,7 @@ struct SplitCode {
   }
   
   int getMapSize(bool unique = true) {
+    checkInit();
     if (unique) {
       return tags.size();
     } else {
@@ -225,11 +281,11 @@ struct SplitCode {
         i++;
       }
       if (i > 3 || file < -1 || (file >= nFiles && nFiles != -1) || pos_start < 0 || pos_end < 0 || (pos_end <= pos_start && pos_end != 0)) {
-        std::cerr << "Error: --locations is malformed; unable to parse \"" << location << "\"" << std::endl;
+        std::cerr << "Error: Location string is malformed; unable to parse \"" << location << "\"" << std::endl;
         return false;
       }
     } catch (std::invalid_argument &e) {
-      std::cerr << "Error: Could not convert \"" << location_attribute << "\" to int in --locations" << std::endl;
+      std::cerr << "Error: Could not convert \"" << location_attribute << "\" to int in location string" << std::endl;
       return false;
     }
     return true;
@@ -237,10 +293,13 @@ struct SplitCode {
   
   std::vector<SplitCodeTag> tags_vec;
   std::unordered_map<std::string, std::vector<uint32_t>> tags;
+  std::set<std::pair<std::string, uint32_t>> tags_to_remove;
   
   std::vector<std::vector<int>> idmap;
   std::unordered_map<std::vector<int>, int, SortedVectorHasher> idmapinv;
   std::vector<int> idcount;
+  
+  bool init;
 };
 
 

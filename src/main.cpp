@@ -226,6 +226,7 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
         getline(ss4, location, ',');
       }
       if (!SplitCode::parseLocation(location, file, pos_start, pos_end, opt.nfiles)) {
+        std::cerr << ERROR_STR << " --locations is invalid" << std::endl;
         ret = false;
         break;
       }
