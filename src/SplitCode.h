@@ -10,6 +10,8 @@
 #include <set>
 #include <algorithm>
 #include <sstream>
+#include <fstream>
+#include <sys/stat.h>
 
 #include "hash.hpp"
 
@@ -228,9 +230,85 @@ struct SplitCode {
     }
   }
   
-  void addTags(/*file*/) {
-    //for loop: addTag(...)
+  bool addTags(std::string config_file) {
+    if (init) {
+      std::cerr << "Error: Already initialized" << std::endl;
+      return false;
+    }
+    struct stat stFileInfo;
+    auto intstat = stat(config_file.c_str(), &stFileInfo);
+    if (intstat != 0) {
+      std::cerr << "Error: file not found " << config_file << std::endl;
+      return false;
+    }
+    std::ifstream cfile(config_file);
+    std::string line;
+    bool header_read = false;
+    std::vector<std::string> h;
+    while (std::getline(cfile,line)) {
+      if (line.size() == 0) {
+        continue;
+      }
+      if (line[0] == '#') {
+        continue;
+      }
+      std::stringstream ss(line);
+      std::string field;
+      if (!header_read) {
+        while (ss >> field) {
+          std::transform(field.begin(), field.end(), field.begin(), ::toupper);
+          h.push_back(field);
+        }
+        if (std::find(h.begin(), h.end(), "BARCODES") == h.end()) {
+          std::cerr << "Error: The file \"" << config_file << "\" must contain a header with, minimally, a column header named barcodes" << std::endl;
+          return false;
+        }
+        if (std::set<std::string>(h.begin(), h.end()).size() != h.size()) {
+          std::cerr << "Error: The file \"" << config_file << "\" has a header with duplicate column names" << std::endl;
+          return false;
+        }
+        header_read = true;
+        continue;
+      }
+      std::string bc = "";
+      std::string name = "";
+      int mismatch, indel, total_dist;
+      parseDistance("", mismatch, indel, total_dist); // Set up default values
+      int16_t file;
+      int32_t pos_start;
+      int32_t pos_end;
+      parseLocation("", file, pos_start, pos_end); // Set up default values
+      uint16_t max_finds = 0;
+      uint16_t min_finds = 0;
+      bool exclude = false;
+      bool ret = true;
+      for (int i = 0; ss >> field; i++) {
+        if (h[i] == "BARCODES") {
+          bc = field;
+        } else if (h[i] == "DISTANCES") {
+          ret = ret && parseDistance(field, mismatch, indel, total_dist);
+        } else if (h[i] == "LOCATIONS") {
+          ret = ret && parseLocation(field, file, pos_start, pos_end);
+        } else if (h[i] == "IDS") {
+          name = field;
+        } else if (h[i] == "MINFINDS") {
+          std::stringstream(field) >> min_finds;
+        } else if (h[i] == "MAXFINDS") {
+          std::stringstream(field) >> max_finds;
+        } else if (h[i] == "EXCLUDE") {
+          std::stringstream(field) >> exclude;
+        } else {
+          std::cerr << "Error: The file \"" << config_file << "\" contains the invalid column header: " << h[i] << std::endl;
+          return false;
+        }
+      }
+      if (!ret || !addTag(bc, name.empty() ? bc : name, mismatch, indel, total_dist, file, pos_start, pos_end, max_finds, min_finds, exclude)) {
+        std::cerr << "Error: The file \"" << config_file << "\" contains an error" << std::endl;
+        return false;
+      }
+    }
     checkInit();
+    return true;
   }
   
   SplitCodeTag getTag(std::string& seq) { // TODO: Specify parameters (e.g. file number, location)

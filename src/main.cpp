@@ -61,6 +61,7 @@ void usage() {
        << "-F, --maxFinds   List of maximum times a barcode can be found in a read (comma-separated)" << endl
        << "-e, --exclude    List of what to exclude from final barcode (comma-separated; 1 = exclude, 0 = include)" << endl
        << "Options (configurations supplied in a file):" << endl
+       << "-c, --config     Configuration file" << endl
        << "Other Options:" << endl
        << "-N, --nFastqs    Number of FASTQ file(s) per run" << endl
        << "                 (default: 1) (specify 2 for paired-end)" << endl
@@ -75,7 +76,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   int version_flag = 0;
   int cite_flag = 0;
 
-  const char *opt_string = "t:N:b:d:i:l:f:F:e:h";
+  const char *opt_string = "t:N:b:d:i:l:f:F:e:c:h";
   static struct option long_options[] = {
     // long args
     {"version", no_argument, &version_flag, 1},
@@ -91,6 +92,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"maxFinds", required_argument, 0, 'F'},
     {"minFinds", required_argument, 0, 'f'},
     {"exclude", required_argument, 0, 'e'},
+    {"config", required_argument, 0, 'c'},
     {0,0,0,0}
   };
   
@@ -147,6 +149,10 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     }
     case 'e': {
       stringstream(optarg) >> opt.exclude_str;
+      break;
+    }
+    case 'c': {
+      stringstream(optarg) >> opt.config_file;
       break;
     }
     default: break;
@@ -207,7 +213,10 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
     }
   }
   
-  if (!opt.barcode_str.empty()) {
+  if (!opt.barcode_str.empty() && !opt.config_file.empty()) {
+    std::cerr << ERROR_STR << " Cannot specify both --barcodes and --config" << std::endl;
+    ret = false;
+  } else if (!opt.barcode_str.empty()) {
     stringstream ss1(opt.barcode_str);
     stringstream ss2(opt.distance_str);
     stringstream ss3(opt.barcode_identifiers_str);
@@ -339,6 +348,8 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
   } else if (!opt.exclude_str.empty()) {
     std::cerr << ERROR_STR << " --exclude cannot be supplied unless --barcodes is" << std::endl;
     ret = false;
+  } else if (!opt.config_file.empty()) {
+    ret = ret && sc.addTags(opt.config_file);
   }
   
   if (ret && (sc.getNumTags() == 0 || sc.getMapSize() == 0)) {

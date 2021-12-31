@@ -21,6 +21,7 @@ struct ProgramOptions {
   std::string max_finds_str;
   std::string min_finds_str;
   std::string exclude_str;
+  std::string config_file;
   
   ProgramOptions() :
     threads(1),
