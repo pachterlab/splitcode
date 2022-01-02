@@ -91,6 +91,62 @@ struct SplitCode {
     }
   }
   
+  void generate_indels(std::string seq, int dist, std::unordered_map<std::string,int>& results, std::string original = "") {
+    // Much less elegant than generate_hamming_mismatches(...) but oh well... 
+    // Note: results contains the modified string and how many remaining modifications could be applied
+    if (dist == 0) {
+      return;
+    }
+    if (original.empty()) {
+      original = seq;
+    }
+    size_t bc = seq.length();
+    for (size_t i = 0; i <= bc; ++i) {
+      char bases[] = {'A','T','C','G'};
+      // Insertions: 
+      for (int d = 0; d < 4; d++) {
+        std::string y = seq;
+        y.insert(i,1,bases[d]);
+        if (y != original && (results.find(y) == results.end() || results[y] < dist-1)) {
+          results[y] = dist-1;
+          generate_indels(y, dist-1, results, original);
+        }
+      }
+      // Deletions:
+      if (i < bc) {
+        std::string y = seq;
+        y.erase(i,1);
+        if (y != original && (results.find(y) == results.end() || results[y] < dist-1)) {
+          results[y] = dist-1;
+          generate_indels(y, dist-1, results, original);
+        }
+      }
+    }
+  }
+  
+  void generate_indels_hamming_mismatches(std::string seq, int mismatch_dist, int indel_dist, int total_dist, std::vector<std::string>& results) {
+    mismatch_dist = std::min(mismatch_dist, total_dist);
+    indel_dist = std::min(indel_dist, total_dist);
+    if (indel_dist == 0) { // Handle hamming mismatches only
+      generate_hamming_mismatches(seq, mismatch_dist, results);
+      return;
+    }
+    std::unordered_map<std::string,int> indel_results;
+    generate_indels(seq, indel_dist, indel_results);
+    generate_hamming_mismatches(seq, mismatch_dist, results);
+    for (auto r : indel_results) {
+      results.push_back(r.first);
+      int indels_dist_used = indel_dist - r.second;
+      generate_hamming_mismatches(r.first, std::min(total_dist - indels_dist_used, mismatch_dist), results);
+    }
+    // Remove duplicates from vector:
+    std::set<std::string> s;
+    for(std::string r : results) {
+      s.insert(r);
+    }
+    results.assign(s.begin(), s.end());
+  }
+  
   bool addTag(std::string seq, std::string name, int mismatch_dist, int indel_dist, int total_dist,
               int16_t file, int32_t pos_start, int32_t pos_end,
               uint16_t max_finds, uint16_t min_finds, bool not_include_in_barcode) {
@@ -155,7 +211,7 @@ struct SplitCode {
     }
 
     std::vector<std::string> mismatches;
-    generate_hamming_mismatches(seq, mismatch_dist, mismatches);
+    generate_indels_hamming_mismatches(seq, mismatch_dist, indel_dist, total_dist, mismatches);
     for (std::string mismatch_seq : mismatches) {
       if (tags.find(mismatch_seq) != tags.end()) { // If we've seen that sequence (mismatch_seq) before
         auto& v = tags[mismatch_seq];
