@@ -228,7 +228,6 @@ struct SplitCode {
         const auto& v = tags[seq];
         std::vector<uint32_t> vi;
         if (checkCollision(new_tag, v, vi)) {
-          auto i = vi[0];
           for (auto i : vi) {
             if (i != new_tag_index) {
               std::cerr << "Error: Sequence #" << new_tag_index+1 << ": \"" << name << "\" collides with sequence #" << i+1 << ": \"" << tags_vec[i].name << "\"" << std::endl;
