@@ -65,7 +65,6 @@ struct SplitCode {
     int32_t pos_end;
     uint16_t max_finds;
     uint16_t min_finds;
-    bool discard_read_if_not_present;
     bool not_include_in_barcode;
   };
 
@@ -116,7 +115,7 @@ struct SplitCode {
       if (i < bc) {
         std::string y = seq;
         y.erase(i,1);
-        if (y != original && (results.find(y) == results.end() || results[y] < dist-1)) {
+        if (y != original && y != "" && (results.find(y) == results.end() || results[y] < dist-1)) {
           results[y] = dist-1;
           generate_indels(y, dist-1, results, original);
         }
@@ -147,6 +146,20 @@ struct SplitCode {
     results.assign(s.begin(), s.end());
   }
   
+  bool matchSequences(const SplitCodeTag& tag, const std::string& match_seq) {
+    // Returns true if one of the sequences in tag is equal to seq
+    // (Remember: tag.seq can have multiple sequences separated by '/')
+    char delimeter = '/';
+    std::stringstream ss(tag.seq);
+    std::string seq;
+    while (std::getline(ss, seq, delimeter)) {
+      if (seq == match_seq) {
+        return true;
+      }
+    }
+    return false;
+  }
+  
   bool addTag(std::string seq, std::string name, int mismatch_dist, int indel_dist, int total_dist,
               int16_t file, int32_t pos_start, int32_t pos_end,
               uint16_t max_finds, uint16_t min_finds, bool not_include_in_barcode) {
@@ -172,17 +185,6 @@ struct SplitCode {
       std::cerr << "Error: Sequence #" << new_tag_index+1 << ": \"" << name << "\" is empty" << std::endl;
       return false;
     }
-    std::transform(seq.begin(), seq.end(), seq.begin(), ::toupper);
-    for (int i = 0; i < seq.size(); i++) {
-      if (seq[i] != 'A' && seq[i] != 'T' && seq[i] != 'C' && seq[i] != 'G') {
-        std::cerr << "Error: Sequence #" << new_tag_index+1 << ": \"" << name << "\" contains a non-ATCG character" << std::endl;
-        return false;
-      }
-    }
-    if (pos_end != 0 && pos_end - pos_start < seq.length()) {
-      std::cerr << "Error: Sequence #" << new_tag_index+1 << ": \"" << name << "\" is too long to fit in the supplied location" << std::endl;
-      return false;
-    }
     if (max_finds == 0) { // 0 = no restrictions
       max_finds = -1; // max unsigned int
     }
@@ -190,7 +192,8 @@ struct SplitCode {
       std::cerr << "Error: Sequence #" << new_tag_index+1 << ": \"" << name << "\" -- max finds cannot be less than min finds" << std::endl;
       return false;
     }
-
+    
+    std::transform(seq.begin(), seq.end(), seq.begin(), ::toupper);
     new_tag.seq = seq;
     new_tag.name = name;
     new_tag.file = file;
@@ -200,39 +203,71 @@ struct SplitCode {
     new_tag.min_finds = min_finds;
     new_tag.not_include_in_barcode = not_include_in_barcode;
     
-    if (tags.find(seq) != tags.end()) { // If we've seen that sequence before
-      const auto& v = tags[seq];
-      std::vector<uint32_t> vi;
-      if (checkCollision(new_tag, v, vi)) {
-        auto i = vi[0];
-        std::cerr << "Error: Sequence #" << new_tag_index+1 << ": \"" << name << "\" collides with sequence #" << i+1 << ": \"" << tags_vec[i].name << "\"" << std::endl;
+    // Now deal with adding the actual sequence:
+    char delimeter = '/'; // Sequence can be delimited by '/' if the user gives multiple sequences for one tag record
+    std::stringstream ss(new_tag.seq);
+    int num_seqs = 0;
+    tags_vec.push_back(new_tag);
+    while (std::getline(ss, seq, delimeter)) {
+      if (seq.empty()) {
+        continue;
+      }
+      ++num_seqs;
+      for (int i = 0; i < seq.size(); i++) {
+        if (seq[i] != 'A' && seq[i] != 'T' && seq[i] != 'C' && seq[i] != 'G') {
+          std::cerr << "Error: Sequence #" << new_tag_index+1 << ": \"" << name << "\" contains a non-ATCG character" << std::endl;
+          return false;
+        }
+      }
+      if (pos_end != 0 && pos_end - pos_start < seq.length()) {
+        std::cerr << "Error: Sequence #" << new_tag_index+1 << ": \"" << name << "\" is too long to fit in the supplied location" << std::endl;
         return false;
       }
-    }
-
-    std::vector<std::string> mismatches;
-    generate_indels_hamming_mismatches(seq, mismatch_dist, indel_dist, total_dist, mismatches);
-    for (std::string mismatch_seq : mismatches) {
-      if (tags.find(mismatch_seq) != tags.end()) { // If we've seen that sequence (mismatch_seq) before
-        auto& v = tags[mismatch_seq];
+      
+      if (tags.find(seq) != tags.end()) { // If we've seen that sequence before
+        const auto& v = tags[seq];
         std::vector<uint32_t> vi;
-        bool collision = checkCollision(new_tag, v, vi);
-        if (collision) {
+        if (checkCollision(new_tag, v, vi)) {
+          auto i = vi[0];
           for (auto i : vi) {
-            if (collision && tags_vec[i].seq == mismatch_seq) { // If there is a collision AND the sequence seen before is an original (i.e. non-mismatched-generated) sequence
+            if (i != new_tag_index) {
               std::cerr << "Error: Sequence #" << new_tag_index+1 << ": \"" << name << "\" collides with sequence #" << i+1 << ": \"" << tags_vec[i].name << "\"" << std::endl;
               return false;
             }
-            tags_to_remove.insert(std::make_pair(mismatch_seq, i)); // Mark for removal
           }
-          tags_to_remove.insert(std::make_pair(mismatch_seq, new_tag_index)); // Mark new_tag for removal (we remove later rather than now to account for future addTag(...) collision)
         }
       }
-      addToMap(mismatch_seq, new_tag_index);
+      
+      std::vector<std::string> mismatches;
+      generate_indels_hamming_mismatches(seq, mismatch_dist, indel_dist, total_dist, mismatches);
+      for (std::string mismatch_seq : mismatches) {
+        if (tags.find(mismatch_seq) != tags.end()) { // If we've seen that sequence (mismatch_seq) before
+          auto& v = tags[mismatch_seq];
+          std::vector<uint32_t> vi;
+          bool collision = checkCollision(new_tag, v, vi);
+          if (collision) {
+            for (auto i : vi) {
+              if (i == new_tag_index) {
+                continue;
+              }
+              if (collision && matchSequences(tags_vec[i], mismatch_seq)) { // If there is a collision AND the sequence seen before is an original (i.e. non-mismatched-generated) sequence
+                std::cerr << "Error: Sequence #" << new_tag_index+1 << ": \"" << name << "\" collides with sequence #" << i+1 << ": \"" << tags_vec[i].name << "\"" << std::endl;
+                return false;
+              }
+              tags_to_remove.insert(std::make_pair(mismatch_seq, i)); // Mark for removal
+              tags_to_remove.insert(std::make_pair(mismatch_seq, new_tag_index)); // Mark new_tag for removal (we remove later rather than now to account for future addTag(...) collision)
+            }
+          }
+        }
+        addToMap(mismatch_seq, new_tag_index);
+      }
+      addToMap(seq, new_tag_index);
     }
     
-    tags_vec.push_back(new_tag);
-    addToMap(seq, new_tag_index);
+    if (num_seqs == 0) {
+      std::cerr << "Error: Sequence #" << new_tag_index+1 << ": \"" << name << "\" is empty" << std::endl;
+      return false;
+    }
     
     return true;
   }
@@ -276,8 +311,10 @@ struct SplitCode {
   void addToMap(const std::string& seq, uint32_t index) {
     if (tags.find(seq) != tags.end()) {
       auto& v = tags[seq];
-      v.reserve(v.size()+1);
-      v.push_back(index);
+      if (std::find(v.begin(), v.end(), index) == v.end()) {
+        v.reserve(v.size()+1);
+        v.push_back(index);
+      }
     } else {
       std::vector<uint32_t> v(0);
       v.reserve(1);
