@@ -16,6 +16,8 @@
 #include "hash.hpp"
 
 struct SplitCode {
+  typedef std::pair<uint32_t,short> tval; // first element of pair is tag id, second is mismatch distance
+  
   SplitCode() {
     init = false;
   }
@@ -27,7 +29,14 @@ struct SplitCode {
     // Trim out some tags to create the final 'index'
     for (auto x : tags_to_remove) {
       auto& v = tags[x.first];
-      v.erase(std::remove(v.begin(), v.end(), x.second), v.end()); // Remove the sequence from the vector stored in the map
+      auto it = v.begin();
+      while (it != v.end()) {
+        if ((*it).first == x.second) {
+          it = v.erase(it); // Remove the sequence from the vector stored in the map
+        } else {
+          ++it;
+        }
+      }
       if (v.size() == 0) { // If the vector stored in the map is now empty, remove the entry from the map
         tags.erase(x.first);
       }
@@ -69,7 +78,7 @@ struct SplitCode {
   };
 
   
-  void generate_hamming_mismatches(std::string seq, int dist, std::vector<std::string>& results, std::vector<size_t> pos = std::vector<size_t>()) {
+  void generate_hamming_mismatches(std::string seq, int dist, std::unordered_map<std::string,int>& results, std::vector<size_t> pos = std::vector<size_t>()) {
     if (dist == 0) {
       return;
     }
@@ -81,7 +90,9 @@ struct SplitCode {
           if (seq[i] != bases[d]) {
             std::string y = seq;
             y[i] = bases[d];
-            results.push_back(y);
+            if (results.find(y) == results.end() || results[y] < dist-1) {
+              results[y] = dist-1;
+            }
             pos.push_back(i);
             generate_hamming_mismatches(y, dist-1, results, pos);
           }
@@ -91,8 +102,6 @@ struct SplitCode {
   }
   
   void generate_indels(std::string seq, int dist, std::unordered_map<std::string,int>& results, std::string original = "") {
-    // Much less elegant than generate_hamming_mismatches(...) but oh well... 
-    // Note: results contains the modified string and how many remaining modifications could be applied
     if (dist == 0) {
       return;
     }
@@ -123,27 +132,22 @@ struct SplitCode {
     }
   }
   
-  void generate_indels_hamming_mismatches(std::string seq, int mismatch_dist, int indel_dist, int total_dist, std::vector<std::string>& results) {
+  void generate_indels_hamming_mismatches(std::string seq, int mismatch_dist, int indel_dist, int total_dist, std::unordered_map<std::string,int>& results) {
     mismatch_dist = std::min(mismatch_dist, total_dist);
     indel_dist = std::min(indel_dist, total_dist);
     if (indel_dist == 0) { // Handle hamming mismatches only
       generate_hamming_mismatches(seq, mismatch_dist, results);
       return;
     }
-    std::unordered_map<std::string,int> indel_results;
+    std::unordered_map<std::string,int> indel_results; // Contains the modified string and how many remaining modifications could be applied
     generate_indels(seq, indel_dist, indel_results);
+    results = indel_results;
     generate_hamming_mismatches(seq, mismatch_dist, results);
     for (auto r : indel_results) {
-      results.push_back(r.first);
       int indels_dist_used = indel_dist - r.second;
       generate_hamming_mismatches(r.first, std::min(total_dist - indels_dist_used, mismatch_dist), results);
     }
-    // Remove duplicates from vector:
-    std::set<std::string> s;
-    for(std::string r : results) {
-      s.insert(r);
-    }
-    results.assign(s.begin(), s.end());
+    results.erase(seq); // Remove the original sequence in case it was generated
   }
   
   bool matchSequences(const SplitCodeTag& tag, const std::string& match_seq) {
@@ -237,9 +241,11 @@ struct SplitCode {
         }
       }
       
-      std::vector<std::string> mismatches;
+      std::unordered_map<std::string,int> mismatches;
       generate_indels_hamming_mismatches(seq, mismatch_dist, indel_dist, total_dist, mismatches);
-      for (std::string mismatch_seq : mismatches) {
+      for (auto mm : mismatches) {
+        std::string mismatch_seq = mm.first;
+        int error = total_dist - mm.second; // The number of substitutions, insertions, or deletions
         if (tags.find(mismatch_seq) != tags.end()) { // If we've seen that sequence (mismatch_seq) before
           auto& v = tags[mismatch_seq];
           std::vector<uint32_t> vi;
@@ -249,7 +255,7 @@ struct SplitCode {
               if (i == new_tag_index) {
                 continue;
               }
-              if (collision && matchSequences(tags_vec[i], mismatch_seq)) { // If there is a collision AND the sequence seen before is an original (i.e. non-mismatched-generated) sequence
+              if (matchSequences(tags_vec[i], mismatch_seq)) { // If there is a collision AND the sequence seen before is an original (i.e. non-mismatched-generated) sequence
                 std::cerr << "Error: Sequence #" << new_tag_index+1 << ": \"" << name << "\" collides with sequence #" << i+1 << ": \"" << tags_vec[i].name << "\"" << std::endl;
                 return false;
               }
@@ -258,7 +264,7 @@ struct SplitCode {
             }
           }
         }
-        addToMap(mismatch_seq, new_tag_index);
+        addToMap(mismatch_seq, new_tag_index, error);
       }
       addToMap(seq, new_tag_index);
     }
@@ -271,21 +277,21 @@ struct SplitCode {
     return true;
   }
   
-  bool checkCollision(const SplitCodeTag& tag, const std::vector<uint32_t>& v, std::vector<uint32_t>& vi, bool fill_vi=true) {
+  bool checkCollision(const SplitCodeTag& tag, const std::vector<tval>& v, std::vector<uint32_t>& vi, bool fill_vi=true) {
     bool ret = false;
     for (auto x : v) {
-      if (overlapRegion(tag, tags_vec[x])) {
+      if (overlapRegion(tag, tags_vec[x.first])) {
         if (!fill_vi) { // If fill_vi is false, no need to check for every collision
           return true;
         }
-        vi.push_back(x); // Add the indices of every tag in vector v that collided with the supplied tag to vector vi
+        vi.push_back(x.first); // Add the indices of every tag in vector v that collided with the supplied tag to vector vi
         ret = true;
       }
     }
     return ret;
   }
   
-  bool checkCollision(const SplitCodeTag& tag, const std::vector<uint32_t>& v) {
+  bool checkCollision(const SplitCodeTag& tag, const std::vector<tval>& v) {
     std::vector<uint32_t> vi;
     return checkCollision(tag, v, vi, false);
   }
@@ -307,17 +313,20 @@ struct SplitCode {
     return overlapRegion(tag1.file, tag1.pos_start, tag1.pos_end, tag2.file, tag2.pos_start, tag2.pos_end);
   }
   
-  void addToMap(const std::string& seq, uint32_t index) {
+  void addToMap(const std::string& seq, uint32_t index, int dist = 0) {
     if (tags.find(seq) != tags.end()) {
       auto& v = tags[seq];
-      if (std::find(v.begin(), v.end(), index) == v.end()) {
-        v.reserve(v.size()+1);
-        v.push_back(index);
+      for (auto i : v) {
+        if (i.first == index) {
+          return;
+        }
       }
+      v.reserve(v.size()+1);
+      v.push_back(std::make_pair(index,dist));
     } else {
-      std::vector<uint32_t> v(0);
+      std::vector<tval> v(0);
       v.reserve(1);
-      v.push_back(index);
+      v.push_back(std::make_pair(index,dist));
       tags.insert({seq,v});
     }
   }
@@ -405,7 +414,7 @@ struct SplitCode {
   
   SplitCodeTag getTag(std::string& seq) { // TODO: Specify parameters (e.g. file number, location)
     checkInit();
-    return tags_vec[tags[seq][0]];
+    return tags_vec[tags[seq][0].first];
   }
   
   int getNumTags() {
@@ -513,7 +522,7 @@ struct SplitCode {
   }
   
   std::vector<SplitCodeTag> tags_vec;
-  std::unordered_map<std::string, std::vector<uint32_t>> tags;
+  std::unordered_map<std::string, std::vector<tval>> tags;
   std::set<std::pair<std::string, uint32_t>> tags_to_remove;
   
   std::vector<std::vector<int>> idmap;
