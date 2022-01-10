@@ -235,13 +235,20 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
       int32_t pos_start;
       int32_t pos_end;
       int mismatch, indel, total_dist;
+      string bc;
+      getline(ss1, bc, ',');
       if (!opt.distance_str.empty()) {
+        auto currpos = ss2.tellg();
         if (!ss2.good()) {
           std::cerr << ERROR_STR << " Number of values in --distances is less than that in --barcodes" << std::endl;
           ret = false;
           break;
         }
         getline(ss2, distance, ',');
+        if (!ss2.good() && ss1.good() && currpos == 0) {
+          ss2.clear();
+          ss2.str(opt.distance_str);
+        }
       }
       if (!SplitCode::parseDistance(distance, mismatch, indel, total_dist)) {
         std::cerr << ERROR_STR << " --distances is invalid" << std::endl;
@@ -257,12 +264,17 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
         getline(ss3, name, ',');
       }
       if (!opt.location_str.empty()) {
+        auto currpos = ss4.tellg();
         if (!ss4.good()) {
           std::cerr << ERROR_STR << " Number of values in --locations is less than that in --barcodes" << std::endl;
           ret = false;
           break;
         }
         getline(ss4, location, ',');
+        if (!ss4.good() && ss1.good() && currpos == 0) {
+          ss4.clear();
+          ss4.str(opt.location_str);
+        }
       }
       if (!SplitCode::parseLocation(location, file, pos_start, pos_end, opt.nfiles)) {
         std::cerr << ERROR_STR << " --locations is invalid" << std::endl;
@@ -270,6 +282,7 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
         break;
       }
       if (!opt.max_finds_str.empty()) {
+        auto currpos = ss5.tellg();
         if (!ss5.good()) {
           std::cerr << ERROR_STR << " Number of values in --maxFinds is less than that in --barcodes" << std::endl;
           ret = false;
@@ -278,8 +291,13 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
         string f;
         getline(ss5, f, ',');
         stringstream(f) >> max_finds;
+        if (!ss5.good() && ss1.good() && currpos == 0) {
+          ss5.clear();
+          ss5.str(opt.max_finds_str);
+        }
       }
       if (!opt.min_finds_str.empty()) {
+        auto currpos = ss6.tellg();
         if (!ss6.good()) {
           std::cerr << ERROR_STR << " Number of values in --minFinds is less than that in --barcodes" << std::endl;
           ret = false;
@@ -288,6 +306,10 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
         string f;
         getline(ss6, f, ',');
         stringstream(f) >> min_finds;
+        if (!ss6.good() && ss1.good() && currpos == 0) {
+          ss6.clear();
+          ss6.str(opt.min_finds_str);
+        }
       }
       if (!opt.exclude_str.empty()) {
         if (!ss7.good()) {
@@ -299,8 +321,6 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
         getline(ss7, f, ',');
         stringstream(f) >> exclude;
       }
-      string bc;
-      getline(ss1, bc, ',');
       if (!sc.addTag(bc, name.empty() ? bc : name, mismatch, indel, total_dist, file, pos_start, pos_end, max_finds, min_finds, exclude)) {
         std::cerr << ERROR_STR << " Could not finish processing supplied barcode list" << std::endl;
         ret = false;

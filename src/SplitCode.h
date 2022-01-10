@@ -663,10 +663,15 @@ struct SplitCode {
   void processRead(std::vector<const char*>& s, std::vector<int>& l, int jmax) {
     for (int j = 0; j < jmax; j++) {
       int file = j;
-      int start_pos = 0;
-      int readLength = l[j];
-      auto& kmers = kmer_size_locations[j];
-      Locations locations(kmers, readLength);
+      int readLength = l[file];
+      auto& kmers = kmer_size_locations[file];
+      for (Locations locations(kmers, readLength); locations.good(); ++locations) {
+        auto loc = locations.get();
+        auto k = loc.first;
+        auto pos = loc.second;
+        // DEBUG:
+        // std::cout << "file=" << file << " k=" << k << " pos=" << pos << std::endl;
+      }
     }
   }
   
