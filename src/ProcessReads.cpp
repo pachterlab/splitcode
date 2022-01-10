@@ -281,9 +281,7 @@ void ReadProcessor::processBuffer() {
     i += incf;
     numreads++;
     
-    for (int j = 0; j < jmax; j++) {
-      const char *seq = s[j];
-    }
+    mp.sc.processRead(s, l, jmax);
 
     if (numreads > 0 && numreads % 1000000 == 0 ) { 
         numreads = 0; // reset counter

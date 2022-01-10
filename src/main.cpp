@@ -304,29 +304,30 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
       if (!sc.addTag(bc, name.empty() ? bc : name, mismatch, indel, total_dist, file, pos_start, pos_end, max_finds, min_finds, exclude)) {
         std::cerr << ERROR_STR << " Could not finish processing supplied barcode list" << std::endl;
         ret = false;
+        break;
       }
     }
-    if (!opt.distance_str.empty() && ss2.good()) {
+    if (ret && !opt.distance_str.empty() && ss2.good()) {
       std::cerr << ERROR_STR << " Number of values in --distances is greater than that in --barcodes" << std::endl;
       ret = false;
     }
-    if (!opt.barcode_identifiers_str.empty() && ss3.good()) {
+    if (ret && !opt.barcode_identifiers_str.empty() && ss3.good()) {
       std::cerr << ERROR_STR << " Number of values in --ids is greater than that in --barcodes" << std::endl;
       ret = false;
     }
-    if (!opt.location_str.empty() && ss4.good()) {
+    if (ret && !opt.location_str.empty() && ss4.good()) {
       std::cerr << ERROR_STR << " Number of values in --locations is greater than that in --barcodes" << std::endl;
       ret = false;
     }
-    if (!opt.max_finds_str.empty() && ss5.good()) {
+    if (ret && !opt.max_finds_str.empty() && ss5.good()) {
       std::cerr << ERROR_STR << " Number of values in --maxFinds is greater than that in --barcodes" << std::endl;
       ret = false;
     }
-    if (!opt.min_finds_str.empty() && ss6.good()) {
+    if (ret && !opt.min_finds_str.empty() && ss6.good()) {
       std::cerr << ERROR_STR << " Number of values in --minFinds is greater than that in --barcodes" << std::endl;
       ret = false;
     }
-    if (!opt.exclude_str.empty() && ss7.good()) {
+    if (ret && !opt.exclude_str.empty() && ss7.good()) {
       std::cerr << ERROR_STR << " Number of values in --exclude is greater than that in --barcodes" << std::endl;
       ret = false;
     }

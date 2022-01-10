@@ -6,12 +6,14 @@
 #include <string>
 #include <iostream>
 #include <vector>
+#include <map>
 #include <unordered_map>
 #include <set>
 #include <algorithm>
 #include <sstream>
 #include <fstream>
 #include <sys/stat.h>
+#include <limits>
 
 #include "hash.hpp"
 
@@ -42,6 +44,92 @@ struct SplitCode {
       }
     }
     tags_to_remove.clear();
+    // Fill in k-mer sizes by location (e.g. search for k-mers of length n at positions a-b in file c):
+    // (we have to be sure to merge overlapping intervals and having intervals in sorted order which is what most of what the code below does)
+    int POS_MAX = std::numeric_limits<std::int32_t>::max();
+    std::vector<std::map<int,std::vector<std::pair<int,int>>>> kmer_map_vec; // key = k-mer size, value = vector of position intervals; vector = one map for each file
+    for (auto x : tags) {
+      int kmer_size = x.first.length();
+      for (auto y : x.second) {
+        auto tag = tags_vec[y.first];
+        if (tag.pos_end == 0) {
+          tag.pos_end = POS_MAX;
+        }
+        kmer_map_vec.resize(std::max((int)kmer_map_vec.size(),tag.file+1));
+        auto &kmer_map = kmer_map_vec[tag.file];
+        if (kmer_map.find(kmer_size) == kmer_map.end()) {
+          kmer_map[kmer_size] = std::vector<std::pair<int,int>>(0);
+          kmer_map[kmer_size].push_back(std::make_pair(tag.pos_start, tag.pos_end));
+        } else {
+          // Take the union of the intervals:
+          auto& curr_intervals = kmer_map[kmer_size];
+          std::pair<int,int> new_interval = std::make_pair(tag.pos_start, tag.pos_end);
+          bool modified = false;
+          bool update_vector = true;
+          for (auto &interval : curr_intervals) {
+            if (new_interval.second >= interval.first && new_interval.first <= interval.second) {
+              if (std::min(new_interval.first, interval.first) == interval.first && std::max(new_interval.second,interval.second) == interval.second) {
+                update_vector = false;
+              } else {
+                modified = true;
+                interval = std::make_pair(std::min(new_interval.first, interval.first), std::max(new_interval.second, interval.second));
+              }
+            }
+          }
+          if (!modified) {
+            if (update_vector) {
+              curr_intervals.push_back(new_interval);
+            }
+          } else { // Existing intervals were modified so let's merge all overlapping intervals in the vector
+            std::stack<std::pair<int,int>> s;
+            std::sort(curr_intervals.begin(), curr_intervals.end(), [](std::pair<int,int> a, std::pair<int,int> b) {return a.first < b.first; });
+            s.push(curr_intervals[0]);
+            int n = curr_intervals.size();
+            for (int i = 1; i < n; i++) {
+              auto top = s.top();
+              if (top.second < curr_intervals[i].first) {
+                s.push(curr_intervals[i]);
+              } else if (top.second < curr_intervals[i].second) {
+                top.second = curr_intervals[i].second;
+                s.pop();
+                s.push(top);
+              }
+            }
+            // Convert stack to vector
+            curr_intervals.clear();
+            while (!s.empty()) {
+              curr_intervals.push_back(s.top());
+              s.pop();
+            }
+            std::sort(curr_intervals.begin(), curr_intervals.end(), [](std::pair<int,int> a, std::pair<int,int> b) {return a.first < b.first; });
+          }
+        }
+      }
+    }
+    // Transfer kmer_map_vec into kmer_size_locations (which facilitates iteration while processing fastq reads in k-mers)
+    kmer_size_locations.resize(kmer_map_vec.size());
+    for (int i = 0; i < kmer_map_vec.size(); i++) {
+      auto kmer_map = kmer_map_vec[i];
+      for (auto x : kmer_map) {
+        int kmer_size = x.first;
+        for (auto v : x.second) {
+          int start_pos = v.first;
+          int end_pos = v.second;
+          while (start_pos + kmer_size <= end_pos || end_pos == POS_MAX) {
+            std::pair<int,int> kmer_location = std::make_pair(kmer_size, start_pos); // first = k-mer size; second = start position of interval
+            kmer_size_locations[i].push_back(kmer_location);
+            // DEBUG:
+            // std::cout << "file=" << i << " k=" << kmer_location.first << " pos=" << kmer_location.second << std::endl;
+            if (end_pos == POS_MAX) {
+              kmer_location = std::make_pair(kmer_size, -1); // -1 = progress to end of read
+              kmer_size_locations[i].push_back(kmer_location);
+              break;
+            }
+            ++start_pos;
+          }
+        }
+      }
+    }
     init = true;
   }
   
@@ -521,6 +609,67 @@ struct SplitCode {
     return true;
   }
   
+  class Locations {
+  public:
+    Locations(std::vector<std::pair<int,int>>& kmers, int rlen) : kmers(kmers), size(kmers.size()), rlen(rlen) {
+      invalid = false;
+      i = -1;
+      operator++();
+    };
+    
+    void operator++() {
+      int kmer_size;
+      int kmer_loc;
+      if (i != -1) {
+        kmer_size = kmers[i].first;
+        kmer_loc = kmers[i].second;
+        if (kmer_loc == -1) {
+          pos++;
+          if (pos+kmer_size <= rlen) {
+            return;
+          }
+        }
+      }
+      i++;
+      while (i < size) {
+        kmer_size = kmers[i].first;
+        kmer_loc = kmers[i].second;
+        pos = kmer_loc;
+        if (pos+kmer_size <= rlen) {
+          return;
+        }
+        i++;
+      }
+      invalid = true;
+    }
+    
+    std::pair<int,int> get() {
+      return std::make_pair(kmers[i].first, pos);
+    }
+    
+    bool good() {
+      return !invalid;
+    }
+
+  private:
+    const std::vector<std::pair<int,int>>& kmers;
+    const int size;
+    const int rlen;
+    int i;
+    int pos;
+    bool invalid;
+  };
+  
+  void processRead(std::vector<const char*>& s, std::vector<int>& l, int jmax) {
+    for (int j = 0; j < jmax; j++) {
+      int file = j;
+      int start_pos = 0;
+      int readLength = l[j];
+      auto& kmers = kmer_size_locations[j];
+      Locations locations(kmers, readLength);
+    }
+  }
+  
   std::vector<SplitCodeTag> tags_vec;
   std::unordered_map<std::string, std::vector<tval>> tags;
   std::set<std::pair<std::string, uint32_t>> tags_to_remove;
@@ -528,6 +677,8 @@ struct SplitCode {
   std::vector<std::vector<int>> idmap;
   std::unordered_map<std::vector<int>, int, SortedVectorHasher> idmapinv;
   std::vector<int> idcount;
+  
+  std::vector<std::vector<std::pair<int,int>>> kmer_size_locations;
   
   bool init;
 };
