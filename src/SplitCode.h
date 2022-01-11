@@ -500,9 +500,14 @@ struct SplitCode {
     return true;
   }
   
-  SplitCodeTag getTag(std::string& seq) { // TODO: Specify parameters (e.g. file number, location)
+  bool getTag(std::string& seq, SplitCodeTag& tag) { // TODO: Specify parameters (e.g. file number, location)
     checkInit();
-    return tags_vec[tags[seq][0].first];
+    const auto& it = tags.find(seq);
+    if (it == tags.end()) {
+      return false;
+    }
+    tag = tags_vec[(it->second)[0].first];
+    return true;
   }
   
   int getNumTags() {
@@ -663,14 +668,19 @@ struct SplitCode {
   void processRead(std::vector<const char*>& s, std::vector<int>& l, int jmax) {
     for (int j = 0; j < jmax; j++) {
       int file = j;
+      auto seq = s[file];
       int readLength = l[file];
       auto& kmers = kmer_size_locations[file];
       for (Locations locations(kmers, readLength); locations.good(); ++locations) {
         auto loc = locations.get();
         auto k = loc.first;
         auto pos = loc.second;
+        std::string kmer(seq+pos, k);
         // DEBUG:
-        // std::cout << "file=" << file << " k=" << k << " pos=" << pos << std::endl;
+        // std::cout << "file=" << file << " k=" << k << " pos=" << pos << " kmer=" << kmer << std::endl;
+        SplitCodeTag tag;
+        if (getTag(kmer, tag)) {
+        }
       }
     }
   }

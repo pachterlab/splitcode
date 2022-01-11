@@ -46,7 +46,7 @@ int64_t ProcessReads(MasterProcessor& MP, const  ProgramOptions& opt) {
     std::cerr << "* will process sample " << si<< ": ";
     for (int j = 0; j < opt.nfiles; j++,i++) {
       if (j>0) {
-        std::cerr << "                               ";
+        std::cerr << "                         ";
       }
       std::cerr << opt.files[i] << std::endl;
     }
