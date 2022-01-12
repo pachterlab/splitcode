@@ -703,14 +703,15 @@ struct SplitCode {
     int n = std::min(jmax, (int)kmer_size_locations.size());
     for (int j = 0; j < n; j++) {
       int file = j;
-      auto seq = s[file];
       int readLength = l[file];
+      std::string seq(s[file], readLength);
+      for (auto& c: seq) c &= 0xDF; // Convert a/t/c/g to upper case
       auto& kmers = kmer_size_locations[file];
       for (Locations locations(kmers, readLength); locations.good(); ++locations) {
         auto loc = locations.get();
         auto k = loc.first;
         auto pos = loc.second;
-        std::string kmer(seq+pos, k);
+        std::string kmer = seq.substr(pos, k);
         // DEBUG:
         // std::cout << "file=" << file << " k=" << k << " pos=" << pos << " kmer=" << kmer << std::endl;
         SplitCodeTag tag;
