@@ -22,11 +22,25 @@ struct SplitCode {
   
   SplitCode() {
     init = false;
+    setNFiles(0);
+  }
+  
+  SplitCode(int nFiles) {
+    init = false;
+    setNFiles(nFiles);
+  }
+  
+  void setNFiles(int nFiles) {
+    this->nFiles = nFiles;
   }
   
   void checkInit() { // Initialize if necessary (once initialized, can't add any more barcode tags)
     if (init) {
       return;
+    }
+    if (nFiles <= 0) {
+      std::cerr << "Error: nFiles must be set to a positive integer" << std::endl;
+      exit(1);
     }
     // Trim out some tags to create the final 'index'
     for (auto x : tags_to_remove) {
@@ -55,53 +69,65 @@ struct SplitCode {
         if (tag.pos_end == 0) {
           tag.pos_end = POS_MAX;
         }
-        kmer_map_vec.resize(std::max((int)kmer_map_vec.size(),tag.file+1));
-        auto &kmer_map = kmer_map_vec[tag.file];
-        if (kmer_map.find(kmer_size) == kmer_map.end()) {
-          kmer_map[kmer_size] = std::vector<std::pair<int,int>>(0);
-          kmer_map[kmer_size].push_back(std::make_pair(tag.pos_start, tag.pos_end));
-        } else {
-          // Take the union of the intervals:
-          auto& curr_intervals = kmer_map[kmer_size];
-          std::pair<int,int> new_interval = std::make_pair(tag.pos_start, tag.pos_end);
-          bool modified = false;
-          bool update_vector = true;
-          for (auto &interval : curr_intervals) {
-            if (new_interval.second >= interval.first && new_interval.first <= interval.second) {
-              if (std::min(new_interval.first, interval.first) == interval.first && std::max(new_interval.second,interval.second) == interval.second) {
-                update_vector = false;
-              } else {
-                modified = true;
-                interval = std::make_pair(std::min(new_interval.first, interval.first), std::max(new_interval.second, interval.second));
-              }
-            }
+        std::vector<int> files(0);
+        if (tag.file == -1) {
+          kmer_map_vec.resize(nFiles);
+          for (int i = 0; i < nFiles; i++) {
+            files.push_back(i);
           }
-          if (!modified) {
-            if (update_vector) {
-              curr_intervals.push_back(new_interval);
-            }
-          } else { // Existing intervals were modified so let's merge all overlapping intervals in the vector
-            std::stack<std::pair<int,int>> s;
-            std::sort(curr_intervals.begin(), curr_intervals.end(), [](std::pair<int,int> a, std::pair<int,int> b) {return a.first < b.first; });
-            s.push(curr_intervals[0]);
-            int n = curr_intervals.size();
-            for (int i = 1; i < n; i++) {
-              auto top = s.top();
-              if (top.second < curr_intervals[i].first) {
-                s.push(curr_intervals[i]);
-              } else if (top.second < curr_intervals[i].second) {
-                top.second = curr_intervals[i].second;
-                s.pop();
-                s.push(top);
+          // TODO: What if tag.file = -1? resize vector to nfiles+1, then loop through nfiles; tag.file = 0...nfiles [what about -l 0 but -N 2]
+        } else {
+          kmer_map_vec.resize(std::max((int)kmer_map_vec.size(),tag.file+1));
+          files.push_back(tag.file);
+        }
+        for (int f : files) {
+          auto &kmer_map = kmer_map_vec[f];
+          if (kmer_map.find(kmer_size) == kmer_map.end()) {
+            kmer_map[kmer_size] = std::vector<std::pair<int,int>>(0);
+            kmer_map[kmer_size].push_back(std::make_pair(tag.pos_start, tag.pos_end));
+          } else {
+            // Take the union of the intervals:
+            auto& curr_intervals = kmer_map[kmer_size];
+            std::pair<int,int> new_interval = std::make_pair(tag.pos_start, tag.pos_end);
+            bool modified = false;
+            bool update_vector = true;
+            for (auto &interval : curr_intervals) {
+              if (new_interval.second >= interval.first && new_interval.first <= interval.second) {
+                if (std::min(new_interval.first, interval.first) == interval.first && std::max(new_interval.second,interval.second) == interval.second) {
+                  update_vector = false;
+                } else {
+                  modified = true;
+                  interval = std::make_pair(std::min(new_interval.first, interval.first), std::max(new_interval.second, interval.second));
+                }
               }
             }
-            // Convert stack to vector
-            curr_intervals.clear();
-            while (!s.empty()) {
-              curr_intervals.push_back(s.top());
-              s.pop();
+            if (!modified) {
+              if (update_vector) {
+                curr_intervals.push_back(new_interval);
+              }
+            } else { // Existing intervals were modified so let's merge all overlapping intervals in the vector
+              std::stack<std::pair<int,int>> s;
+              std::sort(curr_intervals.begin(), curr_intervals.end(), [](std::pair<int,int> a, std::pair<int,int> b) {return a.first < b.first; });
+              s.push(curr_intervals[0]);
+              int n = curr_intervals.size();
+              for (int i = 1; i < n; i++) {
+                auto top = s.top();
+                if (top.second < curr_intervals[i].first) {
+                  s.push(curr_intervals[i]);
+                } else if (top.second < curr_intervals[i].second) {
+                  top.second = curr_intervals[i].second;
+                  s.pop();
+                  s.push(top);
+                }
+              }
+              // Convert stack to vector
+              curr_intervals.clear();
+              while (!s.empty()) {
+                curr_intervals.push_back(s.top());
+                s.pop();
+              }
+              std::sort(curr_intervals.begin(), curr_intervals.end(), [](std::pair<int,int> a, std::pair<int,int> b) {return a.first < b.first; });
             }
-            std::sort(curr_intervals.begin(), curr_intervals.end(), [](std::pair<int,int> a, std::pair<int,int> b) {return a.first < b.first; });
           }
         }
       }
@@ -424,6 +450,10 @@ struct SplitCode {
       std::cerr << "Error: Already initialized" << std::endl;
       return false;
     }
+    if (nFiles <= 0) {
+      std::cerr << "Error: nFiles must be set to a positive integer" << std::endl;
+      return false;
+    }
     struct stat stFileInfo;
     auto intstat = stat(config_file.c_str(), &stFileInfo);
     if (intstat != 0) {
@@ -477,7 +507,7 @@ struct SplitCode {
         } else if (h[i] == "DISTANCES") {
           ret = ret && parseDistance(field, mismatch, indel, total_dist);
         } else if (h[i] == "LOCATIONS") {
-          ret = ret && parseLocation(field, file, pos_start, pos_end);
+          ret = ret && parseLocation(field, file, pos_start, pos_end, nFiles);
         } else if (h[i] == "IDS") {
           name = field;
         } else if (h[i] == "MINFINDS") {
@@ -639,6 +669,10 @@ struct SplitCode {
       while (i < size) {
         kmer_size = kmers[i].first;
         kmer_loc = kmers[i].second;
+        if (kmer_loc == -1) {
+          operator++();
+          return;
+        }
         pos = kmer_loc;
         if (pos+kmer_size <= rlen) {
           return;
@@ -666,7 +700,8 @@ struct SplitCode {
   };
   
   void processRead(std::vector<const char*>& s, std::vector<int>& l, int jmax) {
-    for (int j = 0; j < jmax; j++) {
+    int n = std::min(jmax, (int)kmer_size_locations.size());
+    for (int j = 0; j < n; j++) {
       int file = j;
       auto seq = s[file];
       int readLength = l[file];
@@ -696,6 +731,7 @@ struct SplitCode {
   std::vector<std::vector<std::pair<int,int>>> kmer_size_locations;
   
   bool init;
+  int nFiles;
 };
 
 

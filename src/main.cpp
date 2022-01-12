@@ -387,7 +387,7 @@ int main(int argc, char *argv[]) {
   setvbuf(stdout, NULL, _IOFBF, 1048576);
   ProgramOptions opt;
   ParseOptions(argc,argv,opt);
-  SplitCode sc;
+  SplitCode sc(opt.nfiles);
   if (!CheckOptions(opt, sc)) {
     usage();
     exit(1);
