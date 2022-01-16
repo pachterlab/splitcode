@@ -14,6 +14,7 @@
 #include <fstream>
 #include <sys/stat.h>
 #include <limits>
+#include <random>
 
 #include "hash.hpp"
 
@@ -700,12 +701,24 @@ struct SplitCode {
   };
   
   void processRead(std::vector<const char*>& s, std::vector<int>& l, int jmax) {
+    std::mt19937 gen;
     int n = std::min(jmax, (int)kmer_size_locations.size());
     for (int j = 0; j < n; j++) {
       int file = j;
       int readLength = l[file];
       std::string seq(s[file], readLength);
-      for (auto& c: seq) c &= 0xDF; // Convert a/t/c/g to upper case
+      bool found_weird_base = false; // non-ATCG bases
+      for (auto& c: seq) {
+        c &= 0xDF; // Convert a/t/c/g to upper case
+        if (c != 'A' && c != 'T' && c != 'C' && c != 'G') {
+          if (!found_weird_base) {
+            int hash = hashSequence(seq);
+            gen.seed(hash); // seed random number generator based on hash of read sequence
+            found_weird_base = true;
+          }
+          c = "ATCG"[(gen()%4)]; // substitute non-ATCG base for pseudo-random base
+        }
+      }
       auto& kmers = kmer_size_locations[file];
       for (Locations locations(kmers, readLength); locations.good(); ++locations) {
         auto loc = locations.get();
@@ -721,8 +734,45 @@ struct SplitCode {
     }
   }
   
+  static uint64_t hashKmer(const std::string& key) {
+    uint64_t r = 0;
+    const char* s = key.c_str();
+    size_t k = key.length();
+    if (k > MAX_K) {
+      k = MAX_K;
+    }
+    for (size_t i = 0; i < k; ++i) {
+      uint64_t x = ((*s) & 4) >> 1;
+      r = r << 2;
+      r |= (x + ((x ^ (*s & 2)) >>1));
+      s++;
+    }
+    return r;
+  }
+  
+  static uint64_t hashSequence(const std::string& s) {
+    int len = s.length();
+    uint64_t hash = 0;
+    int n = len / MAX_K;
+    int i = 0;
+    while (i < n) {
+      hash ^= hashKmer(s.substr(i*MAX_K,MAX_K));
+      i++;
+    }
+    int remaining_size = len % MAX_K;
+    hash ^= hashKmer(s.substr(i*MAX_K,remaining_size));
+    return hash;
+  }
+  
+  class KmerHasher {
+  public:
+    size_t operator() (const std::string& key) const {
+      return hashKmer(key);
+    }
+  };
+  
   std::vector<SplitCodeTag> tags_vec;
-  std::unordered_map<std::string, std::vector<tval>> tags;
+  std::unordered_map<std::string, std::vector<tval>, KmerHasher> tags;
   std::set<std::pair<std::string, uint32_t>> tags_to_remove;
   
   std::vector<std::vector<int>> idmap;
@@ -733,6 +783,7 @@ struct SplitCode {
   
   bool init;
   int nFiles;
+  static const int MAX_K = 32;
 };
 
 
