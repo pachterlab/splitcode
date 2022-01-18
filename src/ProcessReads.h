@@ -116,7 +116,14 @@ public:
   size_t bufsize;
 
   void processReads();
-  void update(int n);  
+  void update(int n, std::vector<SplitCode::Results>& rv,
+              std::vector<std::pair<const char*, int>>& seqs,
+              std::vector<std::pair<const char*, int>>& names,
+              std::vector<std::pair<const char*, int>>& quals);  
+  void writeOutput(std::vector<SplitCode::Results>& rv,
+                   std::vector<std::pair<const char*, int>>& seqs,
+                   std::vector<std::pair<const char*, int>>& names,
+                   std::vector<std::pair<const char*, int>>& quals);
 };
 
 class ReadProcessor {
@@ -134,6 +141,8 @@ public:
   std::vector<std::pair<const char*, int>> names;
   std::vector<std::pair<const char*, int>> quals;
   std::vector<uint32_t> flags;
+  
+  std::vector<SplitCode::Results> rv;
   
   /*std::vector<std::vector<int>> newIDs;
   std::vector<std::vector<int>> IDs;*/

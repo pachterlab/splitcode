@@ -119,7 +119,10 @@ void MasterProcessor::processReads() {
   busf_out.close();*/
 }
 
-void MasterProcessor::update(int n) {
+void MasterProcessor::update(int n, std::vector<SplitCode::Results>& rv,
+                             std::vector<std::pair<const char*, int>>& seqs,
+                             std::vector<std::pair<const char*, int>>& names,
+                             std::vector<std::pair<const char*, int>>& quals) {
   // acquire the writer lock
   std::lock_guard<std::mutex> lock(this->writer_lock);
 
@@ -174,10 +177,47 @@ void MasterProcessor::update(int n) {
     //  newB.push_back(std::move(bp));
     //}
   }*/
+  
+  if (false) { // TODO: options for writing
+    writeOutput(rv, seqs, names, quals);
+  }
 
   numreads += n;
   // releases the lock
 }
+
+void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
+                                  std::vector<std::pair<const char*, int>>& seqs,
+                                  std::vector<std::pair<const char*, int>>& names,
+                                  std::vector<std::pair<const char*, int>>& quals) {
+  // Write out fastq
+  int incf, jmax;
+  incf = opt.nfiles-1;
+  jmax = opt.nfiles;
+  
+  std::vector<const char*> s(jmax, nullptr);
+  std::vector<const char*> n(jmax, nullptr);
+  std::vector<const char*> nl(jmax, nullptr);
+  std::vector<const char*> q(jmax, nullptr);
+  std::vector<int> l(jmax,0);
+  
+  for (int i = 0; i + incf < seqs.size(); i++) {
+    for (int j = 0; j < jmax; j++) {
+      const char* s = seqs[i+j].first;
+      int l = seqs[i+j].second;
+      const char* n = names[i+j].first;
+      int nl = names[i+j].second;
+      const char* q = quals[i+j].first;
+      // Write out read
+      std::cout << "@" << std::string(n,nl) << "\n";
+      std::cout << std::string(s,l) << "\n";
+      std::cout << "+" << "\n";
+      std::cout << std::string(q,l) << std::endl;
+    }
+    i += incf;
+  }
+}
+
 /*
 void MasterProcessor::outputFusion(const std::stringstream &o) {
   std::string os = o.str();
@@ -194,6 +234,7 @@ ReadProcessor::ReadProcessor(const ProgramOptions& opt, MasterProcessor& mp) :
    bufsize = mp.bufsize;
    buffer = new char[bufsize];
    seqs.reserve(bufsize/50);
+   rv.reserve(1000);
    clear();
 }
 
@@ -253,16 +294,12 @@ void ReadProcessor::operator()() {
     processBuffer();
 
     // update the results, MP acquires the lock
-    mp.update(seqs.size() / mp.opt.nfiles);
+    mp.update(seqs.size() / mp.opt.nfiles, rv, seqs, names, quals);
     clear();
   }
 }
 
 void ReadProcessor::processBuffer() {
-
-  std::string seqbuffer;
-  seqbuffer.reserve(1000);
-  
   // actually process the sequence
   
   int incf, jmax;
@@ -281,7 +318,9 @@ void ReadProcessor::processBuffer() {
     i += incf;
     numreads++;
     
-    mp.sc.processRead(s, l, jmax);
+    SplitCode::Results results;
+    mp.sc.processRead(s, l, jmax, results);
+    rv.push_back(results);
 
     if (numreads > 0 && numreads % 1000000 == 0 ) { 
         numreads = 0; // reset counter
@@ -292,11 +331,11 @@ void ReadProcessor::processBuffer() {
           << "% identified)"; std::cerr.flush();
       }
   }
-
 }
 
 void ReadProcessor::clear() {
   memset(buffer,0,bufsize);
+  rv.clear();
 }
 
 /** -- sequence readers -- **/

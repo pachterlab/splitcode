@@ -16,8 +16,6 @@
 #include <limits>
 #include <random>
 
-#include "hash.hpp"
-
 struct SplitCode {
   typedef std::pair<uint32_t,short> tval; // first element of pair is tag id, second is mismatch distance
   
@@ -164,15 +162,12 @@ struct SplitCode {
     checkInit();
   }
   
-  struct SortedVectorHasher {
-    size_t operator()(const std::vector<int>& v) const {
+  struct VectorHasher {
+    size_t operator()(const std::vector<uint32_t>& v) const {
       uint64_t r = 0;
       int i=0;
       for (auto x : v) {
-        uint64_t t;
-        MurmurHash3_x64_64(&x,sizeof(x), 0,&t);
-        t = (x>>i) | (x<<(64-i));
-        r = r ^ t;
+        r ^= (r<<2) + (r>>1) + (x<<2) + (x|i) + i;
         i = (i+1)%64;
       }
       return r;
@@ -182,7 +177,7 @@ struct SplitCode {
   struct SplitCodeTag {
     bool initiator;
     bool terminator;
-    std::string name;
+    uint32_t name_id;
     std::string seq;
     int16_t file;
     int32_t pos_start;
@@ -192,6 +187,11 @@ struct SplitCode {
     bool not_include_in_barcode;
   };
 
+  struct Results {
+    std::vector<uint32_t> tag_ids;
+    std::vector<std::pair<int,int>> pos;
+  };
+  
   
   void generate_hamming_mismatches(std::string seq, int dist, std::unordered_map<std::string,int>& results, std::vector<size_t> pos = std::vector<size_t>()) {
     if (dist == 0) {
@@ -311,10 +311,18 @@ struct SplitCode {
       std::cerr << "Error: Sequence #" << new_tag_index+1 << ": \"" << name << "\" -- max finds cannot be less than min finds" << std::endl;
       return false;
     }
+    uint32_t name_id;
+    const auto& itnames = find(names.begin(), names.end(), seq);
+    if (itnames == names.end()) {
+      name_id = names.size();
+      names.push_back(name);
+    } else {
+      name_id = itnames - names.begin();
+    }
     
     std::transform(seq.begin(), seq.end(), seq.begin(), ::toupper);
     new_tag.seq = seq;
-    new_tag.name = name;
+    new_tag.name_id = name_id;
     new_tag.file = file;
     new_tag.pos_start = pos_start;
     new_tag.pos_end = pos_end;
@@ -349,7 +357,7 @@ struct SplitCode {
         if (checkCollision(new_tag, v, vi)) {
           for (auto i : vi) {
             if (i != new_tag_index) {
-              std::cerr << "Error: Sequence #" << new_tag_index+1 << ": \"" << name << "\" collides with sequence #" << i+1 << ": \"" << tags_vec[i].name << "\"" << std::endl;
+              std::cerr << "Error: Sequence #" << new_tag_index+1 << ": \"" << name << "\" collides with sequence #" << i+1 << ": \"" << names[tags_vec[i].name_id] << "\"" << std::endl;
               return false;
             }
           }
@@ -371,7 +379,7 @@ struct SplitCode {
                 continue;
               }
               if (matchSequences(tags_vec[i], mismatch_seq)) { // If there is a collision AND the sequence seen before is an original (i.e. non-mismatched-generated) sequence
-                std::cerr << "Error: Sequence #" << new_tag_index+1 << ": \"" << name << "\" collides with sequence #" << i+1 << ": \"" << tags_vec[i].name << "\"" << std::endl;
+                std::cerr << "Error: Sequence #" << new_tag_index+1 << ": \"" << name << "\" collides with sequence #" << i+1 << ": \"" << names[tags_vec[i].name_id] << "\"" << std::endl;
                 return false;
               }
               tags_to_remove.insert(std::make_pair(mismatch_seq, i)); // Mark for removal
@@ -531,13 +539,13 @@ struct SplitCode {
     return true;
   }
   
-  bool getTag(std::string& seq, SplitCodeTag& tag) { // TODO: Specify parameters (e.g. file number, location)
+  bool getTag(std::string& seq, uint32_t& tag_id) { // TODO: Specify parameters (e.g. file number, location)
     checkInit();
     const auto& it = tags.find(seq);
     if (it == tags.end()) {
       return false;
     }
-    tag = tags_vec[(it->second)[0].first];
+    tag_id = (it->second)[0].first;
     return true;
   }
   
@@ -700,7 +708,7 @@ struct SplitCode {
     bool invalid;
   };
   
-  void processRead(std::vector<const char*>& s, std::vector<int>& l, int jmax) {
+  void processRead(std::vector<const char*>& s, std::vector<int>& l, int jmax, Results& results) {
     std::mt19937 gen;
     int n = std::min(jmax, (int)kmer_size_locations.size());
     for (int j = 0; j < n; j++) {
@@ -727,8 +735,10 @@ struct SplitCode {
         std::string kmer = seq.substr(pos, k);
         // DEBUG:
         // std::cout << "file=" << file << " k=" << k << " pos=" << pos << " kmer=" << kmer << std::endl;
-        SplitCodeTag tag;
-        if (getTag(kmer, tag)) {
+        uint32_t tag_id;
+        if (getTag(kmer, tag_id)) {
+          auto& tag = tags_vec[tag_id];
+          results.tag_ids.push_back(tag_id);
         }
       }
     }
@@ -774,9 +784,10 @@ struct SplitCode {
   std::vector<SplitCodeTag> tags_vec;
   std::unordered_map<std::string, std::vector<tval>, KmerHasher> tags;
   std::set<std::pair<std::string, uint32_t>> tags_to_remove;
+  std::vector<std::string> names;
   
   std::vector<std::vector<int>> idmap;
-  std::unordered_map<std::vector<int>, int, SortedVectorHasher> idmapinv;
+  std::unordered_map<std::vector<uint32_t>, int, VectorHasher> idmapinv;
   std::vector<int> idcount;
   
   std::vector<std::vector<std::pair<int,int>>> kmer_size_locations;
