@@ -62,9 +62,19 @@ void usage() {
        << "-e, --exclude    List of what to exclude from final barcode (comma-separated; 1 = exclude, 0 = include)" << endl
        << "Options (configurations supplied in a file):" << endl
        << "-c, --config     Configuration file" << endl
+       << "Output Options:" << endl
+       << "-o, --output     FASTQ file(s) where output will be written (comma-separated)" << endl
+       << "                 Number of output FASTQ files should equal --nFastqs" << endl
+       << "-O, --outb       FASTQ file where final barcodes will be written" << endl
+       << "                 If not supplied, the final barcodes will be prepended to reads of first FASTQ file" << endl
+       << "-u, --unassigned FASTQ file(s) where output of unassigned reads will be written (comma-separated)" << endl
+       << "                 Number of FASTQ files should equal --nFastqs" << endl
+       << "-p, --pipe       Write to standard output (instead of output FASTQ files)" << endl
+       << "    --no-output  Don't output any sequences (output statistics only)" << endl
        << "Other Options:" << endl
        << "-N, --nFastqs    Number of FASTQ file(s) per run" << endl
        << "                 (default: 1) (specify 2 for paired-end)" << endl
+       << "    --mod-names  Modify names of outputted sequences to include identified barcodes" << endl
        << "-t, --threads    Number of threads to use" << endl
        << "-h, --help       Displays usage information" << endl
        << "    --version    Prints version number" << endl
@@ -75,14 +85,19 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   int help_flag = 0;
   int version_flag = 0;
   int cite_flag = 0;
+  int no_output_flag = 0;
+  int mod_names_flag = 0;
 
-  const char *opt_string = "t:N:b:d:i:l:f:F:e:c:h";
+  const char *opt_string = "t:N:b:d:i:l:f:F:e:c:o:O:u:ph";
   static struct option long_options[] = {
     // long args
     {"version", no_argument, &version_flag, 1},
     {"cite", no_argument, &cite_flag, 1},
+    {"no-output", no_argument, &no_output_flag, 1},
+    {"mod-names", no_argument, &mod_names_flag, 1},
     // short args
     {"help", no_argument, 0, 'h'},
+    {"pipe", no_argument, 0, 'p'},
     {"threads", required_argument, 0, 't'},
     {"nFastqs", required_argument, 0, 'N'},
     {"barcodes", required_argument, 0, 'b'},
@@ -93,6 +108,9 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"minFinds", required_argument, 0, 'f'},
     {"exclude", required_argument, 0, 'e'},
     {"config", required_argument, 0, 'c'},
+    {"output", required_argument, 0, 'o'},
+    {"outb", required_argument, 0, 'O'},
+    {"unassigned", required_argument, 0, 'u'},
     {0,0,0,0}
   };
   
@@ -113,6 +131,10 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
       break;
     case 'h': {
       help_flag = 1;
+      break;
+    }
+    case 'p': {
+      opt.pipe = true;
       break;
     }
     case 't': {
@@ -155,6 +177,30 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
       stringstream(optarg) >> opt.config_file;
       break;
     }
+    case 'o': {
+      std::string files;
+      stringstream(optarg) >> files;
+      std::stringstream ss(files);
+      std::string filename;
+      while (std::getline(ss, filename, ',')) { 
+        opt.output_files.push_back(filename);
+      }
+      break;
+    }
+    case 'O': {
+      stringstream(optarg) >> opt.outputb_file;
+      break;
+    }
+    case 'u': {
+      std::string files;
+      stringstream(optarg) >> files;
+      std::stringstream ss(files);
+      std::string filename;
+      while (std::getline(ss, filename, ',')) { 
+        opt.unassigned_files.push_back(filename);
+      }
+      break;
+    }
     default: break;
     }
   }
@@ -170,6 +216,12 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   if (cite_flag) {
     PrintCite();
     exit(0);
+  }
+  if (no_output_flag) {
+    opt.no_output = true;
+  }
+  if (mod_names_flag) {
+    opt.mod_names = true;
   }
   
   for (int i = optind; i < argc; i++) {
@@ -212,6 +264,35 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
       ret = false;
     }
   }
+  
+  bool output_files_specified = opt.output_files.size() > 0 || opt.unassigned_files.size() > 0 || !opt.outputb_file.empty();
+  if (opt.no_output) {
+    if (output_files_specified || opt.pipe) {
+      std::cerr << ERROR_STR << " Cannot specify an output option when --no-output is specified" << std::endl;
+      ret = false;
+    }
+    if (opt.mod_names) {
+      std::cerr << ERROR_STR << " Cannot use --mod-names when --no-output is specified" << std::endl;
+      ret = false;
+    }
+  } else {
+    if (!output_files_specified && !opt.pipe) {
+      std::cerr << ERROR_STR << " Must either specify an output option or --no-output" << std::endl;
+      ret = false;
+    } else if (opt.pipe) {
+      if (opt.output_files.size() > 0 || !opt.outputb_file.empty()) { // Still allow --unassigned with --pipe
+        std::cerr << ERROR_STR << " Cannot provide output files when --pipe is specified" << std::endl;
+        ret = false;
+      }
+    } else {
+      if (opt.output_files.size() % opt.nfiles != 0 || opt.unassigned_files.size() % opt.nfiles != 0) {
+        std::cerr << ERROR_STR << " Incorrect number of output files" << std::endl;
+        ret = false;
+      }
+    }
+  }
+  opt.output_fastq_specified = output_files_specified;
+  opt.verbose = !opt.pipe;
   
   if (!opt.barcode_str.empty() && !opt.config_file.empty()) {
     std::cerr << ERROR_STR << " Cannot specify both --barcodes and --config" << std::endl;
@@ -392,7 +473,9 @@ int main(int argc, char *argv[]) {
     usage();
     exit(1);
   }
+  if (opt.verbose) {
   std::cerr << "* Using a list of " << sc.getNumTags() << " barcodes (map size: " << pretty_num(sc.getMapSize()) << "; num elements: " << pretty_num(sc.getMapSize(false)) << ")" << std::endl;
+  }
   MasterProcessor MP(sc, opt);
   ProcessReads(MP, opt);
   fflush(stdout);

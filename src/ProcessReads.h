@@ -94,10 +94,35 @@ public:
     : sc(sc), opt(opt), numreads(0), bufsize(1ULL<<23) { 
 
     SR = new FastqSequenceReader(opt);
-
+    verbose = opt.verbose;
+    for (auto f : opt.output_files) {
+      std::ofstream of;
+      of.open(f);
+      out.push_back(std::move(of));
+    }
+    for (auto f : opt.unassigned_files) {
+      std::ofstream of;
+      of.open(f);
+      outu.push_back(std::move(of));
+    }
+    write_output_fastq = opt.output_fastq_specified || opt.pipe;
+    write_unassigned_fastq = outu.size() > 0;
+    write_barcode_separate_fastq = !opt.outputb_file.empty();
+    if (write_barcode_separate_fastq) {
+      outb.open(opt.outputb_file);
+    }
     }
   
   ~MasterProcessor() {
+    for (auto& of : out) {
+      of.close();
+    }
+    for (auto& of : outu) {
+      of.close();
+    }
+    if (write_barcode_separate_fastq) {
+      outb.close();
+    }
     delete SR;
   }
   
@@ -106,6 +131,13 @@ public:
   bool parallel_read;
   std::mutex writer_lock;
   
+  std::vector<std::ofstream> out;
+  std::ofstream outb;
+  std::vector<std::ofstream> outu;
+  bool write_output_fastq;
+  bool write_barcode_separate_fastq;
+  bool write_unassigned_fastq;
+  bool verbose;
   
   SequenceReader *SR;
   std::vector<FastqSequenceReader> FSRs;

@@ -41,6 +41,8 @@ int64_t ProcessReads(MasterProcessor& MP, const  ProgramOptions& opt) {
   std::ios_base::sync_with_stdio(false);
 
   size_t numreads = 0;
+  
+  if (MP.verbose) {
 
   for (int i = 0, si=1; i < opt.files.size(); si++) {
     std::cerr << "* will process sample " << si<< ": ";
@@ -54,16 +56,21 @@ int64_t ProcessReads(MasterProcessor& MP, const  ProgramOptions& opt) {
 
   // for each file
   std::cerr << "* processing the reads ..."; std::cerr.flush();
+  }
 
 
   MP.processReads();
   numreads = MP.numreads;
+  if (MP.verbose) {
   std::cerr << std::endl << "done " << std::endl;
+  }
   
   int nummapped = MP.sc.getNumMapped();
 
+  if (MP.verbose) {
   std::cerr << "* processed " << pretty_num(numreads) << " reads, "
     << pretty_num(nummapped) << " reads had identifiable barcodes" << std::endl;
+  }
   
   return numreads;
 }
@@ -178,7 +185,9 @@ void MasterProcessor::update(int n, std::vector<SplitCode::Results>& rv,
     //}
   }*/
   
-  if (false) { // TODO: options for writing
+  sc.update(rv);
+  
+  if (write_output_fastq) {
     writeOutput(rv, seqs, names, quals);
   }
 
@@ -201,18 +210,60 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
   std::vector<const char*> q(jmax, nullptr);
   std::vector<int> l(jmax,0);
   
-  for (int i = 0; i + incf < seqs.size(); i++) {
+  int readnum = 0;
+  for (int i = 0; i + incf < seqs.size(); i++, readnum++) {
+    auto& r = rv[readnum];
+    bool assigned = sc.isAssigned(r);
+    std::string mod_name = "";
+    if (assigned && opt.mod_names) {
+      mod_name = "::" + sc.getNameString(r); // Barcode names
+    }
+    if (assigned && (write_barcode_separate_fastq || opt.pipe)) { // Write out barcode read
+      std::streambuf* buf = nullptr;
+      if (opt.pipe) {
+        buf = std::cout.rdbuf();
+      } else { // TODO: write out mapping file
+        buf = outb.rdbuf();
+      }
+      std::ostream o(buf);
+      // Write out barcode read
+      o << "@" << std::string(names[i].first, names[i].second) << mod_name << "\n";
+      o << sc.binaryToString(r.id, sc.FAKE_BARCODE_LEN) << "\n";
+      o << "+" << "\n";
+      o << std::string(sc.FAKE_BARCODE_LEN, sc.QUAL) << "\n";
+    }
     for (int j = 0; j < jmax; j++) {
+      if (!assigned && !write_unassigned_fastq) {
+        break;
+      }
+      std::streambuf* buf = nullptr;
+      if (opt.pipe && assigned) {
+        buf = std::cout.rdbuf();
+      } else if (!assigned) {
+        buf = outu[j].rdbuf();
+      } else {
+        buf = out[j].rdbuf();
+      }
+      std::ostream o(buf);
+      
       const char* s = seqs[i+j].first;
       int l = seqs[i+j].second;
       const char* n = names[i+j].first;
       int nl = names[i+j].second;
       const char* q = quals[i+j].first;
       // Write out read
-      std::cout << "@" << std::string(n,nl) << "\n";
-      std::cout << std::string(s,l) << "\n";
-      std::cout << "+" << "\n";
-      std::cout << std::string(q,l) << std::endl;
+      bool embed_final_barcode = j==0 && !write_barcode_separate_fastq && !opt.pipe;
+      o << "@";
+      o << std::string(n,nl) << mod_name << "\n";
+      if (embed_final_barcode) {
+        o << sc.binaryToString(r.id, sc.FAKE_BARCODE_LEN);
+      }
+      o << std::string(s,l) << "\n";
+      o << "+" << "\n";
+      if (embed_final_barcode) {
+        o << std::string(sc.FAKE_BARCODE_LEN, sc.QUAL);
+      }
+      o << std::string(q,l) << "\n";
     }
     i += incf;
   }
@@ -322,7 +373,7 @@ void ReadProcessor::processBuffer() {
     mp.sc.processRead(s, l, jmax, results);
     rv.push_back(results);
 
-    if (numreads > 0 && numreads % 1000000 == 0 ) { 
+    if (numreads > 0 && numreads % 1000000 == 0 && mp.verbose) { 
         numreads = 0; // reset counter
         int nummapped = mp.sc.getNumMapped();
 

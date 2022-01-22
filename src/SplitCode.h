@@ -74,7 +74,7 @@ struct SplitCode {
           for (int i = 0; i < nFiles; i++) {
             files.push_back(i);
           }
-          // TODO: What if tag.file = -1? resize vector to nfiles+1, then loop through nfiles; tag.file = 0...nfiles [what about -l 0 but -N 2]
+          // TODO: What if tag.file = -1? resize vector to nfiles+1, then loop through nfiles; tag.file = 0...nfiles [what about -l 0 but -N 2]; e.g. -b ATCG,ATAA -l 0,-1 -d 1 completely gets rid of intersection ATCA (which should be allowed in files other than 0; same thing if small region overlapped by large region [should be allowed outside small region])
         } else {
           kmer_map_vec.resize(std::max((int)kmer_map_vec.size(),tag.file+1));
           files.push_back(tag.file);
@@ -188,8 +188,9 @@ struct SplitCode {
   };
 
   struct Results {
-    std::vector<uint32_t> tag_ids;
+    std::vector<uint32_t> name_ids;
     std::vector<std::pair<int,int>> pos;
+    int id;
   };
   
   
@@ -738,10 +739,60 @@ struct SplitCode {
         uint32_t tag_id;
         if (getTag(kmer, tag_id)) {
           auto& tag = tags_vec[tag_id];
-          results.tag_ids.push_back(tag_id);
+          results.name_ids.push_back(tag.name_id);
+          // TODO: advance locations to go beyond this kmer: locations.setJump();
         }
       }
     }
+  }
+  
+  void update(std::vector<Results>& rv) {
+    // Should only be called under a lock (can't have multiple threads accessing a common container)
+    for (auto& r : rv) {
+      auto& u = r.name_ids;
+      if (u.empty()) {
+        continue;
+      }
+      auto it = idmapinv.find(u);
+      int id;
+      if (it != idmapinv.end()) {
+        id = it->second;
+      } else {
+        id = idmapinv.size();
+        idmapinv.insert({u,id});
+        idmap.push_back(u);
+      }
+      r.id = id;
+    }
+  }
+  
+  bool isAssigned(Results& r) {
+    return !r.name_ids.empty();
+  }
+  
+  std::string getNameString(Results& r) {
+    std::string names_str = "";
+    for (int n : r.name_ids) {
+      names_str += "[" + names[n] + "]";
+    }
+    return names_str;
+  }
+  
+  static std::string binaryToString(uint64_t x, size_t len) {
+    std::string s(len, 'N');
+    size_t sh = len-1;
+    for (size_t i = 0; i < len; i++) {
+      char c = 'N';
+      switch((x >> (2*sh)) & 0x03ULL) {
+      case 0x00: c = 'A'; break;
+      case 0x01: c = 'C'; break;
+      case 0x02: c = 'G'; break;
+      case 0x03: c = 'T'; break;
+      }
+      sh--;
+      s.at(i) = c;
+    }
+    return std::move(s);
   }
   
   static uint64_t hashKmer(const std::string& key) {
@@ -786,7 +837,7 @@ struct SplitCode {
   std::set<std::pair<std::string, uint32_t>> tags_to_remove;
   std::vector<std::string> names;
   
-  std::vector<std::vector<int>> idmap;
+  std::vector<std::vector<uint32_t>> idmap;
   std::unordered_map<std::vector<uint32_t>, int, VectorHasher> idmapinv;
   std::vector<int> idcount;
   
@@ -795,6 +846,8 @@ struct SplitCode {
   bool init;
   int nFiles;
   static const int MAX_K = 32;
+  static const size_t FAKE_BARCODE_LEN = 16;
+  static const char QUAL = 'K';
 };
 
 
