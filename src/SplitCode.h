@@ -757,10 +757,12 @@ struct SplitCode {
       int id;
       if (it != idmapinv.end()) {
         id = it->second;
+        idcount[id]++;
       } else {
         id = idmapinv.size();
         idmapinv.insert({u,id});
         idmap.push_back(u);
+        idcount.push_back(1);
       }
       r.id = id;
     }
@@ -776,6 +778,30 @@ struct SplitCode {
       names_str += "[" + names[n] + "]";
     }
     return names_str;
+  }
+  
+  void writeBarcodeMapping(std::string fname) {
+    std::ofstream of;
+    of.open(fname);
+    if (!of.is_open()) {
+      std::cerr << "Error: Couldn't open file: " << fname << std::endl;
+      exit(1);
+    }
+    for (int i = 0; i < idmap.size(); i++) {
+      auto &u = idmap[i];
+      auto it = idmapinv.find(u);
+      int id = it->second;
+      int n = idcount[i];
+      std::string barcode_str = "";
+      for (auto& tag_id : u) {
+        barcode_str += names[tags_vec[tag_id].name_id] + ",";
+      }
+      if (!barcode_str.empty()) {
+        barcode_str.resize(barcode_str.size()-1);
+      }
+      of << binaryToString(id, FAKE_BARCODE_LEN) << "\t" << barcode_str << "\t" << n << """\n";
+    }
+    of.close();
   }
   
   static std::string binaryToString(uint64_t x, size_t len) {

@@ -29,6 +29,7 @@ struct ProgramOptions {
   std::string min_finds_str;
   std::string exclude_str;
   std::string config_file;
+  std::string mapping_file;
   
   ProgramOptions() :
     threads(1),

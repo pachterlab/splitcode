@@ -222,7 +222,7 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
       std::streambuf* buf = nullptr;
       if (opt.pipe) {
         buf = std::cout.rdbuf();
-      } else { // TODO: write out mapping file
+      } else {
         buf = outb.rdbuf();
       }
       std::ostream o(buf);

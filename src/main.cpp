@@ -63,6 +63,7 @@ void usage() {
        << "Options (configurations supplied in a file):" << endl
        << "-c, --config     Configuration file" << endl
        << "Output Options:" << endl
+       << "-m, --mapping    Output file where the mapping between final barcode sequences and names will be written" << endl
        << "-o, --output     FASTQ file(s) where output will be written (comma-separated)" << endl
        << "                 Number of output FASTQ files should equal --nFastqs" << endl
        << "-O, --outb       FASTQ file where final barcodes will be written" << endl
@@ -88,7 +89,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   int no_output_flag = 0;
   int mod_names_flag = 0;
 
-  const char *opt_string = "t:N:b:d:i:l:f:F:e:c:o:O:u:ph";
+  const char *opt_string = "t:N:b:d:i:l:f:F:e:c:o:O:u:m:ph";
   static struct option long_options[] = {
     // long args
     {"version", no_argument, &version_flag, 1},
@@ -111,6 +112,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"output", required_argument, 0, 'o'},
     {"outb", required_argument, 0, 'O'},
     {"unassigned", required_argument, 0, 'u'},
+    {"mapping", required_argument, 0, 'm'},
     {0,0,0,0}
   };
   
@@ -175,6 +177,10 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     }
     case 'c': {
       stringstream(optarg) >> opt.config_file;
+      break;
+    }
+    case 'm': {
+      stringstream(optarg) >> opt.mapping_file;
       break;
     }
     case 'o': {
@@ -263,6 +269,10 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
       std::cerr << ERROR_STR << " incorrect number of FASTQ file(s)" << std::endl;
       ret = false;
     }
+  }
+  if (opt.mapping_file.empty()) {
+    std::cerr << ERROR_STR << " --mapping must be provided" << std::endl;
+    ret = false;
   }
   
   bool output_files_specified = opt.output_files.size() > 0 || opt.unassigned_files.size() > 0 || !opt.outputb_file.empty();
@@ -479,6 +489,7 @@ int main(int argc, char *argv[]) {
   MasterProcessor MP(sc, opt);
   ProcessReads(MP, opt);
   fflush(stdout);
+  sc.writeBarcodeMapping(opt.mapping_file);
 
   return 0;
 }
