@@ -219,33 +219,25 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
       mod_name = "::" + sc.getNameString(r); // Barcode names
     }
     if (assigned && (write_barcode_separate_fastq || opt.pipe)) { // Write out barcode read
-      std::streambuf* buf = nullptr;
-      if (opt.pipe) {
-        buf = std::cout.rdbuf();
-      } else {
-        buf = outb.rdbuf();
-      }
-      std::ostream o(buf);
+      std::stringstream o;
       // Write out barcode read
       o << "@" << std::string(names[i].first, names[i].second) << mod_name << "\n";
       o << sc.binaryToString(r.id, sc.FAKE_BARCODE_LEN) << "\n";
       o << "+" << "\n";
       o << std::string(sc.FAKE_BARCODE_LEN, sc.QUAL) << "\n";
+      const std::string& ostr = o.str();
+      size_t ostr_len = ostr.length();
+      if (opt.gzip && !opt.pipe) {
+        gzwrite(outb_gz, ostr.c_str(), ostr_len);
+      } else {
+        fwrite(ostr.c_str(), 1, ostr_len, opt.pipe ? stdout : outb);
+      }
     }
     for (int j = 0; j < jmax; j++) {
       if (!assigned && !write_unassigned_fastq) {
         break;
       }
-      std::streambuf* buf = nullptr;
-      if (opt.pipe && assigned) {
-        buf = std::cout.rdbuf();
-      } else if (!assigned) {
-        buf = outu[j].rdbuf();
-      } else {
-        buf = out[j].rdbuf();
-      }
-      std::ostream o(buf);
-      
+      std::stringstream o;
       const char* s = seqs[i+j].first;
       int l = seqs[i+j].second;
       const char* n = names[i+j].first;
@@ -264,6 +256,24 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
         o << std::string(sc.FAKE_BARCODE_LEN, sc.QUAL);
       }
       o << std::string(q,l) << "\n";
+      
+      const std::string& ostr = o.str();
+      size_t ostr_len = ostr.length();
+      if (opt.pipe && assigned) {
+        fwrite(ostr.c_str(), 1, ostr_len, stdout);
+      } else if (!assigned) {
+        if (opt.gzip) {
+          gzwrite(outu_gz[j], ostr.c_str(), ostr_len);
+        } else {
+          fwrite(ostr.c_str(), 1, ostr_len, outu[j]);
+        }
+      } else {
+        if (opt.gzip) {
+          gzwrite(out_gz[j], ostr.c_str(), ostr_len);
+        } else {
+          fwrite(ostr.c_str(), 1, ostr_len, opt.pipe ? stdout : out[j]);
+        }
+      }
     }
     i += incf;
   }

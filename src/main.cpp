@@ -71,6 +71,7 @@ void usage() {
        << "-u, --unassigned FASTQ file(s) where output of unassigned reads will be written (comma-separated)" << endl
        << "                 Number of FASTQ files should equal --nFastqs" << endl
        << "-p, --pipe       Write to standard output (instead of output FASTQ files)" << endl
+       << "    --gzip       Output compressed gzip'ed FASTQ files" << endl
        << "    --no-output  Don't output any sequences (output statistics only)" << endl
        << "Other Options:" << endl
        << "-N, --nFastqs    Number of FASTQ file(s) per run" << endl
@@ -87,6 +88,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   int version_flag = 0;
   int cite_flag = 0;
   int no_output_flag = 0;
+  int gzip_flag = 0;
   int mod_names_flag = 0;
 
   const char *opt_string = "t:N:b:d:i:l:f:F:e:c:o:O:u:m:ph";
@@ -95,6 +97,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"version", no_argument, &version_flag, 1},
     {"cite", no_argument, &cite_flag, 1},
     {"no-output", no_argument, &no_output_flag, 1},
+    {"gzip", no_argument, &gzip_flag, 1},
     {"mod-names", no_argument, &mod_names_flag, 1},
     // short args
     {"help", no_argument, 0, 'h'},
@@ -229,6 +232,9 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   if (mod_names_flag) {
     opt.mod_names = true;
   }
+  if (gzip_flag) {
+    opt.gzip = true;
+  }
   
   for (int i = optind; i < argc; i++) {
     opt.files.push_back(argv[i]);
@@ -285,6 +291,10 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
       std::cerr << ERROR_STR << " Cannot use --mod-names when --no-output is specified" << std::endl;
       ret = false;
     }
+    if (opt.gzip) {
+      std::cerr << ERROR_STR << " Cannot use --gzip when --no-output is specified" << std::endl;
+      ret = false;
+    }
   } else {
     if (!output_files_specified && !opt.pipe) {
       std::cerr << ERROR_STR << " Must either specify an output option or --no-output" << std::endl;
@@ -292,6 +302,9 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
     } else if (opt.pipe) {
       if (opt.output_files.size() > 0 || !opt.outputb_file.empty()) { // Still allow --unassigned with --pipe
         std::cerr << ERROR_STR << " Cannot provide output files when --pipe is specified" << std::endl;
+        ret = false;
+      } else if (opt.gzip && opt.unassigned_files.size() == 0) { // Still allow --unassigned with --pipe --gzip
+        std::cerr << ERROR_STR << " Cannot use --gzip when no output files are specified" << std::endl;
         ret = false;
       }
     } else {

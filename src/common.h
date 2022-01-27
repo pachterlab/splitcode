@@ -17,6 +17,7 @@ struct ProgramOptions {
   bool output_fastq_specified;
   bool verbose;
   bool mod_names;
+  bool gzip;
   std::vector<std::string> files;
   std::vector<std::string> output_files;
   std::string outputb_file;
@@ -38,7 +39,8 @@ struct ProgramOptions {
     pipe(false),
     output_fastq_specified(false),
     verbose(false),
-    mod_names(false)
+    mod_names(false),
+    gzip(false)
   {}
 };
 

@@ -96,32 +96,50 @@ public:
     SR = new FastqSequenceReader(opt);
     verbose = opt.verbose;
     for (auto f : opt.output_files) {
-      std::ofstream of;
-      of.open(f);
-      out.push_back(std::move(of));
+      if (opt.gzip) {
+        out_gz.push_back(gzopen(f.c_str(), "wb1"));
+      } else {
+        out.push_back(fopen(f.c_str(), "wb"));
+      }
     }
     for (auto f : opt.unassigned_files) {
-      std::ofstream of;
-      of.open(f);
-      outu.push_back(std::move(of));
+      if (opt.gzip) {
+        outu_gz.push_back(gzopen(f.c_str(), "wb1"));
+      } else {
+        outu.push_back(fopen(f.c_str(), "wb"));
+      }
     }
     write_output_fastq = opt.output_fastq_specified || opt.pipe;
-    write_unassigned_fastq = outu.size() > 0;
+    write_unassigned_fastq = outu.size() > 0 || outu_gz.size() > 0;
     write_barcode_separate_fastq = !opt.outputb_file.empty();
     if (write_barcode_separate_fastq) {
-      outb.open(opt.outputb_file);
+      if (opt.gzip) {
+        outb_gz = gzopen(opt.outputb_file.c_str(), "wb1");
+      } else {
+        outb = fopen(opt.outputb_file.c_str(), "wb");
+      }
     }
     }
   
   ~MasterProcessor() {
     for (auto& of : out) {
-      of.close();
+      fclose(of);
     }
     for (auto& of : outu) {
-      of.close();
+      fclose(of);
+    }
+    for (auto& of : out_gz) {
+      gzclose(of);
+    }
+    for (auto& of : outu_gz) {
+      gzclose(of);
     }
     if (write_barcode_separate_fastq) {
-      outb.close();
+      if (opt.gzip) {
+        gzclose(outb_gz);
+      } else {
+        fclose(outb);
+      }
     }
     delete SR;
   }
@@ -131,9 +149,12 @@ public:
   bool parallel_read;
   std::mutex writer_lock;
   
-  std::vector<std::ofstream> out;
-  std::ofstream outb;
-  std::vector<std::ofstream> outu;
+  std::vector<FILE*> out;
+  std::vector<gzFile> out_gz;
+  FILE* outb;
+  gzFile outb_gz;
+  std::vector<FILE*> outu;
+  std::vector<gzFile> outu_gz;
   bool write_output_fastq;
   bool write_barcode_separate_fastq;
   bool write_unassigned_fastq;
