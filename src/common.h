@@ -18,6 +18,7 @@ struct ProgramOptions {
   bool verbose;
   bool mod_names;
   bool gzip;
+  bool discard;
   std::vector<std::string> files;
   std::vector<std::string> output_files;
   std::string outputb_file;
@@ -31,6 +32,7 @@ struct ProgramOptions {
   std::string exclude_str;
   std::string config_file;
   std::string mapping_file;
+  std::string keep_file;
   
   ProgramOptions() :
     threads(1),
@@ -40,7 +42,8 @@ struct ProgramOptions {
     output_fastq_specified(false),
     verbose(false),
     mod_names(false),
-    gzip(false)
+    gzip(false),
+    discard(false)
   {}
 };
 

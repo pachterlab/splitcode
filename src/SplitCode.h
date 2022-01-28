@@ -21,11 +21,15 @@ struct SplitCode {
   
   SplitCode() {
     init = false;
+    discard_check = false;
+    keep_check = false;
     setNFiles(0);
   }
   
   SplitCode(int nFiles) {
     init = false;
+    discard_check = false;
+    keep_check = false;
     setNFiles(nFiles);
   }
   
@@ -313,7 +317,7 @@ struct SplitCode {
       return false;
     }
     uint32_t name_id;
-    const auto& itnames = find(names.begin(), names.end(), seq);
+    const auto& itnames = find(names.begin(), names.end(), name);
     if (itnames == names.end()) {
       name_id = names.size();
       names.push_back(name);
@@ -654,6 +658,55 @@ struct SplitCode {
     return true;
   }
   
+  bool addFilterList(std::string keep_file, bool discard=false) {
+    struct stat stFileInfo;
+    auto intstat = stat(keep_file.c_str(), &stFileInfo);
+    if (intstat != 0) {
+      std::cerr << "Error: file not found " << keep_file << std::endl;
+      return false;
+    }
+    std::ifstream kfile(keep_file);
+    std::string line;
+    while (std::getline(kfile,line)) {
+      if (line.size() == 0) {
+        continue;
+      }
+      std::stringstream ss(line);
+      std::string name;
+      char delimeter = ',';
+      std::vector<uint32_t> u;
+      while (std::getline(ss, name, delimeter)) {
+        if (line.size() == 0) {
+          continue;
+        }
+        const auto& itnames = find(names.begin(), names.end(), name);
+        if (itnames == names.end()) {
+          std::cerr << "Error: File " << keep_file << " contains the name \"" << name << "\" which does not exist" << std::endl;
+          return false;
+        }
+        u.push_back(itnames - names.begin());
+      }
+      auto it = idmapinv.find(u);
+      auto it1 = idmapinv_keep.find(u);
+      auto it2 = idmapinv_discard.find(u);
+      if (it1 != idmapinv_keep.end() || it2 != idmapinv_discard.end()) {
+        std::cerr << "Error: In file " << keep_file << ", the following line is duplicated: " << line << std::endl;
+        return false;
+      } else if (discard && it != idmapinv.end()) {
+        std::cerr << "Error: In file " << keep_file << ", the following line cannot be used: " << line << std::endl;
+        return false;
+      }
+      if (discard) {
+        idmapinv_discard.insert({u,0});
+        discard_check = true;
+      } else {
+        idmapinv_keep.insert({u,0});
+        keep_check = true;
+      }
+    }
+    return true;
+  }
+  
   class Locations {
   public:
     Locations(std::vector<std::pair<int,int>>& kmers, int rlen) : kmers(kmers), size(kmers.size()), rlen(rlen) {
@@ -755,9 +808,16 @@ struct SplitCode {
       }
       auto it = idmapinv.find(u);
       int id;
+      if (keep_check && idmapinv_keep.find(u) == idmapinv_keep.end()) {
+        r.name_ids.clear();
+        continue;
+      }
       if (it != idmapinv.end()) {
         id = it->second;
         idcount[id]++;
+      } else if (discard_check && idmapinv_discard.find(u) != idmapinv_discard.end()) {
+        r.name_ids.clear();
+        continue;
       } else {
         id = idmapinv.size();
         idmapinv.insert({u,id});
@@ -866,10 +926,14 @@ struct SplitCode {
   std::vector<std::vector<uint32_t>> idmap;
   std::unordered_map<std::vector<uint32_t>, int, VectorHasher> idmapinv;
   std::vector<int> idcount;
+  std::unordered_map<std::vector<uint32_t>, int, VectorHasher> idmapinv_keep;
+  std::unordered_map<std::vector<uint32_t>, int, VectorHasher> idmapinv_discard;
   
   std::vector<std::vector<std::pair<int,int>>> kmer_size_locations;
   
   bool init;
+  bool discard_check;
+  bool keep_check;
   int nFiles;
   static const int MAX_K = 32;
   static const size_t FAKE_BARCODE_LEN = 16;

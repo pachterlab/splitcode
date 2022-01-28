@@ -244,7 +244,7 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
       int nl = names[i+j].second;
       const char* q = quals[i+j].first;
       // Write out read
-      bool embed_final_barcode = j==0 && !write_barcode_separate_fastq && !opt.pipe;
+      bool embed_final_barcode = assigned && j==0 && !write_barcode_separate_fastq && !opt.pipe;
       o << "@";
       o << std::string(n,nl) << mod_name << "\n";
       if (embed_final_barcode) {
