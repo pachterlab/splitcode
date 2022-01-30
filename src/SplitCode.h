@@ -159,13 +159,21 @@ struct SplitCode {
         }
       }
     }
-    for (int i = 0; i < tags_vec.size(); i++) { // Set up minFinds and maxFinds
+    initiator_files.resize(kmer_size_locations.size(), false);
+    for (int i = 0; i < tags_vec.size(); i++) { // Set up minFinds and maxFinds and initiators
       auto& tag = tags_vec[i];
       if (tag.min_finds != 0) {
         min_finds_map[i] = tag.min_finds;
       }
       if (tag.max_finds != 0) {
         max_finds_map[i] = tag.max_finds;
+      }
+      if (tag.initiator && (tag.file < initiator_files.size() || tag.file == -1)) {
+        if (tag.file == -1) {
+          std::replace(initiator_files.begin(), initiator_files.end(), false, true); // All files have initiator sequences
+        } else {
+          initiator_files[tag.file] = true; // Identify which files have initiator sequences
+        }
       }
     }
     init = true;
@@ -550,13 +558,18 @@ struct SplitCode {
     return true;
   }
   
-  bool getTag(std::string& seq, uint32_t& tag_id) { // TODO: Specify parameters (e.g. file number, location)
+  bool getTag(std::string& seq, uint32_t& tag_id, bool look_for_initiator = false) { // TODO: Specify parameters (e.g. file number, location)
     checkInit();
     const auto& it = tags.find(seq);
     if (it == tags.end()) {
       return false;
     }
     tag_id = (it->second)[0].first;
+    if (look_for_initiator) {
+      if (!tags_vec[tag_id].initiator) {
+        return false;
+      }
+    }
     return true;
   }
   
@@ -795,6 +808,7 @@ struct SplitCode {
     for (int j = 0; j < n; j++) {
       int file = j;
       int readLength = l[file];
+      bool look_for_initiator = initiator_files[file];
       std::string seq(s[file], readLength);
       bool found_weird_base = false; // non-ATCG bases
       for (auto& c: seq) {
@@ -817,7 +831,8 @@ struct SplitCode {
         // DEBUG:
         // std::cout << "file=" << file << " k=" << k << " pos=" << pos << " kmer=" << kmer << std::endl;
         uint32_t tag_id;
-        if (getTag(kmer, tag_id)) {
+        if (getTag(kmer, tag_id, look_for_initiator)) {
+          look_for_initiator = false;
           auto& tag = tags_vec[tag_id];
           if (tag.min_finds > 0) {
             min_finds[tag_id]--;
@@ -829,6 +844,9 @@ struct SplitCode {
           }
           if (!tag.not_include_in_barcode) {
             results.name_ids.push_back(tag.name_id);
+          }
+          if (tag.terminator) {
+            break; // End the search for the current (j'th) read file's sequence
           }
           locations.setJump();
         }
@@ -974,6 +992,7 @@ struct SplitCode {
   
   std::unordered_map<uint32_t,int> min_finds_map;
   std::unordered_map<uint32_t,int> max_finds_map;
+  std::vector<bool> initiator_files;
   
   std::vector<std::vector<std::pair<int,int>>> kmer_size_locations;
   
