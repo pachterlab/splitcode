@@ -811,7 +811,9 @@ struct SplitCode {
         uint32_t tag_id;
         if (getTag(kmer, tag_id)) {
           auto& tag = tags_vec[tag_id];
-          results.name_ids.push_back(tag.name_id);
+          if (!tag.not_include_in_barcode) {
+            results.name_ids.push_back(tag.name_id);
+          }
           locations.setJump();
         }
       }
