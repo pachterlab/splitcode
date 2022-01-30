@@ -438,6 +438,23 @@ struct SplitCode {
     return checkCollision(tag, v, vi, false);
   }
   
+  bool containsRegion(int16_t file_1, int32_t pos_start_1, int32_t pos_end_1, int16_t file_2, int32_t pos_start_2, int32_t pos_end_2) {
+    // Checks if 2 (the k-mer) is contained within 1 (the tag)
+    if (file_1 != file_2 && !(file_1 == -1 || file_2 == -1)) {
+      return false;
+    }
+    if (pos_start_2 < pos_start_1) {
+      return false;
+    }
+    if (pos_end_2 == 0 && pos_end_1 != 0) {
+      return false;
+    }
+    if (pos_end_2 > pos_end_1 && pos_end_1 != 0) {
+      return false;
+    }
+    return true;
+  }
+  
   bool overlapRegion(int16_t file_1, int32_t pos_start_1, int32_t pos_end_1, int16_t file_2, int32_t pos_start_2, int32_t pos_end_2) {
     if (file_1 != file_2 && !(file_1 == -1 || file_2 == -1)) {
       return false;
@@ -558,19 +575,24 @@ struct SplitCode {
     return true;
   }
   
-  bool getTag(std::string& seq, uint32_t& tag_id, bool look_for_initiator = false) { // TODO: Specify parameters (e.g. file number, location)
+  bool getTag(std::string& seq, uint32_t& tag_id, int file, int pos, int k, bool look_for_initiator = false) {
     checkInit();
     const auto& it = tags.find(seq);
     if (it == tags.end()) {
       return false;
     }
-    tag_id = (it->second)[0].first;
-    if (look_for_initiator) {
-      if (!tags_vec[tag_id].initiator) {
-        return false;
+    bool found = false;
+    for (auto &x : it->second) {
+      tag_id = x.first;
+      auto& tag = tags_vec[tag_id];
+      if (containsRegion(tag.file, tag.pos_start, tag.pos_end, file, pos, pos+k)) {
+        if (!look_for_initiator || (look_for_initiator && tags_vec[tag_id].initiator)) {
+          found = true;
+          break;
+        }
       }
     }
-    return true;
+    return found;
   }
   
   int getNumTags() {
@@ -831,7 +853,7 @@ struct SplitCode {
         // DEBUG:
         // std::cout << "file=" << file << " k=" << k << " pos=" << pos << " kmer=" << kmer << std::endl;
         uint32_t tag_id;
-        if (getTag(kmer, tag_id, look_for_initiator)) {
+        if (getTag(kmer, tag_id, file, pos, k, look_for_initiator)) {
           look_for_initiator = false;
           auto& tag = tags_vec[tag_id];
           if (tag.min_finds > 0) {
