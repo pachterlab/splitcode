@@ -711,18 +711,26 @@ struct SplitCode {
   public:
     Locations(std::vector<std::pair<int,int>>& kmers, int rlen) : kmers(kmers), size(kmers.size()), rlen(rlen) {
       invalid = false;
+      jump_pos = 0;
       i = -1;
       operator++();
     };
     
     void operator++() {
+      if (invalid) {
+        return;
+      }
       int kmer_size;
       int kmer_loc;
       if (i != -1) {
         kmer_size = kmers[i].first;
         kmer_loc = kmers[i].second;
         if (kmer_loc == -1) {
-          pos++;
+          if (pos < jump_pos) {
+            pos = jump_pos;
+          } else {
+            pos++;
+          }
           if (pos+kmer_size <= rlen) {
             return;
           }
@@ -737,7 +745,7 @@ struct SplitCode {
           return;
         }
         pos = kmer_loc;
-        if (pos+kmer_size <= rlen) {
+        if (pos+kmer_size <= rlen && pos >= jump_pos) {
           return;
         }
         i++;
@@ -752,6 +760,16 @@ struct SplitCode {
     bool good() {
       return !invalid;
     }
+    
+    void setJump(int jump = 0) {
+      jump = jump <= 0 ? kmers[i].first : jump;
+      if (pos+jump > jump_pos) {
+        jump_pos = pos+jump;
+      }
+      if (jump_pos >= rlen) {
+        invalid = true;
+      }
+    }
 
   private:
     const std::vector<std::pair<int,int>>& kmers;
@@ -759,6 +777,7 @@ struct SplitCode {
     const int rlen;
     int i;
     int pos;
+    int jump_pos;
     bool invalid;
   };
   
@@ -793,7 +812,7 @@ struct SplitCode {
         if (getTag(kmer, tag_id)) {
           auto& tag = tags_vec[tag_id];
           results.name_ids.push_back(tag.name_id);
-          // TODO: advance locations to go beyond this kmer: locations.setJump();
+          locations.setJump();
         }
       }
     }
