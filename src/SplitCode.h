@@ -159,6 +159,15 @@ struct SplitCode {
         }
       }
     }
+    for (int i = 0; i < tags_vec.size(); i++) { // Set up minFinds and maxFinds
+      auto& tag = tags_vec[i];
+      if (tag.min_finds != 0) {
+        min_finds_map[i] = tag.min_finds;
+      }
+      if (tag.max_finds != 0) {
+        max_finds_map[i] = tag.max_finds;
+      }
+    }
     init = true;
   }
   
@@ -309,10 +318,7 @@ struct SplitCode {
       std::cerr << "Error: Sequence #" << new_tag_index+1 << ": \"" << name << "\" is empty" << std::endl;
       return false;
     }
-    if (max_finds == 0) { // 0 = no restrictions
-      max_finds = -1; // max unsigned int
-    }
-    if (max_finds < min_finds) {
+    if (max_finds < min_finds && max_finds != 0) {
       std::cerr << "Error: Sequence #" << new_tag_index+1 << ": \"" << name << "\" -- max finds cannot be less than min finds" << std::endl;
       return false;
     }
@@ -783,6 +789,8 @@ struct SplitCode {
   
   void processRead(std::vector<const char*>& s, std::vector<int>& l, int jmax, Results& results) {
     std::mt19937 gen;
+    auto min_finds = min_finds_map; // copy
+    auto max_finds = max_finds_map; // copy
     int n = std::min(jmax, (int)kmer_size_locations.size());
     for (int j = 0; j < n; j++) {
       int file = j;
@@ -811,11 +819,25 @@ struct SplitCode {
         uint32_t tag_id;
         if (getTag(kmer, tag_id)) {
           auto& tag = tags_vec[tag_id];
+          if (tag.min_finds > 0) {
+            min_finds[tag_id]--;
+          }
+          if (tag.max_finds > 0) {
+            if (max_finds[tag_id]-- <= 0) {
+              continue; // maxFinds exceeded; just continue
+            }
+          }
           if (!tag.not_include_in_barcode) {
             results.name_ids.push_back(tag.name_id);
           }
           locations.setJump();
         }
+      }
+    }
+    for (auto& it : min_finds) {
+      if (it.second > 0) {
+        results.name_ids.clear(); // minFinds not met
+        break;
       }
     }
   }
@@ -949,6 +971,9 @@ struct SplitCode {
   std::vector<int> idcount;
   std::unordered_map<std::vector<uint32_t>, int, VectorHasher> idmapinv_keep;
   std::unordered_map<std::vector<uint32_t>, int, VectorHasher> idmapinv_discard;
+  
+  std::unordered_map<uint32_t,int> min_finds_map;
+  std::unordered_map<uint32_t,int> max_finds_map;
   
   std::vector<std::vector<std::pair<int,int>>> kmer_size_locations;
   
