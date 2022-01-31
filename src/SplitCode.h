@@ -327,7 +327,7 @@ struct SplitCode {
       return false;
     }
     for (int i = 0; i < name.size(); i++) {
-      if (name[i] == '#' || name[i] == '|' || name[i] == '(' || name[i] == ')') {
+      if (name[i] == '#' || name[i] == '|' || name[i] == '(' || name[i] == ')' || name[i] == '[' || name[i] == ']') {
         std::cerr << "Error: The name of sequence #" << new_tag_index+1 << ": \"" << name << "\" contains an invalid character" << std::endl;
         return false;
       }
