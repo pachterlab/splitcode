@@ -179,10 +179,6 @@ struct SplitCode {
     init = true;
   }
   
-  void update(const std::vector<int>& c, const std::vector<std::vector<int>>& IDs, const std::vector<std::vector<int>>& newIDs) {
-    checkInit();
-  }
-  
   struct VectorHasher {
     size_t operator()(const std::vector<uint32_t>& v) const {
       uint64_t r = 0;
@@ -699,6 +695,55 @@ struct SplitCode {
     return true;
   }
   
+  bool addExistingMapping(std::string mapping_file) {
+    struct stat stFileInfo;
+    auto intstat = stat(mapping_file.c_str(), &stFileInfo);
+    if (intstat != 0) {
+      std::cerr << "Error: file not found " << mapping_file << std::endl;
+      return false;
+    }
+    std::ifstream mfile(mapping_file);
+    std::string line;
+    while (std::getline(mfile,line)) {
+      if (line.size() == 0) {
+        continue;
+      }
+      std::stringstream ss(line);
+      std::string barcode;
+      std::string names_list;
+      uint32_t count;
+      ss >> barcode >> names_list >> count;
+      if (hashKmer(barcode) != idmapinv.size()) { // Barcodes need to be ordered 0,1,2,3,... in terms of their binary values
+        std::cerr << "Error: File " << mapping_file << " contains an invalid list of sequences in the first column" << std::endl;
+        return false;
+      }
+      std::stringstream ss1(names_list);
+      std::string name;
+      char delimeter = ',';
+      std::vector<uint32_t> u;
+      while (std::getline(ss1, name, delimeter)) {
+        if (name.size() == 0) {
+          continue;
+        }
+        const auto& itnames = find(names.begin(), names.end(), name);
+        if (itnames == names.end()) {
+          std::cerr << "Error: File " << mapping_file << " contains the name \"" << name << "\" which does not exist" << std::endl;
+          return false;
+        }
+        u.push_back(itnames - names.begin());
+      }
+      auto it = idmapinv.find(u);
+      if (it != idmapinv.end()) {
+        std::cerr << "Error: In file " << mapping_file << ", the following is duplicated: " << names_list << std::endl;
+        return false;
+      }
+      idmapinv.insert({u,idmapinv.size()});
+      idmap.push_back(std::move(u));
+      idcount.push_back(0);
+    }
+    return true;
+  }
+  
   bool addFilterList(std::string keep_file, bool discard=false) {
     struct stat stFileInfo;
     auto intstat = stat(keep_file.c_str(), &stFileInfo);
@@ -717,7 +762,7 @@ struct SplitCode {
       char delimeter = ',';
       std::vector<uint32_t> u;
       while (std::getline(ss, name, delimeter)) {
-        if (line.size() == 0) {
+        if (name.size() == 0) {
           continue;
         }
         const auto& itnames = find(names.begin(), names.end(), name);

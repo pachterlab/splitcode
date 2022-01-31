@@ -77,6 +77,7 @@ void usage() {
        << "-N, --nFastqs    Number of FASTQ file(s) per run" << endl
        << "                 (default: 1) (specify 2 for paired-end)" << endl
        << "    --mod-names  Modify names of outputted sequences to include identified barcodes" << endl
+       << "-A, --append     An existing mapping file that will be added on to" << endl
        << "-k, --keep       File containing a list of final barcodes to keep" << endl
        << "-r, --remove     File containing a list of final barcodes to remove/discard" << endl
        << "-t, --threads    Number of threads to use" << endl
@@ -93,7 +94,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   int gzip_flag = 0;
   int mod_names_flag = 0;
 
-  const char *opt_string = "t:N:b:d:i:l:f:F:e:c:o:O:u:m:k:r:ph";
+  const char *opt_string = "t:N:b:d:i:l:f:F:e:c:o:O:u:m:k:r:A:ph";
   static struct option long_options[] = {
     // long args
     {"version", no_argument, &version_flag, 1},
@@ -120,6 +121,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"mapping", required_argument, 0, 'm'},
     {"keep", required_argument, 0, 'k'},
     {"remove", required_argument, 0, 'r'},
+    {"append", required_argument, 0, 'A'},
     {0,0,0,0}
   };
   
@@ -211,6 +213,10 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     }
     case 'O': {
       stringstream(optarg) >> opt.outputb_file;
+      break;
+    }
+    case 'A': {
+      stringstream(optarg) >> opt.append_file;
       break;
     }
     case 'u': {
@@ -488,6 +494,10 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
     ret = false;
   } else if (!opt.config_file.empty()) {
     ret = ret && sc.addTags(opt.config_file);
+  }
+  
+  if (ret && !opt.append_file.empty()) {
+    ret = ret && sc.addExistingMapping(opt.append_file);
   }
 
   if (ret && !opt.keep_file.empty()) {

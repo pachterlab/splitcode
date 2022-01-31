@@ -33,6 +33,7 @@ struct ProgramOptions {
   std::string config_file;
   std::string mapping_file;
   std::string keep_file;
+  std::string append_file;
   
   ProgramOptions() :
     threads(1),
