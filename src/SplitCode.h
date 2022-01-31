@@ -326,6 +326,12 @@ struct SplitCode {
       std::cerr << "Error: Sequence #" << new_tag_index+1 << ": \"" << name << "\" -- max finds cannot be less than min finds" << std::endl;
       return false;
     }
+    for (int i = 0; i < name.size(); i++) {
+      if (name[i] == '#' || name[i] == '|' || name[i] == '(' || name[i] == ')') {
+        std::cerr << "Error: The name of sequence #" << new_tag_index+1 << ": \"" << name << "\" contains an invalid character" << std::endl;
+        return false;
+      }
+    }
     uint32_t name_id;
     const auto& itnames = find(names.begin(), names.end(), name);
     if (itnames == names.end()) {
