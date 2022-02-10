@@ -249,11 +249,15 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
       o << std::string(n,nl) << mod_name << "\n";
       if (embed_final_barcode) {
         o << sc.binaryToString(r.id, sc.FAKE_BARCODE_LEN);
+      } else if (l == 0 && !opt.empty_read_sequence.empty()) {
+        o << opt.empty_read_sequence;
       }
       o << std::string(s,l) << "\n";
       o << "+" << "\n";
       if (embed_final_barcode) {
         o << std::string(sc.FAKE_BARCODE_LEN, sc.QUAL);
+      } else if (l == 0 && !opt.empty_read_sequence.empty()) {
+        o << std::string(opt.empty_read_sequence.length(), sc.QUAL);
       }
       o << std::string(q,l) << "\n";
       
@@ -383,7 +387,7 @@ void ReadProcessor::processBuffer() {
     mp.sc.processRead(s, l, jmax, results);
     rv.push_back(results);
     
-    if (sc.isAssigned(results)) { // Only modify/trim the reads stored in seq if assigned
+    if (mp.sc.isAssigned(results)) { // Only modify/trim the reads stored in seq if assigned
       mp.sc.modifyRead(seqs, quals, i-incf, results);
     }
 

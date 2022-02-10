@@ -36,6 +36,7 @@ struct ProgramOptions {
   std::string append_file;
   std::string left_str;
   std::string right_str;
+  std::string empty_read_sequence;
   
   ProgramOptions() :
     threads(1),

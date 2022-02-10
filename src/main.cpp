@@ -74,6 +74,7 @@ void usage() {
        << "                 If not supplied, the final barcodes will be prepended to reads of first FASTQ file" << endl
        << "-u, --unassigned FASTQ file(s) where output of unassigned reads will be written (comma-separated)" << endl
        << "                 Number of FASTQ files should equal --nFastqs" << endl
+       << "-E, --empty      Sequence to fill in empty reads in output FASTQ files (default: no sequence is used to fill in those reads)" << endl
        << "-p, --pipe       Write to standard output (instead of output FASTQ files)" << endl
        << "    --gzip       Output compressed gzip'ed FASTQ files" << endl
        << "    --no-output  Don't output any sequences (output statistics only)" << endl
@@ -98,7 +99,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   int gzip_flag = 0;
   int mod_names_flag = 0;
 
-  const char *opt_string = "t:N:b:d:i:l:f:F:e:c:o:O:u:m:k:r:A:L:R:ph";
+  const char *opt_string = "t:N:b:d:i:l:f:F:e:c:o:O:u:m:k:r:A:L:R:E:ph";
   static struct option long_options[] = {
     // long args
     {"version", no_argument, &version_flag, 1},
@@ -128,6 +129,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"append", required_argument, 0, 'A'},
     {"left", required_argument, 0, 'L'},
     {"right", required_argument, 0, 'R'},
+    {"empty", required_argument, 0, 'E'},
     {0,0,0,0}
   };
   
@@ -231,6 +233,13 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     }
     case 'A': {
       stringstream(optarg) >> opt.append_file;
+      break;
+    }
+    case 'E': {
+      stringstream(optarg) >> opt.empty_read_sequence;
+      for (auto& c: opt.empty_read_sequence) {
+        c = toupper(c);
+      }
       break;
     }
     case 'u': {
