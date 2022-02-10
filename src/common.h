@@ -34,6 +34,8 @@ struct ProgramOptions {
   std::string mapping_file;
   std::string keep_file;
   std::string append_file;
+  std::string left_str;
+  std::string right_str;
   
   ProgramOptions() :
     threads(1),

@@ -60,6 +60,10 @@ void usage() {
        << "-f, --minFinds   List of minimum times a barcode must be found in a read (comma-separated)" << endl
        << "-F, --maxFinds   List of maximum times a barcode can be found in a read (comma-separated)" << endl
        << "-e, --exclude    List of what to exclude from final barcode (comma-separated; 1 = exclude, 0 = include)" << endl
+       << "-L, --left       List of what barcodes to include when trimming from the left (comma-separated; 1 = include, 0 = exclude)" << endl
+       << "-R, --right      List of what barcodes to include when trimming from the right (comma-separated; 1 = include, 0 = exclude)" << endl
+       << "                 (Note: for --left/--right, can specify an included barcode as 1:x where x = number of extra bp's to trim" << endl
+       << "                 from left/right side if the that included barcode is at the leftmost/rightmost position)" << endl
        << "Options (configurations supplied in a file):" << endl
        << "-c, --config     Configuration file" << endl
        << "Output Options:" << endl
@@ -94,7 +98,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   int gzip_flag = 0;
   int mod_names_flag = 0;
 
-  const char *opt_string = "t:N:b:d:i:l:f:F:e:c:o:O:u:m:k:r:A:ph";
+  const char *opt_string = "t:N:b:d:i:l:f:F:e:c:o:O:u:m:k:r:A:L:R:ph";
   static struct option long_options[] = {
     // long args
     {"version", no_argument, &version_flag, 1},
@@ -122,6 +126,8 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"keep", required_argument, 0, 'k'},
     {"remove", required_argument, 0, 'r'},
     {"append", required_argument, 0, 'A'},
+    {"left", required_argument, 0, 'L'},
+    {"right", required_argument, 0, 'R'},
     {0,0,0,0}
   };
   
@@ -182,6 +188,14 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     }
     case 'e': {
       stringstream(optarg) >> opt.exclude_str;
+      break;
+    }
+    case 'L': {
+      stringstream(optarg) >> opt.left_str;
+      break;
+    }
+    case 'R': {
+      stringstream(optarg) >> opt.right_str;
       break;
     }
     case 'c': {
@@ -347,6 +361,8 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
     stringstream ss5(opt.max_finds_str);
     stringstream ss6(opt.min_finds_str);
     stringstream ss7(opt.exclude_str);
+    stringstream ss8(opt.left_str);
+    stringstream ss9(opt.right_str);
     while (ss1.good()) {
       uint16_t max_finds = 0;
       uint16_t min_finds = 0;
@@ -354,6 +370,10 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
       string name = "";
       string location = "";
       string distance = "";
+      string left_str = "";
+      string right_str = "";
+      bool trim_left, trim_right;
+      int trim_left_offset, trim_right_offset;
       int16_t file;
       int32_t pos_start;
       int32_t pos_end;
@@ -444,7 +464,54 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
         getline(ss7, f, ',');
         stringstream(f) >> exclude;
       }
-      if (!sc.addTag(bc, name.empty() ? bc : name, mismatch, indel, total_dist, file, pos_start, pos_end, max_finds, min_finds, exclude)) {
+      if (!opt.left_str.empty()) {
+        auto currpos = ss8.tellg();
+        if (!ss8.good()) {
+          std::cerr << ERROR_STR << " Number of values in --left is less than that in --barcodes" << std::endl;
+          ret = false;
+          break;
+        }
+        string f;
+        getline(ss8, f, ',');
+        stringstream(f) >> left_str;
+        if (!ss8.good() && ss1.good() && currpos == 0) {
+          ss8.clear();
+          ss8.str(opt.left_str);
+        }
+      }
+      if (!SplitCode::parseTrimStr(left_str, trim_left, trim_left_offset)) {
+        std::cerr << ERROR_STR << " --left is invalid" << std::endl;
+        ret = false;
+        break;
+      }
+      if (!opt.right_str.empty()) {
+        auto currpos = ss9.tellg();
+        if (!ss9.good()) {
+          std::cerr << ERROR_STR << " Number of values in --right is less than that in --barcodes" << std::endl;
+          ret = false;
+          break;
+        }
+        string f;
+        getline(ss9, f, ',');
+        stringstream(f) >> right_str;
+        if (!ss9.good() && ss1.good() && currpos == 0) {
+          ss9.clear();
+          ss9.str(opt.right_str);
+        }
+      }
+      if (!SplitCode::parseTrimStr(right_str, trim_right, trim_right_offset)) {
+        std::cerr << ERROR_STR << " --right is invalid" << std::endl;
+        ret = false;
+        break;
+      }
+      if (trim_left && trim_right) {
+        std::cerr << ERROR_STR << " One of the barcodes has both --left and --right trimming specified" << std::endl;
+        ret = false;
+        break;
+      }
+      auto trim_dir = trim_left ? sc.left : (trim_right ? sc.right : sc.nodir);
+      auto trim_offset = trim_left ? trim_left_offset : (trim_right ? trim_right_offset : 0);
+      if (!sc.addTag(bc, name.empty() ? bc : name, mismatch, indel, total_dist, file, pos_start, pos_end, max_finds, min_finds, exclude, trim_dir, trim_offset)) {
         std::cerr << ERROR_STR << " Could not finish processing supplied barcode list" << std::endl;
         ret = false;
         break;
@@ -474,6 +541,14 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
       std::cerr << ERROR_STR << " Number of values in --exclude is greater than that in --barcodes" << std::endl;
       ret = false;
     }
+    if (ret && !opt.left_str.empty() && ss8.good()) {
+      std::cerr << ERROR_STR << " Number of values in --left is greater than that in --barcodes" << std::endl;
+      ret = false;
+    }
+    if (ret && !opt.right_str.empty() && ss9.good()) {
+      std::cerr << ERROR_STR << " Number of values in --right is greater than that in --barcodes" << std::endl;
+      ret = false;
+    }
   } else if (!opt.distance_str.empty()) {
     std::cerr << ERROR_STR << " --distances cannot be supplied unless --barcodes is" << std::endl;
     ret = false;
@@ -491,6 +566,12 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
     ret = false;
   } else if (!opt.exclude_str.empty()) {
     std::cerr << ERROR_STR << " --exclude cannot be supplied unless --barcodes is" << std::endl;
+    ret = false;
+  } else if (!opt.left_str.empty()) {
+    std::cerr << ERROR_STR << " --left cannot be supplied unless --barcodes is" << std::endl;
+    ret = false;
+  } else if (!opt.right_str.empty()) {
+    std::cerr << ERROR_STR << " --right cannot be supplied unless --barcodes is" << std::endl;
     ret = false;
   } else if (!opt.config_file.empty()) {
     ret = ret && sc.addTags(opt.config_file);

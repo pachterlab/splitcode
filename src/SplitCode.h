@@ -18,6 +18,7 @@
 
 struct SplitCode {
   typedef std::pair<uint32_t,short> tval; // first element of pair is tag id, second is mismatch distance
+  enum dir {left, right, nodir};
   
   SplitCode() {
     init = false;
@@ -202,11 +203,13 @@ struct SplitCode {
     uint16_t max_finds;
     uint16_t min_finds;
     bool not_include_in_barcode;
+    dir trim;
+    int trim_offset;
   };
 
   struct Results {
     std::vector<uint32_t> name_ids;
-    std::vector<std::pair<int,int>> pos;
+    std::vector<std::pair<int,std::pair<int,int>>> modtrim;
     int id;
   };
   
@@ -299,7 +302,8 @@ struct SplitCode {
   
   bool addTag(std::string seq, std::string name, int mismatch_dist, int indel_dist, int total_dist,
               int16_t file, int32_t pos_start, int32_t pos_end,
-              uint16_t max_finds, uint16_t min_finds, bool not_include_in_barcode) {
+              uint16_t max_finds, uint16_t min_finds, bool not_include_in_barcode,
+              dir trim, int trim_offset) {
     if (init) {
       std::cerr << "Error: Already initialized" << std::endl;
       return false;
@@ -350,6 +354,8 @@ struct SplitCode {
     new_tag.max_finds = max_finds;
     new_tag.min_finds = min_finds;
     new_tag.not_include_in_barcode = not_include_in_barcode;
+    new_tag.trim = trim;
+    new_tag.trim_offset = trim_offset;
     
     // Now deal with adding the actual sequence:
     char delimeter = '/'; // Sequence can be delimited by '/' if the user gives multiple sequences for one tag record
@@ -546,6 +552,10 @@ struct SplitCode {
       parseLocation("", file, pos_start, pos_end); // Set up default values
       uint16_t max_finds = 0;
       uint16_t min_finds = 0;
+      bool trim_left, trim_right;
+      int trim_left_offset, trim_right_offset;
+      parseTrimStr("", trim_left, trim_left_offset); // Set up default values
+      parseTrimStr("", trim_right, trim_right_offset); // Set up default values
       bool exclude = false;
       bool ret = true;
       for (int i = 0; ss >> field; i++) {
@@ -563,12 +573,22 @@ struct SplitCode {
           std::stringstream(field) >> max_finds;
         } else if (h[i] == "EXCLUDE") {
           std::stringstream(field) >> exclude;
+        } else if (h[i] == "LEFT") {
+          ret = ret && parseTrimStr(field, trim_left, trim_left_offset);
+        } else if (h[i] == "RIGHT") {
+          ret = ret && parseTrimStr(field, trim_right, trim_right_offset);
         } else {
           std::cerr << "Error: The file \"" << config_file << "\" contains the invalid column header: " << h[i] << std::endl;
           return false;
         }
       }
-      if (!ret || !addTag(bc, name.empty() ? bc : name, mismatch, indel, total_dist, file, pos_start, pos_end, max_finds, min_finds, exclude)) {
+      if (trim_left && trim_right) {
+        std::cerr << "Error: One of the barcodes has both left and right trimming specified" << std::endl;
+        ret = false;
+      }
+      auto trim_dir = trim_left ? left : (trim_right ? right : nodir);
+      auto trim_offset = trim_left ? trim_left_offset : (trim_right ? trim_right_offset : 0);
+      if (!ret || !addTag(bc, name.empty() ? bc : name, mismatch, indel, total_dist, file, pos_start, pos_end, max_finds, min_finds, exclude, trim_dir, trim_offset)) {
         std::cerr << "Error: The file \"" << config_file << "\" contains an error" << std::endl;
         return false;
       }
@@ -620,6 +640,38 @@ struct SplitCode {
       nummapped += n;
     }
     return nummapped;
+  }
+  
+  static bool parseTrimStr(const std::string& s_trim, bool& trim, int& offset) {
+    trim = false;
+    offset = 0;
+    char delimeter = ':';
+    if (s_trim.find(',') < s_trim.length()) {
+      delimeter = ','; // If string contains commas, use commas as delimeter
+    }
+    std::stringstream ss_trim(s_trim);
+    std::string trim_attribute;
+    int i = 0;
+    try {
+      while (std::getline(ss_trim, trim_attribute, delimeter)) {
+        if (!trim_attribute.empty()) {
+          if (i == 0) {
+            trim = std::stoi(trim_attribute);
+          } else if (i == 1) {
+            offset = std::stoi(trim_attribute);
+          }
+        }
+        i++;
+      }
+      if (i > 2 || (!trim && offset != 0)) {
+        std::cerr << "Error: Trim string is malformed; unable to parse \"" << s_trim << "\"" << std::endl;
+        return false;
+      }
+    } catch (std::invalid_argument &e) {
+      std::cerr << "Error: Could not convert \"" << trim_attribute << "\" to int in trim string" << std::endl;
+      return false;
+    }
+    return true;
   }
   
   static bool parseLocation(const std::string& location, int16_t& file, int32_t& pos_start, int32_t& pos_end, int nFiles = -1) {
@@ -874,6 +926,7 @@ struct SplitCode {
   };
   
   void processRead(std::vector<const char*>& s, std::vector<int>& l, int jmax, Results& results) {
+    // Note: s and l may end up being trimmed/modified (even if the read ends up becoming unassigned)
     std::mt19937 gen;
     auto min_finds = min_finds_map; // copy
     auto max_finds = max_finds_map; // copy
@@ -895,6 +948,9 @@ struct SplitCode {
           c = "ATCG"[(gen()%4)]; // substitute non-ATCG base for pseudo-random base
         }
       }
+      int left_trim = 0;
+      int right_trim = 0;
+      bool right_trim_found = false;
       auto& kmers = kmer_size_locations[file];
       for (Locations locations(kmers, readLength); locations.good(); ++locations) {
         auto loc = locations.get();
@@ -918,17 +974,60 @@ struct SplitCode {
           if (!tag.not_include_in_barcode) {
             results.name_ids.push_back(tag.name_id);
           }
+          if (tag.trim == left) {
+            left_trim = pos+k+tag.trim_offset;// std::max(left_trim, );
+          } else if (tag.trim == right && !right_trim_found) {
+            right_trim = (readLength-pos)+tag.trim_offset;
+            right_trim_found = true;
+          }
+          dir trim;
+          int trim_offset;
+          
           if (tag.terminator) {
             break; // End the search for the current (j'th) read file's sequence
           }
           locations.setJump();
         }
       }
+      // Modify (trim) the reads
+      if (left_trim != 0) {
+        left_trim = std::min(left_trim, readLength);
+        s[file] += left_trim;
+        l[file] -= left_trim;
+      }
+      if (right_trim != 0) {
+        right_trim = std::min(right_trim, readLength);
+        if (l[file] - right_trim <= 0) {
+          l[file] = 0;
+        } else {
+          l[file] -= right_trim;
+        }
+      }
+      if (l[file] != readLength) {
+        results.modtrim.push_back(std::make_pair(file, std::make_pair(left_trim, l[file])));
+      }
     }
     for (auto& it : min_finds) {
       if (it.second > 0) {
         results.name_ids.clear(); // minFinds not met
         break;
+      }
+    }
+  }
+  
+  static void modifyRead(std::vector<std::pair<const char*, int>>& seqs, std::vector<std::pair<const char*, int>>& quals, int i, const Results& results) {
+    // Modify (trim) the reads in the actual read buffer itself
+    size_t q_size = quals.size();
+    for (auto& mt : results.modtrim) {
+      int j = mt.first;
+      int index = i+j;
+      int leftOffset = mt.second.first;
+      int readLength = mt.second.second;
+      seqs[index].first += leftOffset;
+      seqs[index].second = readLength;
+      if (q_size > index) { // Just in case we decided not to store quality scores
+        quals[index].first += leftOffset;
+        quals[index].second = readLength;
       }
     }
   }
