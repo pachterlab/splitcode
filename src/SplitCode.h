@@ -53,7 +53,8 @@ struct SplitCode {
     }
     // Trim out some tags to create the final 'index'
     for (auto x : tags_to_remove) {
-      auto& v = tags[x.first];
+      SeqString sstr(x.first);
+      auto& v = tags[sstr];
       auto it = v.begin();
       while (it != v.end()) {
         if ((*it).first == x.second) {
@@ -63,7 +64,7 @@ struct SplitCode {
         }
       }
       if (v.size() == 0) { // If the vector stored in the map is now empty, remove the entry from the map
-        tags.erase(x.first);
+        tags.erase(sstr);
       }
     }
     tags_to_remove.clear();
@@ -216,6 +217,23 @@ struct SplitCode {
     std::vector<uint32_t> name_ids;
     std::vector<std::pair<int,std::pair<int,int>>> modtrim;
     int id;
+  };
+  
+  struct SeqString {
+    const char* p_;
+    unsigned short l_;
+    std::string s_;
+    SeqString(const char* p, unsigned short l) : p_(p), l_(l) { }
+    SeqString(const std::string& s) : p_(nullptr), l_(s.length()), s_(s) { }
+    SeqString() : p_{nullptr}, s_(""), l_(0) { }
+    bool operator==(const SeqString& ss) const {
+      return p_ ? 
+        (ss.p_ ? ss.l_ == l_ && std::strncmp(p_, ss.p_, l_) == 0 : ss.l_ == l_ && strncmp(p_, ss.s_.c_str(), l_) == 0) : 
+        (ss.p_ ? ss.l_ == l_ && strncmp(ss.p_, s_.c_str(), l_) == 0 : s_ == ss.s_);
+    }
+    size_t length() const {
+      return l_;
+    }
   };
   
   
@@ -383,8 +401,9 @@ struct SplitCode {
         return false;
       }
       
-      if (tags.find(seq) != tags.end()) { // If we've seen that sequence before
-        const auto& v = tags[seq];
+      SeqString sstr(seq);
+      if (tags.find(sstr) != tags.end()) { // If we've seen that sequence before
+        const auto& v = tags[sstr];
         std::vector<uint32_t> vi;
         if (checkCollision(new_tag, v, vi)) {
           for (auto i : vi) {
@@ -401,8 +420,9 @@ struct SplitCode {
       for (auto mm : mismatches) {
         std::string mismatch_seq = mm.first;
         int error = total_dist - mm.second; // The number of substitutions, insertions, or deletions
-        if (tags.find(mismatch_seq) != tags.end()) { // If we've seen that sequence (mismatch_seq) before
-          auto& v = tags[mismatch_seq];
+        auto mismatch_sstr = SeqString(mismatch_seq);
+        if (tags.find(mismatch_sstr) != tags.end()) { // If we've seen that sequence (mismatch_seq) before
+          auto& v = tags[mismatch_sstr];
           std::vector<uint32_t> vi;
           bool collision = checkCollision(new_tag, v, vi);
           if (collision) {
@@ -486,8 +506,9 @@ struct SplitCode {
   }
   
   void addToMap(const std::string& seq, uint32_t index, int dist = 0) {
-    if (tags.find(seq) != tags.end()) {
-      auto& v = tags[seq];
+    SeqString sstr(seq);
+    if (tags.find(sstr) != tags.end()) {
+      auto& v = tags[sstr];
       for (auto i : v) {
         if (i.first == index) {
           return;
@@ -499,7 +520,7 @@ struct SplitCode {
       std::vector<tval> v(0);
       v.reserve(1);
       v.push_back(std::make_pair(index,dist));
-      tags.insert({seq,v});
+      tags.insert({sstr,v});
     }
   }
   
@@ -604,7 +625,7 @@ struct SplitCode {
   
   bool getTag(std::string& seq, uint32_t& tag_id, int file, int pos, int k, bool look_for_initiator = false) {
     checkInit();
-    const auto& it = tags.find(seq.substr(pos, k));
+    const auto& it = tags.find(SeqString(seq.c_str()+pos, k));
     if (it == tags.end()) {
       return false;
     }
@@ -1119,10 +1140,8 @@ struct SplitCode {
     return std::move(s);
   }
   
-  static uint64_t hashKmer(const std::string& key) {
+  static uint64_t hashKmer(const char* s, size_t k) {
     uint64_t r = 0;
-    const char* s = key.c_str();
-    size_t k = key.length();
     if (k > MAX_K) {
       k = MAX_K;
     }
@@ -1133,6 +1152,12 @@ struct SplitCode {
       s++;
     }
     return r;
+  }
+  
+  static uint64_t hashKmer(const std::string& key) {
+    const char* s = key.c_str();
+    size_t k = key.length();
+    return hashKmer(s, k);
   }
   
   static uint64_t hashSequence(const std::string& s) {
@@ -1149,15 +1174,15 @@ struct SplitCode {
     return hash;
   }
   
-  class KmerHasher {
+  class SeqStringHasher {
   public:
-    size_t operator() (const std::string& key) const {
-      return hashKmer(key);
+    size_t operator()(const SeqString& key) const {
+      return key.p_ ? hashKmer(key.p_, key.l_) : hashKmer(key.s_.c_str(), key.l_);
     }
   };
   
   std::vector<SplitCodeTag> tags_vec;
-  std::unordered_map<std::string, std::vector<tval>, KmerHasher> tags;
+  std::unordered_map<SeqString, std::vector<tval>, SeqStringHasher> tags;
   std::set<std::pair<std::string, uint32_t>> tags_to_remove;
   std::vector<std::string> names;
   
