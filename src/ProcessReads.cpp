@@ -68,8 +68,11 @@ int64_t ProcessReads(MasterProcessor& MP, const  ProgramOptions& opt) {
   int nummapped = MP.sc.getNumMapped();
 
   if (MP.verbose) {
-  std::cerr << "* processed " << pretty_num(numreads) << " reads, "
-    << pretty_num(nummapped) << " reads had identifiable barcodes" << std::endl;
+    std::cerr << "* processed " << pretty_num(numreads) << " reads";
+    if (!MP.sc.always_assign) {
+      std::cerr << ", " << pretty_num(nummapped) << " reads had identifiable barcodes";
+    }
+    std::cerr << std::endl;
   }
   
   return numreads;
@@ -218,7 +221,7 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
     if (assigned && opt.mod_names) {
       mod_name = "::" + sc.getNameString(r); // Barcode names
     }
-    if (assigned && (write_barcode_separate_fastq || opt.pipe)) { // Write out barcode read
+    if (assigned && (write_barcode_separate_fastq || opt.pipe) && !sc.always_assign) { // Write out barcode read
       std::stringstream o;
       // Write out barcode read
       o << "@" << std::string(names[i].first, names[i].second) << mod_name << "\n";
@@ -244,7 +247,7 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
       int nl = names[i+j].second;
       const char* q = quals[i+j].first;
       // Write out read
-      bool embed_final_barcode = assigned && j==0 && !write_barcode_separate_fastq && !opt.pipe;
+      bool embed_final_barcode = assigned && j==0 && !write_barcode_separate_fastq && !opt.pipe && !sc.always_assign;
       o << "@";
       o << std::string(n,nl) << mod_name << "\n";
       if (embed_final_barcode) {
@@ -395,9 +398,15 @@ void ReadProcessor::processBuffer() {
         numreads = 0; // reset counter
         int nummapped = mp.sc.getNumMapped();
 
-        std::cerr << '\r' << (mp.numreads/1000000) << "M reads processed (" 
-          << std::fixed << std::setw( 3 ) << std::setprecision( 1 ) << ((100.0*nummapped)/double(mp.numreads))
-          << "% identified)"; std::cerr.flush();
+        std::cerr << '\r' << (mp.numreads/1000000) << "M reads processed";
+        if (!mp.sc.always_assign) {
+          std::cerr << " (" 
+            << std::fixed << std::setw( 3 ) << std::setprecision( 1 ) << ((100.0*nummapped)/double(mp.numreads))
+            << "% identified)";
+        } else {
+          std::cerr << " (running in --trim-only mode)";
+        }
+        std::cerr.flush();
       }
   }
 }

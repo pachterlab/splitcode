@@ -19,6 +19,7 @@ struct ProgramOptions {
   bool mod_names;
   bool gzip;
   bool discard;
+  bool trim_only;
   std::vector<std::string> files;
   std::vector<std::string> output_files;
   std::string outputb_file;
@@ -47,7 +48,8 @@ struct ProgramOptions {
     verbose(false),
     mod_names(false),
     gzip(false),
-    discard(false)
+    discard(false),
+    trim_only(false)
   {}
 };
 

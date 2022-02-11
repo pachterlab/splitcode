@@ -14,7 +14,6 @@
 #include <fstream>
 #include <sys/stat.h>
 #include <limits>
-#include <random>
 
 struct SplitCode {
   typedef std::pair<uint32_t,short> tval; // first element of pair is tag id, second is mismatch distance
@@ -24,18 +23,24 @@ struct SplitCode {
     init = false;
     discard_check = false;
     keep_check = false;
+    always_assign = false;
     setNFiles(0);
   }
   
-  SplitCode(int nFiles) {
+  SplitCode(int nFiles, bool trim_only = false) {
     init = false;
     discard_check = false;
     keep_check = false;
     setNFiles(nFiles);
+    setTrimOnly(trim_only);
   }
   
   void setNFiles(int nFiles) {
     this->nFiles = nFiles;
+  }
+  
+  void setTrimOnly(bool trim_only) {
+    this->always_assign = trim_only;
   }
   
   void checkInit() { // Initialize if necessary (once initialized, can't add any more barcode tags)
@@ -927,7 +932,6 @@ struct SplitCode {
   
   void processRead(std::vector<const char*>& s, std::vector<int>& l, int jmax, Results& results) {
     // Note: s and l may end up being trimmed/modified (even if the read ends up becoming unassigned)
-    std::mt19937 gen;
     auto min_finds = min_finds_map; // copy
     auto max_finds = max_finds_map; // copy
     int n = std::min(jmax, (int)kmer_size_locations.size());
@@ -937,15 +941,16 @@ struct SplitCode {
       bool look_for_initiator = initiator_files[file];
       std::string seq(s[file], readLength);
       bool found_weird_base = false; // non-ATCG bases
+      uint32_t rando;
       for (auto& c: seq) {
         c &= 0xDF; // Convert a/t/c/g to upper case
         if (c != 'A' && c != 'T' && c != 'C' && c != 'G') {
           if (!found_weird_base) {
-            int hash = hashSequence(seq);
-            gen.seed(hash); // seed random number generator based on hash of read sequence
+            rando = hashSequence(seq);
             found_weird_base = true;
           }
-          c = "ATCG"[(gen()%4)]; // substitute non-ATCG base for pseudo-random base
+          c = "ATCG"[rando%4]; // substitute non-ATCG base for pseudo-random base
+          rando = ((rando ^ (rando >> 3)) ^ (rando << 20)) ^ (rando >> 9);
         }
       }
       int left_trim = 0;
@@ -1037,6 +1042,7 @@ struct SplitCode {
     for (auto& r : rv) {
       auto& u = r.name_ids;
       if (u.empty()) {
+        r.id = -1;
         continue;
       }
       auto it = idmapinv.find(u);
@@ -1062,7 +1068,7 @@ struct SplitCode {
   }
   
   bool isAssigned(Results& r) {
-    return !r.name_ids.empty();
+    return !r.name_ids.empty() || always_assign;
   }
   
   std::string getNameString(Results& r) {
@@ -1171,6 +1177,7 @@ struct SplitCode {
   bool init;
   bool discard_check;
   bool keep_check;
+  bool always_assign;
   int nFiles;
   static const int MAX_K = 32;
   static const size_t FAKE_BARCODE_LEN = 16;

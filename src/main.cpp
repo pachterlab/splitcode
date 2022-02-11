@@ -78,14 +78,15 @@ void usage() {
        << "-p, --pipe       Write to standard output (instead of output FASTQ files)" << endl
        << "    --gzip       Output compressed gzip'ed FASTQ files" << endl
        << "    --no-output  Don't output any sequences (output statistics only)" << endl
+       << "    --mod-names  Modify names of outputted sequences to include identified barcodes" << endl
        << "Other Options:" << endl
        << "-N, --nFastqs    Number of FASTQ file(s) per run" << endl
        << "                 (default: 1) (specify 2 for paired-end)" << endl
-       << "    --mod-names  Modify names of outputted sequences to include identified barcodes" << endl
        << "-A, --append     An existing mapping file that will be added on to" << endl
        << "-k, --keep       File containing a list of final barcodes to keep" << endl
        << "-r, --remove     File containing a list of final barcodes to remove/discard" << endl
        << "-t, --threads    Number of threads to use" << endl
+       << "-T, --trim-only  All reads are assigned and trimmed regardless of barcode identification" << endl
        << "-h, --help       Displays usage information" << endl
        << "    --version    Prints version number" << endl
        << "    --cite       Prints citation information" << endl;
@@ -99,7 +100,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   int gzip_flag = 0;
   int mod_names_flag = 0;
 
-  const char *opt_string = "t:N:b:d:i:l:f:F:e:c:o:O:u:m:k:r:A:L:R:E:ph";
+  const char *opt_string = "t:N:b:d:i:l:f:F:e:c:o:O:u:m:k:r:A:L:R:E:Tph";
   static struct option long_options[] = {
     // long args
     {"version", no_argument, &version_flag, 1},
@@ -110,6 +111,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     // short args
     {"help", no_argument, 0, 'h'},
     {"pipe", no_argument, 0, 'p'},
+    {"trim-only", no_argument, 0, 'T'},
     {"threads", required_argument, 0, 't'},
     {"nFastqs", required_argument, 0, 'N'},
     {"barcodes", required_argument, 0, 'b'},
@@ -154,6 +156,10 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     }
     case 'p': {
       opt.pipe = true;
+      break;
+    }
+    case 'T': {
+      opt.trim_only = true;
       break;
     }
     case 't': {
@@ -318,12 +324,16 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
       ret = false;
     }
   }
-  if (opt.mapping_file.empty()) {
+  if (opt.mapping_file.empty() && !opt.trim_only) {
     std::cerr << ERROR_STR << " --mapping must be provided" << std::endl;
     ret = false;
   }
   
   bool output_files_specified = opt.output_files.size() > 0 || opt.unassigned_files.size() > 0 || !opt.outputb_file.empty();
+  if (opt.output_files.size() == 0 && output_files_specified && !opt.pipe) {
+    std::cerr << ERROR_STR << " --output not provided" << std::endl;
+    ret = false;
+  }
   if (opt.no_output) {
     if (output_files_specified || opt.pipe) {
       std::cerr << ERROR_STR << " Cannot specify an output option when --no-output is specified" << std::endl;
@@ -355,6 +365,22 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
         ret = false;
       }
     }
+  }
+  if (opt.trim_only && opt.no_output) {
+    std::cerr << ERROR_STR << " Cannot use --trim-only with --no-output" << std::endl;
+    ret = false;
+  }
+  if (opt.trim_only && opt.unassigned_files.size() != 0) {
+    std::cerr << ERROR_STR << " Cannot use --trim-only with --unassigned" << std::endl;
+    ret = false;
+  }
+  if (opt.trim_only && !opt.outputb_file.empty()) {
+    std::cerr << ERROR_STR << " Cannot use --trim-only with --outb" << std::endl;
+    ret = false;
+  }
+  if (opt.trim_only && !opt.mapping_file.empty()) {
+    std::cerr << ERROR_STR << " Cannot use --trim-only with --mapping" << std::endl;
+    ret = false;
   }
   opt.output_fastq_specified = output_files_specified;
   opt.verbose = !opt.pipe;
@@ -608,7 +634,7 @@ int main(int argc, char *argv[]) {
   setvbuf(stdout, NULL, _IOFBF, 1048576);
   ProgramOptions opt;
   ParseOptions(argc,argv,opt);
-  SplitCode sc(opt.nfiles);
+  SplitCode sc(opt.nfiles, opt.trim_only);
   if (!CheckOptions(opt, sc)) {
     usage();
     exit(1);
@@ -619,7 +645,9 @@ int main(int argc, char *argv[]) {
   MasterProcessor MP(sc, opt);
   ProcessReads(MP, opt);
   fflush(stdout);
-  sc.writeBarcodeMapping(opt.mapping_file);
+  if (!opt.mapping_file.empty()) {
+    sc.writeBarcodeMapping(opt.mapping_file);
+  }
 
   return 0;
 }
