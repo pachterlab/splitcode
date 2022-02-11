@@ -604,7 +604,7 @@ struct SplitCode {
   
   bool getTag(std::string& seq, uint32_t& tag_id, int file, int pos, int k, bool look_for_initiator = false) {
     checkInit();
-    const auto& it = tags.find(seq);
+    const auto& it = tags.find(seq.substr(pos, k));
     if (it == tags.end()) {
       return false;
     }
@@ -961,11 +961,10 @@ struct SplitCode {
         auto loc = locations.get();
         auto k = loc.first;
         auto pos = loc.second;
-        std::string kmer = seq.substr(pos, k);
         // DEBUG:
         // std::cout << "file=" << file << " k=" << k << " pos=" << pos << " kmer=" << kmer << std::endl;
         uint32_t tag_id;
-        if (getTag(kmer, tag_id, file, pos, k, look_for_initiator)) {
+        if (getTag(seq, tag_id, file, pos, k, look_for_initiator)) {
           look_for_initiator = false;
           auto& tag = tags_vec[tag_id];
           if (tag.min_finds > 0) {
@@ -980,7 +979,7 @@ struct SplitCode {
             results.name_ids.push_back(tag.name_id);
           }
           if (tag.trim == left) {
-            left_trim = pos+k+tag.trim_offset;// std::max(left_trim, );
+            left_trim = pos+k+tag.trim_offset;
           } else if (tag.trim == right && !right_trim_found) {
             right_trim = (readLength-pos)+tag.trim_offset;
             right_trim_found = true;
