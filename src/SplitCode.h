@@ -24,6 +24,8 @@ struct SplitCode {
     init = false;
     discard_check = false;
     keep_check = false;
+    discard_check_group = false;
+    keep_check_group = false;
     always_assign = false;
     setNFiles(0);
   }
@@ -32,6 +34,8 @@ struct SplitCode {
     init = false;
     discard_check = false;
     keep_check = false;
+    discard_check_group = false;
+    keep_check_group = false;
     setNFiles(nFiles);
     setTrimOnly(trim_only);
   }
@@ -203,6 +207,7 @@ struct SplitCode {
     bool initiator;
     bool terminator;
     uint32_t name_id;
+    uint32_t group;
     std::string seq;
     int16_t file;
     int32_t pos_start;
@@ -324,7 +329,7 @@ struct SplitCode {
     return false;
   }
   
-  bool addTag(std::string seq, std::string name, int mismatch_dist, int indel_dist, int total_dist,
+  bool addTag(std::string seq, std::string name, std::string group_name, int mismatch_dist, int indel_dist, int total_dist,
               int16_t file, int32_t pos_start, int32_t pos_end,
               uint16_t max_finds, uint16_t min_finds, bool not_include_in_barcode,
               dir trim, int trim_offset) {
@@ -355,7 +360,7 @@ struct SplitCode {
       return false;
     }
     for (int i = 0; i < name.size(); i++) {
-      if (name[i] == '#' || name[i] == '|' || name[i] == '(' || name[i] == ')' || name[i] == '[' || name[i] == ']') {
+      if (name[i] == '#' || name[i] == '|' || name[i] == '(' || name[i] == ')' || name[i] == '[' || name[i] == ']' || name[i] == '{' || name[i] == '}') {
         std::cerr << "Error: The name of sequence #" << new_tag_index+1 << ": \"" << name << "\" contains an invalid character" << std::endl;
         return false;
       }
@@ -368,10 +373,27 @@ struct SplitCode {
     } else {
       name_id = itnames - names.begin();
     }
+    for (int i = 0; i < group_name.size(); i++) {
+      if (group_name[i] == '#' || group_name[i] == '|' || group_name[i] == '(' || group_name[i] == ')' || group_name[i] == '[' || group_name[i] == ']' || group_name[i] == '{' || group_name[i] == '}') {
+        std::cerr << "Error: The group name: \"" << group_name << "\" contains an invalid character" << std::endl;
+        return false;
+      }
+    }
+    uint32_t group_name_id = -1;
+    if (!group_name.empty()) {
+      const auto& itgnames = find(group_names.begin(), group_names.end(), group_name);
+      if (itgnames == group_names.end()) {
+        group_name_id = group_names.size();
+        group_names.push_back(group_name);
+      } else {
+        group_name_id = itgnames - group_names.begin();
+      }
+    }
     
     std::transform(seq.begin(), seq.end(), seq.begin(), ::toupper);
     new_tag.seq = seq;
     new_tag.name_id = name_id;
+    new_tag.group = group_name_id;
     new_tag.file = file;
     new_tag.pos_start = pos_start;
     new_tag.pos_end = pos_end;
@@ -571,6 +593,7 @@ struct SplitCode {
       }
       std::string bc = "";
       std::string name = "";
+      std::string group = "";
       int mismatch, indel, total_dist;
       parseDistance("", mismatch, indel, total_dist); // Set up default values
       int16_t file;
@@ -594,6 +617,8 @@ struct SplitCode {
           ret = ret && parseLocation(field, file, pos_start, pos_end, nFiles);
         } else if (h[i] == "IDS") {
           name = field;
+        } else if (h[i] == "GROUPS") {
+          group = field;
         } else if (h[i] == "MINFINDS") {
           std::stringstream(field) >> min_finds;
         } else if (h[i] == "MAXFINDS") {
@@ -615,7 +640,7 @@ struct SplitCode {
       }
       auto trim_dir = trim_left ? left : (trim_right ? right : nodir);
       auto trim_offset = trim_left ? trim_left_offset : (trim_right ? trim_right_offset : 0);
-      if (!ret || !addTag(bc, name.empty() ? bc : name, mismatch, indel, total_dist, file, pos_start, pos_end, max_finds, min_finds, exclude, trim_dir, trim_offset)) {
+      if (!ret || !addTag(bc, name.empty() ? bc : name, group, mismatch, indel, total_dist, file, pos_start, pos_end, max_finds, min_finds, exclude, trim_dir, trim_offset)) {
         std::cerr << "Error: The file \"" << config_file << "\" contains an error" << std::endl;
         return false;
       }
@@ -878,6 +903,51 @@ struct SplitCode {
     return true;
   }
   
+  bool addFilterListGroup(std::string keep_file, bool discard=false) {
+    struct stat stFileInfo;
+    auto intstat = stat(keep_file.c_str(), &stFileInfo);
+    if (intstat != 0) {
+      std::cerr << "Error: file not found " << keep_file << std::endl;
+      return false;
+    }
+    std::ifstream kfile(keep_file);
+    std::string line;
+    while (std::getline(kfile,line)) {
+      if (line.size() == 0) {
+        continue;
+      }
+      std::stringstream ss(line);
+      std::string name;
+      char delimeter = ',';
+      std::vector<uint32_t> u;
+      while (std::getline(ss, name, delimeter)) {
+        if (name.size() == 0) {
+          continue;
+        }
+        const auto& itnames = find(group_names.begin(), group_names.end(), name);
+        if (itnames == group_names.end()) {
+          std::cerr << "Error: File " << keep_file << " contains the group name \"" << name << "\" which does not exist" << std::endl;
+          return false;
+        }
+        u.push_back(itnames - group_names.begin());
+      }
+      auto it1 = groupmapinv_keep.find(u);
+      auto it2 = groupmapinv_discard.find(u);
+      if (it1 != groupmapinv_keep.end() || it2 != groupmapinv_discard.end()) {
+        std::cerr << "Error: In file " << keep_file << ", the following line is duplicated: " << line << std::endl;
+        return false;
+      }
+      if (discard) {
+        groupmapinv_discard.insert({u,0});
+        discard_check_group = true;
+      } else {
+        groupmapinv_keep.insert({u,0});
+        keep_check_group = true;
+      }
+    }
+    return true;
+  }
+  
   class Locations {
   public:
     Locations(std::vector<std::pair<int,int>>& kmers, int rlen) : kmers(kmers), size(kmers.size()), rlen(rlen) {
@@ -954,8 +1024,14 @@ struct SplitCode {
   
   void processRead(std::vector<const char*>& s, std::vector<int>& l, int jmax, Results& results) {
     // Note: s and l may end up being trimmed/modified (even if the read ends up becoming unassigned)
+    results.id = -1;
     auto min_finds = min_finds_map; // copy
     auto max_finds = max_finds_map; // copy
+    bool check_group = keep_check_group || discard_check_group;
+    std::vector<uint32_t> group_v(0);
+    if (check_group) {
+      group_v.reserve(16);
+    }
     int n = std::min(jmax, (int)kmer_size_locations.size());
     for (int j = 0; j < n; j++) {
       int file = j;
@@ -999,6 +1075,9 @@ struct SplitCode {
           }
           if (!tag.not_include_in_barcode) {
             results.name_ids.push_back(tag.name_id);
+            if (check_group) {
+              group_v.push_back(tag.group);
+            }
           }
           if (tag.trim == left) {
             left_trim = pos+k+tag.trim_offset;
@@ -1006,8 +1085,6 @@ struct SplitCode {
             right_trim = (readLength-pos)+tag.trim_offset;
             right_trim_found = true;
           }
-          dir trim;
-          int trim_offset;
           
           if (tag.terminator) {
             break; // End the search for the current (j'th) read file's sequence
@@ -1039,6 +1116,26 @@ struct SplitCode {
         break;
       }
     }
+    auto &u = results.name_ids;
+    if (u.empty()) {
+      return;
+    }
+    if (keep_check && idmapinv_keep.find(u) == idmapinv_keep.end()) {
+      results.name_ids.clear();
+      return;
+    }
+    if (discard_check && idmapinv_discard.find(u) != idmapinv_discard.end()) {
+      results.name_ids.clear();
+      return;
+    }
+    if (keep_check_group && groupmapinv_keep.find(group_v) == groupmapinv_keep.end()) {
+      results.name_ids.clear();
+      return;
+    }
+    if (discard_check_group && groupmapinv_discard.find(group_v) != groupmapinv_discard.end()) {
+      results.name_ids.clear();
+      return;
+    }
   }
   
   static void modifyRead(std::vector<std::pair<const char*, int>>& seqs, std::vector<std::pair<const char*, int>>& quals, int i, const Results& results) {
@@ -1063,21 +1160,13 @@ struct SplitCode {
     for (auto& r : rv) {
       auto& u = r.name_ids;
       if (u.empty()) {
-        r.id = -1;
         continue;
       }
       auto it = idmapinv.find(u);
       int id;
-      if (keep_check && idmapinv_keep.find(u) == idmapinv_keep.end()) {
-        r.name_ids.clear();
-        continue;
-      }
       if (it != idmapinv.end()) {
         id = it->second;
         idcount[id]++;
-      } else if (discard_check && idmapinv_discard.find(u) != idmapinv_discard.end()) {
-        r.name_ids.clear();
-        continue;
       } else {
         id = idmapinv.size();
         idmapinv.insert({u,id});
@@ -1186,12 +1275,15 @@ struct SplitCode {
   robin_hood::unordered_flat_map<SeqString, std::vector<tval>, SeqStringHasher> tags;
   std::set<std::pair<std::string, uint32_t>> tags_to_remove;
   std::vector<std::string> names;
+  std::vector<std::string> group_names;
   
   std::vector<std::vector<uint32_t>> idmap;
   std::unordered_map<std::vector<uint32_t>, int, VectorHasher> idmapinv;
   std::vector<int> idcount;
   std::unordered_map<std::vector<uint32_t>, int, VectorHasher> idmapinv_keep;
   std::unordered_map<std::vector<uint32_t>, int, VectorHasher> idmapinv_discard;
+  std::unordered_map<std::vector<uint32_t>, int, VectorHasher> groupmapinv_keep;
+  std::unordered_map<std::vector<uint32_t>, int, VectorHasher> groupmapinv_discard;
   
   std::unordered_map<uint32_t,int> min_finds_map;
   std::unordered_map<uint32_t,int> max_finds_map;
@@ -1202,6 +1294,8 @@ struct SplitCode {
   bool init;
   bool discard_check;
   bool keep_check;
+  bool discard_check_group;
+  bool keep_check_group;
   bool always_assign;
   int nFiles;
   static const int MAX_K = 32;

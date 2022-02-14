@@ -20,6 +20,7 @@ struct ProgramOptions {
   bool gzip;
   bool discard;
   bool trim_only;
+  bool discard_group;
   std::vector<std::string> files;
   std::vector<std::string> output_files;
   std::string outputb_file;
@@ -28,12 +29,14 @@ struct ProgramOptions {
   std::string distance_str;
   std::string location_str;
   std::string barcode_identifiers_str;
+  std::string group_identifiers_str;
   std::string max_finds_str;
   std::string min_finds_str;
   std::string exclude_str;
   std::string config_file;
   std::string mapping_file;
   std::string keep_file;
+  std::string keep_group_file;
   std::string append_file;
   std::string left_str;
   std::string right_str;
@@ -49,7 +52,8 @@ struct ProgramOptions {
     mod_names(false),
     gzip(false),
     discard(false),
-    trim_only(false)
+    trim_only(false),
+    discard_group(false)
   {}
 };
 

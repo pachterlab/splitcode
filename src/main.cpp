@@ -57,6 +57,7 @@ void usage() {
        << "-d, --distances  List of error distance (mismatch:indel:total) thresholds (comma-separated)" << endl
        << "-l, --locations  List of locations (file:pos1:pos2) (comma-separated)" << endl
        << "-i, --ids        List of barcode names/identifiers (comma-separated)" << endl
+       << "-g, --groups     List of barcode group names (comma-separated)" << endl
        << "-f, --minFinds   List of minimum times a barcode must be found in a read (comma-separated)" << endl
        << "-F, --maxFinds   List of maximum times a barcode can be found in a read (comma-separated)" << endl
        << "-e, --exclude    List of what to exclude from final barcode (comma-separated; 1 = exclude, 0 = include)" << endl
@@ -85,6 +86,8 @@ void usage() {
        << "-A, --append     An existing mapping file that will be added on to" << endl
        << "-k, --keep       File containing a list of final barcodes to keep" << endl
        << "-r, --remove     File containing a list of final barcodes to remove/discard" << endl
+       << "-y, --keep-grp   File containing a list of final barcode groups to keep" << endl
+       << "-Y, --remove-grp File containing a list of final barcode groups to remove/discard" << endl
        << "-t, --threads    Number of threads to use" << endl
        << "-T, --trim-only  All reads are assigned and trimmed regardless of barcode identification" << endl
        << "-h, --help       Displays usage information" << endl
@@ -100,7 +103,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   int gzip_flag = 0;
   int mod_names_flag = 0;
 
-  const char *opt_string = "t:N:b:d:i:l:f:F:e:c:o:O:u:m:k:r:A:L:R:E:Tph";
+  const char *opt_string = "t:N:b:d:i:l:f:F:e:c:o:O:u:m:k:r:A:L:R:E:g:y:Y:Tph";
   static struct option long_options[] = {
     // long args
     {"version", no_argument, &version_flag, 1},
@@ -118,6 +121,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"distances", required_argument, 0, 'd'},
     {"locations", required_argument, 0, 'l'},
     {"ids", required_argument, 0, 'i'},
+    {"groups", required_argument, 0, 'g'},
     {"maxFinds", required_argument, 0, 'F'},
     {"minFinds", required_argument, 0, 'f'},
     {"exclude", required_argument, 0, 'e'},
@@ -132,6 +136,8 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"left", required_argument, 0, 'L'},
     {"right", required_argument, 0, 'R'},
     {"empty", required_argument, 0, 'E'},
+    {"keep-grp", required_argument, 0, 'y'},
+    {"remove-grp", required_argument, 0, 'Y'},
     {0,0,0,0}
   };
   
@@ -186,6 +192,10 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
       stringstream(optarg) >> opt.barcode_identifiers_str;
       break;
     }
+    case 'g': {
+      stringstream(optarg) >> opt.group_identifiers_str;
+      break;
+    }
     case 'F': {
       stringstream(optarg) >> opt.max_finds_str;
       break;
@@ -221,6 +231,15 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     case 'r': {
       opt.discard = true;
       stringstream(optarg) >> opt.keep_file;
+      break;
+    }
+    case 'y': {
+      stringstream(optarg) >> opt.keep_group_file;
+      break;
+    }
+    case 'Y': {
+      opt.discard_group = true;
+      stringstream(optarg) >> opt.keep_group_file;
       break;
     }
     case 'o': {
@@ -398,11 +417,13 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
     stringstream ss7(opt.exclude_str);
     stringstream ss8(opt.left_str);
     stringstream ss9(opt.right_str);
+    stringstream ss10(opt.group_identifiers_str);
     while (ss1.good()) {
       uint16_t max_finds = 0;
       uint16_t min_finds = 0;
       bool exclude = false;
       string name = "";
+      string group = "";
       string location = "";
       string distance = "";
       string left_str = "";
@@ -546,7 +567,15 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
       }
       auto trim_dir = trim_left ? sc.left : (trim_right ? sc.right : sc.nodir);
       auto trim_offset = trim_left ? trim_left_offset : (trim_right ? trim_right_offset : 0);
-      if (!sc.addTag(bc, name.empty() ? bc : name, mismatch, indel, total_dist, file, pos_start, pos_end, max_finds, min_finds, exclude, trim_dir, trim_offset)) {
+      if (!opt.group_identifiers_str.empty()) {
+        if (!ss10.good()) {
+          std::cerr << ERROR_STR << " Number of values in --groups is less than that in --barcodes" << std::endl;
+          ret = false;
+          break;
+        }
+        getline(ss10, group, ',');
+      }
+      if (!sc.addTag(bc, name.empty() ? bc : name, group, mismatch, indel, total_dist, file, pos_start, pos_end, max_finds, min_finds, exclude, trim_dir, trim_offset)) {
         std::cerr << ERROR_STR << " Could not finish processing supplied barcode list" << std::endl;
         ret = false;
         break;
@@ -584,6 +613,10 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
       std::cerr << ERROR_STR << " Number of values in --right is greater than that in --barcodes" << std::endl;
       ret = false;
     }
+    if (ret && !opt.group_identifiers_str.empty() && ss10.good()) {
+      std::cerr << ERROR_STR << " Number of values in --groups is greater than that in --barcodes" << std::endl;
+      ret = false;
+    }
   } else if (!opt.distance_str.empty()) {
     std::cerr << ERROR_STR << " --distances cannot be supplied unless --barcodes is" << std::endl;
     ret = false;
@@ -608,6 +641,9 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
   } else if (!opt.right_str.empty()) {
     std::cerr << ERROR_STR << " --right cannot be supplied unless --barcodes is" << std::endl;
     ret = false;
+  } else if (!opt.group_identifiers_str.empty()) {
+    std::cerr << ERROR_STR << " --groups cannot be supplied unless --barcodes is" << std::endl;
+    ret = false;
   } else if (!opt.config_file.empty()) {
     ret = ret && sc.addTags(opt.config_file);
   }
@@ -618,6 +654,10 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
 
   if (ret && !opt.keep_file.empty()) {
     ret = ret && sc.addFilterList(opt.keep_file, opt.discard);
+  }
+  
+  if (ret && !opt.keep_group_file.empty()) {
+    ret = ret && sc.addFilterListGroup(opt.keep_group_file, opt.discard_group);
   }
   
   if (ret && (sc.getNumTags() == 0 || sc.getMapSize() == 0)) {
