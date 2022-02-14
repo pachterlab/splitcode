@@ -14,6 +14,7 @@
 #include <fstream>
 #include <sys/stat.h>
 #include <limits>
+#include <stack>
 #include "robin_hood.h"
 
 struct SplitCode {
