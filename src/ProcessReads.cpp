@@ -91,7 +91,7 @@ void MasterProcessor::processReads() {
   if (parallel_read) {
     delete SR;
     SR = nullptr;
-    assert(opt.files.size() % opt.nfiles == 0);
+    //assert(opt.files.size() % opt.nfiles == 0);
     int nbatches = opt.files.size() / opt.nfiles;
     std::vector<std::mutex> mutexes(nbatches);
     parallel_reader_locks.swap(mutexes);
@@ -99,7 +99,7 @@ void MasterProcessor::processReads() {
       FastqSequenceReader fSR(opt);
       fSR.files.erase(fSR.files.begin(), fSR.files.begin()+opt.nfiles*i);
       fSR.files.erase(fSR.files.begin()+opt.nfiles, fSR.files.end());
-      assert(fSR.files.size() == opt.nfiles);
+      //assert(fSR.files.size() == opt.nfiles);
       FSRs.push_back(std::move(fSR));
     }
   }
