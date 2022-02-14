@@ -14,6 +14,7 @@
 #include <fstream>
 #include <sys/stat.h>
 #include <limits>
+#include "robin_hood.h"
 
 struct SplitCode {
   typedef std::pair<uint32_t,short> tval; // first element of pair is tag id, second is mismatch distance
@@ -1182,7 +1183,7 @@ struct SplitCode {
   };
   
   std::vector<SplitCodeTag> tags_vec;
-  std::unordered_map<SeqString, std::vector<tval>, SeqStringHasher> tags;
+  robin_hood::unordered_flat_map<SeqString, std::vector<tval>, SeqStringHasher> tags;
   std::set<std::pair<std::string, uint32_t>> tags_to_remove;
   std::vector<std::string> names;
   
