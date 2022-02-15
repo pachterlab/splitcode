@@ -21,6 +21,7 @@ struct ProgramOptions {
   bool discard;
   bool trim_only;
   bool discard_group;
+  bool disable_n;
   std::vector<std::string> files;
   std::vector<std::string> output_files;
   std::string outputb_file;
@@ -53,7 +54,8 @@ struct ProgramOptions {
     gzip(false),
     discard(false),
     trim_only(false),
-    discard_group(false)
+    discard_group(false),
+    disable_n(false)
   {}
 };
 

@@ -91,6 +91,7 @@ void usage() {
        << "-t, --threads    Number of threads to use" << endl
        << "-T, --trim-only  All reads are assigned and trimmed regardless of barcode identification" << endl
        << "-h, --help       Displays usage information" << endl
+       << "    --disable-n  Disables replacing ambiguous bases with pseudorandom bases" << endl
        << "    --version    Prints version number" << endl
        << "    --cite       Prints citation information" << endl;
 }
@@ -102,6 +103,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   int no_output_flag = 0;
   int gzip_flag = 0;
   int mod_names_flag = 0;
+  int disable_n_flag = 0;
 
   const char *opt_string = "t:N:b:d:i:l:f:F:e:c:o:O:u:m:k:r:A:L:R:E:g:y:Y:Tph";
   static struct option long_options[] = {
@@ -111,6 +113,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"no-output", no_argument, &no_output_flag, 1},
     {"gzip", no_argument, &gzip_flag, 1},
     {"mod-names", no_argument, &mod_names_flag, 1},
+    {"disable-n", no_argument, &disable_n_flag, 1},
     // short args
     {"help", no_argument, 0, 'h'},
     {"pipe", no_argument, 0, 'p'},
@@ -301,6 +304,9 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   }
   if (gzip_flag) {
     opt.gzip = true;
+  }
+  if (disable_n_flag) {
+    opt.disable_n = true;
   }
   
   for (int i = optind; i < argc; i++) {
@@ -674,7 +680,7 @@ int main(int argc, char *argv[]) {
   setvbuf(stdout, NULL, _IOFBF, 1048576);
   ProgramOptions opt;
   ParseOptions(argc,argv,opt);
-  SplitCode sc(opt.nfiles, opt.trim_only);
+  SplitCode sc(opt.nfiles, opt.trim_only, opt.disable_n);
   if (!CheckOptions(opt, sc)) {
     usage();
     exit(1);

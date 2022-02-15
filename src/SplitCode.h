@@ -28,10 +28,11 @@ struct SplitCode {
     discard_check_group = false;
     keep_check_group = false;
     always_assign = false;
+    random_replacement = false;
     setNFiles(0);
   }
   
-  SplitCode(int nFiles, bool trim_only = false) {
+  SplitCode(int nFiles, bool trim_only = false, bool disable_n = false) {
     init = false;
     discard_check = false;
     keep_check = false;
@@ -39,6 +40,7 @@ struct SplitCode {
     keep_check_group = false;
     setNFiles(nFiles);
     setTrimOnly(trim_only);
+    setRandomReplacement(!disable_n);
   }
   
   void setNFiles(int nFiles) {
@@ -47,6 +49,10 @@ struct SplitCode {
   
   void setTrimOnly(bool trim_only) {
     this->always_assign = trim_only;
+  }
+  
+  void setRandomReplacement(bool rand) {
+    this->random_replacement = rand;
   }
   
   void checkInit() { // Initialize if necessary (once initialized, can't add any more barcode tags)
@@ -1043,7 +1049,7 @@ struct SplitCode {
       uint32_t rando;
       for (auto& c: seq) {
         c &= 0xDF; // Convert a/t/c/g to upper case
-        if (c != 'A' && c != 'T' && c != 'C' && c != 'G') {
+        if (c != 'A' && c != 'T' && c != 'C' && c != 'G' && random_replacement) {
           if (!found_weird_base) {
             rando = hashSequence(seq);
             found_weird_base = true;
@@ -1061,7 +1067,7 @@ struct SplitCode {
         auto k = loc.first;
         auto pos = loc.second;
         // DEBUG:
-        // std::cout << "file=" << file << " k=" << k << " pos=" << pos << " kmer=" << kmer << std::endl;
+        // std::cout << "file=" << file << " k=" << k << " pos=" << pos << std::endl;
         uint32_t tag_id;
         if (getTag(seq, tag_id, file, pos, k, look_for_initiator)) {
           look_for_initiator = false;
@@ -1298,6 +1304,7 @@ struct SplitCode {
   bool discard_check_group;
   bool keep_check_group;
   bool always_assign;
+  bool random_replacement;
   int nFiles;
   static const int MAX_K = 32;
   static const size_t FAKE_BARCODE_LEN = 16;
