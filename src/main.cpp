@@ -67,6 +67,10 @@ void usage() {
        << "-R, --right      List of what barcodes to include when trimming from the right (comma-separated; 1 = include, 0 = exclude)" << endl
        << "                 (Note: for --left/--right, can specify an included barcode as 1:x where x = number of extra bp's to trim" << endl
        << "                 from left/right side if the that included barcode is at the leftmost/rightmost position)" << endl
+       << "-a, --after      List of what barcode names must come immediately after each barcode (comma-separated)" << endl
+       << "                 (Note: for --after, specify barcode names as {name} and specify barcode group names as {{group}}" << endl
+       << "                 Can also specify the number of base pairs that must appear between the current barcode and the next barcode." << endl
+       << "                 E.g. {bc}4-12 means the next barcode to find is 4-12 bases away and has name 'bc')" << endl
        << "Options (configurations supplied in a file):" << endl
        << "-c, --config     Configuration file" << endl
        << "Output Options:" << endl
@@ -107,7 +111,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   int mod_names_flag = 0;
   int disable_n_flag = 0;
 
-  const char *opt_string = "t:N:b:d:i:l:f:F:e:c:o:O:u:m:k:r:A:L:R:E:g:y:Y:j:J:Tph";
+  const char *opt_string = "t:N:b:d:i:l:f:F:e:c:o:O:u:m:k:r:A:L:R:E:g:y:Y:j:J:a:Tph";
   static struct option long_options[] = {
     // long args
     {"version", no_argument, &version_flag, 1},
@@ -132,6 +136,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"maxFindsG", required_argument, 0, 'J'},
     {"minFindsG", required_argument, 0, 'j'},
     {"exclude", required_argument, 0, 'e'},
+    {"after", required_argument, 0, 'a'},
     {"config", required_argument, 0, 'c'},
     {"output", required_argument, 0, 'o'},
     {"outb", required_argument, 0, 'O'},
@@ -229,6 +234,10 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     }
     case 'R': {
       stringstream(optarg) >> opt.right_str;
+      break;
+    }
+    case 'a': {
+      stringstream(optarg) >> opt.after_str;
       break;
     }
     case 'c': {
@@ -437,6 +446,7 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
     stringstream ss8(opt.left_str);
     stringstream ss9(opt.right_str);
     stringstream ss10(opt.group_identifiers_str);
+    stringstream ss11(opt.after_str);
     while (ss1.good()) {
       uint16_t max_finds = 0;
       uint16_t min_finds = 0;
@@ -447,6 +457,7 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
       string distance = "";
       string left_str = "";
       string right_str = "";
+      string after_str = "";
       bool trim_left, trim_right;
       int trim_left_offset, trim_right_offset;
       int16_t file;
@@ -595,7 +606,18 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
         getline(ss10, group, ',');
         num_groups++;
       }
-      if (!sc.addTag(bc, name.empty() ? bc : name, group, mismatch, indel, total_dist, file, pos_start, pos_end, max_finds, min_finds, exclude, trim_dir, trim_offset)) {
+      if (!opt.after_str.empty()) {
+        if (!ss11.good()) {
+          std::cerr << ERROR_STR << " Number of values in --after is less than that in --barcodes" << std::endl;
+          ret = false;
+          break;
+        }
+        getline(ss11, after_str, ',');
+      }
+      if (!SplitCode::validateBeforeAfterStr(after_str)) {
+        std::cerr << ERROR_STR << " --after is invalid" << std::endl;
+      }
+      if (!sc.addTag(bc, name.empty() ? bc : name, group, mismatch, indel, total_dist, file, pos_start, pos_end, max_finds, min_finds, exclude, trim_dir, trim_offset, after_str)) {
         std::cerr << ERROR_STR << " Could not finish processing supplied barcode list" << std::endl;
         ret = false;
         break;
@@ -637,6 +659,10 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
       std::cerr << ERROR_STR << " Number of values in --groups is greater than that in --barcodes" << std::endl;
       ret = false;
     }
+    if (ret && !opt.after_str.empty() && ss11.good()) {
+      std::cerr << ERROR_STR << " Number of values in --after is greater than that in --barcodes" << std::endl;
+      ret = false;
+    }
   } else if (!opt.distance_str.empty()) {
     std::cerr << ERROR_STR << " --distances cannot be supplied unless --barcodes is" << std::endl;
     ret = false;
@@ -663,6 +689,9 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
     ret = false;
   } else if (!opt.group_identifiers_str.empty()) {
     std::cerr << ERROR_STR << " --groups cannot be supplied unless --barcodes is" << std::endl;
+    ret = false;
+  } else if (!opt.after_str.empty()) {
+    std::cerr << ERROR_STR << " --after cannot be supplied unless --barcodes is" << std::endl;
     ret = false;
   } else if (!opt.config_file.empty()) {
     ret = ret && sc.addTags(opt.config_file);

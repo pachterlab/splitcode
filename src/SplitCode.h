@@ -63,6 +63,61 @@ struct SplitCode {
       std::cerr << "Error: nFiles must be set to a positive integer" << std::endl;
       exit(1);
     }
+    // Process before_after_vec
+    for (auto& x: before_after_vec) {
+      auto &tag = tags_vec[x.first];
+      std::string& s = x.second.second;
+      std::string name;
+      uint32_t id;
+      bool group = false;
+      if (s[1] == '{') {
+        name = s.substr(2,s.find_first_of('}')-2);
+        group = true;
+        const auto& itnames = find(group_names.begin(), group_names.end(), name);
+        if (itnames == group_names.end()) {
+          continue;
+        } else {
+          id = itnames - group_names.begin();
+        }
+      } else {
+        name = s.substr(1,s.find_first_of('}')-1);
+        const auto& itnames = find(names.begin(), names.end(), name);
+        if (itnames == names.end()) {
+          continue;
+        } else {
+          id = itnames - names.begin();
+        }
+      }
+      uint16_t extra = 0;
+      uint16_t extra2 = 0;
+      if (s[s.length()-1] != '}') {
+        std::string ssub = s.substr(s.find_last_of('}')+1);
+        std::stringstream ss(ssub);
+        std::string s2;
+        int i = 0;
+        while (std::getline(ss, s2, '-')) {
+          if (i == 0) {
+            extra = std::stoi(s2);
+          } else if (i == 1) {
+            extra2 = std::stoi(s2);
+          }
+          i++;
+        }
+      }
+      if (x.second.first) {
+        tag.extra_after = extra;
+        tag.extra_after2 = extra2;
+        tag.has_after = true;
+        tag.has_after_group = group;
+        tag.id_after = id;
+      } else {
+        tag.extra_before = extra;
+        tag.extra_before2 = extra2;
+        tag.has_before = true;
+        tag.has_before_group = group;
+        tag.id_before = id;
+      }
+    }
     // Trim out some tags to create the final 'index'
     for (auto x : tags_to_remove) {
       SeqString sstr(x.first);
@@ -224,6 +279,16 @@ struct SplitCode {
     bool not_include_in_barcode;
     dir trim;
     int trim_offset;
+    bool has_before;
+    bool has_after;
+    bool has_before_group;
+    bool has_after_group;
+    uint32_t id_after;
+    uint32_t id_before;
+    uint16_t extra_before;
+    uint16_t extra_after;
+    uint16_t extra_before2;
+    uint16_t extra_after2;
   };
 
   struct Results {
@@ -339,7 +404,7 @@ struct SplitCode {
   bool addTag(std::string seq, std::string name, std::string group_name, int mismatch_dist, int indel_dist, int total_dist,
               int16_t file, int32_t pos_start, int32_t pos_end,
               uint16_t max_finds, uint16_t min_finds, bool not_include_in_barcode,
-              dir trim, int trim_offset) {
+              dir trim, int trim_offset, std::string after_str) {
     if (init) {
       std::cerr << "Error: Already initialized" << std::endl;
       return false;
@@ -409,6 +474,8 @@ struct SplitCode {
     new_tag.not_include_in_barcode = not_include_in_barcode;
     new_tag.trim = trim;
     new_tag.trim_offset = trim_offset;
+    new_tag.has_after = false;
+    new_tag.has_before = false;
     
     // Now deal with adding the actual sequence:
     char delimeter = '/'; // Sequence can be delimited by '/' if the user gives multiple sequences for one tag record
@@ -477,6 +544,10 @@ struct SplitCode {
     if (num_seqs == 0) {
       std::cerr << "Error: Sequence #" << new_tag_index+1 << ": \"" << name << "\" is empty" << std::endl;
       return false;
+    }
+    
+    if (!after_str.empty()) {
+      before_after_vec.push_back(std::make_pair(new_tag_index, std::make_pair(true, after_str)));
     }
     
     return true;
@@ -601,6 +672,7 @@ struct SplitCode {
       std::string bc = "";
       std::string name = "";
       std::string group = "";
+      std::string after_str = "";
       int mismatch, indel, total_dist;
       parseDistance("", mismatch, indel, total_dist); // Set up default values
       int16_t file;
@@ -638,6 +710,9 @@ struct SplitCode {
           std::stringstream(field) >> max_finds_g;
         } else if (h[i] == "EXCLUDE") {
           std::stringstream(field) >> exclude;
+        } else if (h[i] == "AFTER") {
+          std::stringstream(field) >> after_str;
+          ret = ret && validateBeforeAfterStr(after_str);
         } else if (h[i] == "LEFT") {
           ret = ret && parseTrimStr(field, trim_left, trim_left_offset);
         } else if (h[i] == "RIGHT") {
@@ -653,7 +728,7 @@ struct SplitCode {
       }
       auto trim_dir = trim_left ? left : (trim_right ? right : nodir);
       auto trim_offset = trim_left ? trim_left_offset : (trim_right ? trim_right_offset : 0);
-      if (!ret || !addTag(bc, name.empty() ? bc : name, group, mismatch, indel, total_dist, file, pos_start, pos_end, max_finds, min_finds, exclude, trim_dir, trim_offset)) {
+      if (!ret || !addTag(bc, name.empty() ? bc : name, group, mismatch, indel, total_dist, file, pos_start, pos_end, max_finds, min_finds, exclude, trim_dir, trim_offset, after_str)) {
         std::cerr << "Error: The file \"" << config_file << "\" contains an error" << std::endl;
         return false;
       }
@@ -668,7 +743,8 @@ struct SplitCode {
     return true;
   }
   
-  bool getTag(std::string& seq, uint32_t& tag_id, int file, int pos, int k, bool look_for_initiator = false) {
+  bool getTag(std::string& seq, uint32_t& tag_id, int file, int pos, int k, bool look_for_initiator = false,
+              bool search_tag_name = false, bool search_group_after = false, uint32_t search_id_after = -1) {
     checkInit();
     const auto& it = tags.find(SeqString(seq.c_str()+pos, k));
     if (it == tags.end()) {
@@ -678,6 +754,11 @@ struct SplitCode {
     for (auto &x : it->second) {
       tag_id = x.first;
       auto& tag = tags_vec[tag_id];
+      if (search_tag_name && tag.name_id != search_id_after) {
+        continue;
+      } else if (search_group_after && tag.group != search_id_after) {
+        continue;
+      }
       if (containsRegion(tag.file, tag.pos_start, tag.pos_end, file, pos, pos+k)) {
         if (!look_for_initiator || (look_for_initiator && tags_vec[tag_id].initiator)) {
           found = true;
@@ -822,6 +903,40 @@ struct SplitCode {
       return false;
     }
     return true;
+  }
+  
+  static bool validateBeforeAfterStr(const std::string& s) {
+    bool ret = true;
+    if (s.empty()) {
+      return true;
+    }
+    if (s.length() < 3) {
+      ret = false;
+    } else if (s[0] != '{') {
+      ret = false;
+    } else if (s[1] == '{') {
+      if (std::count(s.begin(), s.end(), '}') != 2 || s.find("}}") == std::string::npos) {
+        ret = false;
+      }
+    } else if (std::count(s.begin(), s.end(), '}') != 1 || s.find("}") == std::string::npos) {
+      ret = false;
+    }
+    if (ret && s[s.length()-1] != '}') {
+      try {
+        std::string ssub = s.substr(s.find_last_of('}')+1);
+        std::stringstream ss(ssub);
+        std::string s2;
+        while (std::getline(ss, s2, '-')) {
+          std::stoi(s2);
+        }
+      } catch (std::invalid_argument &e) {
+        ret = false;
+      }
+    }
+    if (!ret) {
+      std::cerr << "Error: The following string is invalid: \"" << s << "\" for the before/after fields" << std::endl;
+    }
+    return ret;
   }
   
   bool addExistingMapping(std::string mapping_file) {
@@ -1100,14 +1215,28 @@ struct SplitCode {
       int right_trim = 0;
       bool right_trim_found = false;
       auto& kmers = kmer_size_locations[file];
+      bool search_tag_name_after = false;
+      bool search_group_after = false;
+      uint32_t search_id_after;
+      uint16_t search_extra_after;
+      uint16_t search_extra_after2;
+      int search_after_start;
       for (Locations locations(kmers, readLength); locations.good(); ++locations) {
         auto loc = locations.get();
         auto k = loc.first;
         auto pos = loc.second;
         // DEBUG:
         // std::cout << "file=" << file << " k=" << k << " pos=" << pos << std::endl;
+        if (search_tag_name_after || search_group_after) {
+          if (pos-search_after_start < search_extra_after) {
+            continue;
+          }
+          if (search_extra_after2 != 0 && pos-search_after_start >= search_extra_after2) {
+            continue; // Could break here?
+          }
+        }
         uint32_t tag_id;
-        if (getTag(seq, tag_id, file, pos, k, look_for_initiator)) {
+        if (getTag(seq, tag_id, file, pos, k, look_for_initiator, search_tag_name_after, search_group_after, search_id_after)) {
           look_for_initiator = false;
           auto& tag = tags_vec[tag_id];
           if (tag.min_finds > 0) {
@@ -1125,6 +1254,19 @@ struct SplitCode {
             if (max_finds_group[tag.group]-- <= 0) {
               continue; // maxFindsG exceeded; just continue
             }
+          }
+          search_group_after = false; // reset
+          search_tag_name_after = false; // reset
+          if (tag.has_after) {
+            if (tag.has_after_group) {
+              search_group_after = true;
+            } else {
+              search_tag_name_after = true;
+            }
+            search_id_after = tag.id_after;
+            search_extra_after = tag.extra_after;
+            search_extra_after2 = tag.extra_after2;
+            search_after_start = pos+k;
           }
           if (!tag.not_include_in_barcode) {
             results.name_ids.push_back(tag.name_id);
@@ -1335,6 +1477,8 @@ struct SplitCode {
   std::set<std::pair<std::string, uint32_t>> tags_to_remove;
   std::vector<std::string> names;
   std::vector<std::string> group_names;
+  
+  std::vector<std::pair<uint32_t,std::pair<bool,std::string>>> before_after_vec;
   
   std::vector<std::vector<uint32_t>> idmap;
   std::unordered_map<std::vector<uint32_t>, int, VectorHasher> idmapinv;

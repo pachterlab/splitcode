@@ -36,6 +36,7 @@ struct ProgramOptions {
   std::string max_finds_group_str;
   std::string min_finds_group_str;
   std::string exclude_str;
+  std::string after_str;
   std::string config_file;
   std::string mapping_file;
   std::string keep_file;
