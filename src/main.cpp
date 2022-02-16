@@ -60,6 +60,8 @@ void usage() {
        << "-g, --groups     List of barcode group names (comma-separated)" << endl
        << "-f, --minFinds   List of minimum times a barcode must be found in a read (comma-separated)" << endl
        << "-F, --maxFinds   List of maximum times a barcode can be found in a read (comma-separated)" << endl
+       << "-j, --minFindsG  List of minimum times barcodes in a group must be found in a read (comma-separated group_name:min_times)" << endl
+       << "-J, --maxFindsG  List of maximum times barcodes in a group can be found in a read (comma-separated group_name:max_times)" << endl
        << "-e, --exclude    List of what to exclude from final barcode (comma-separated; 1 = exclude, 0 = include)" << endl
        << "-L, --left       List of what barcodes to include when trimming from the left (comma-separated; 1 = include, 0 = exclude)" << endl
        << "-R, --right      List of what barcodes to include when trimming from the right (comma-separated; 1 = include, 0 = exclude)" << endl
@@ -105,7 +107,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   int mod_names_flag = 0;
   int disable_n_flag = 0;
 
-  const char *opt_string = "t:N:b:d:i:l:f:F:e:c:o:O:u:m:k:r:A:L:R:E:g:y:Y:Tph";
+  const char *opt_string = "t:N:b:d:i:l:f:F:e:c:o:O:u:m:k:r:A:L:R:E:g:y:Y:j:J:Tph";
   static struct option long_options[] = {
     // long args
     {"version", no_argument, &version_flag, 1},
@@ -127,6 +129,8 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"groups", required_argument, 0, 'g'},
     {"maxFinds", required_argument, 0, 'F'},
     {"minFinds", required_argument, 0, 'f'},
+    {"maxFindsG", required_argument, 0, 'J'},
+    {"minFindsG", required_argument, 0, 'j'},
     {"exclude", required_argument, 0, 'e'},
     {"config", required_argument, 0, 'c'},
     {"output", required_argument, 0, 'o'},
@@ -205,6 +209,14 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     }
     case 'f': {
       stringstream(optarg) >> opt.min_finds_str;
+      break;
+    }
+    case 'J': {
+      stringstream(optarg) >> opt.max_finds_group_str;
+      break;
+    }
+    case 'j': {
+      stringstream(optarg) >> opt.min_finds_group_str;
       break;
     }
     case 'e': {
@@ -410,6 +422,7 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
   opt.output_fastq_specified = output_files_specified;
   opt.verbose = !opt.pipe;
   
+  int num_groups = 0;
   if (!opt.barcode_str.empty() && !opt.config_file.empty()) {
     std::cerr << ERROR_STR << " Cannot specify both --barcodes and --config" << std::endl;
     ret = false;
@@ -580,6 +593,7 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
           break;
         }
         getline(ss10, group, ',');
+        num_groups++;
       }
       if (!sc.addTag(bc, name.empty() ? bc : name, group, mismatch, indel, total_dist, file, pos_start, pos_end, max_finds, min_finds, exclude, trim_dir, trim_offset)) {
         std::cerr << ERROR_STR << " Could not finish processing supplied barcode list" << std::endl;
@@ -652,6 +666,73 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
     ret = false;
   } else if (!opt.config_file.empty()) {
     ret = ret && sc.addTags(opt.config_file);
+  }
+  
+  if (ret) { // Now process groups arguments (e.g. maxFindsG/minFindsG) rather than individual barcodes arguments
+    if (num_groups > 0) {
+      try {
+        stringstream ss1(opt.max_finds_group_str);
+        stringstream ss2(opt.min_finds_group_str);
+        string f;
+        while (getline(ss1, f, ',')) {
+          int i = 0;
+          stringstream ss_(f);
+          string g_attribute;
+          string group_name = "";
+          int group_param = 0;
+          while (std::getline(ss_, g_attribute, ':')) {
+            if (i == 0) {
+              group_name = g_attribute;
+            } else if (i == 1) {
+              group_param = std::stoi(g_attribute);
+            }
+            i++;
+          }
+          if (i != 2 || group_name.empty() || group_param < 0) {
+            std::cerr << "Error: --maxFindsG string is malformed; unable to parse \"" << f << "\"" << std::endl;
+            ret = false;
+            break;
+          } else if (!sc.addGroupOptions(group_name, group_param, 0)) {
+            std::cerr << ERROR_STR << " Could not finish processing supplied groups options in --maxFindsG" << std::endl;
+            ret = false;
+            break;
+          }
+        }
+        while (getline(ss2, f, ',')) {
+          int i = 0;
+          stringstream ss_(f);
+          string g_attribute;
+          string group_name = "";
+          int group_param = 0;
+          while (std::getline(ss_, g_attribute, ':')) {
+            if (i == 0) {
+              group_name = g_attribute;
+            } else if (i == 1) {
+              group_param = std::stoi(g_attribute);
+            }
+            i++;
+          }
+          if (i != 2 || group_name.empty() || group_param < 0) {
+            std::cerr << "Error: --minFindsG string is malformed; unable to parse \"" << f << "\"" << std::endl;
+            ret = false;
+            break;
+          } else if (!sc.addGroupOptions(group_name, 0, group_param)) {
+            std::cerr << ERROR_STR << " Could not finish processing supplied groups options in --minFindsG" << std::endl;
+            ret = false;
+            break;
+          }
+        }
+      } catch (std::invalid_argument &e) {
+        std::cerr << "Error: Invalid number found in --minFindsG or --maxFindsG" << std::endl;
+        ret = false;
+      }
+    } else if (!opt.max_finds_group_str.empty()) {
+      std::cerr << ERROR_STR << " --maxFindsG cannot be supplied unless --groups is" << std::endl;
+      ret = false;
+    } else if (!opt.min_finds_group_str.empty()) {
+      std::cerr << ERROR_STR << " --minFindsG cannot be supplied unless --groups is" << std::endl;
+      ret = false;
+    }
   }
   
   if (ret && !opt.append_file.empty()) {

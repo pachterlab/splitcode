@@ -609,6 +609,8 @@ struct SplitCode {
       parseLocation("", file, pos_start, pos_end); // Set up default values
       uint16_t max_finds = 0;
       uint16_t min_finds = 0;
+      uint16_t max_finds_g = 0;
+      uint16_t min_finds_g = 0;
       bool trim_left, trim_right;
       int trim_left_offset, trim_right_offset;
       parseTrimStr("", trim_left, trim_left_offset); // Set up default values
@@ -630,6 +632,10 @@ struct SplitCode {
           std::stringstream(field) >> min_finds;
         } else if (h[i] == "MAXFINDS") {
           std::stringstream(field) >> max_finds;
+        } else if (h[i] == "MINFINDSG") {
+          std::stringstream(field) >> min_finds_g;
+        } else if (h[i] == "MAXFINDSG") {
+          std::stringstream(field) >> max_finds_g;
         } else if (h[i] == "EXCLUDE") {
           std::stringstream(field) >> exclude;
         } else if (h[i] == "LEFT") {
@@ -650,6 +656,12 @@ struct SplitCode {
       if (!ret || !addTag(bc, name.empty() ? bc : name, group, mismatch, indel, total_dist, file, pos_start, pos_end, max_finds, min_finds, exclude, trim_dir, trim_offset)) {
         std::cerr << "Error: The file \"" << config_file << "\" contains an error" << std::endl;
         return false;
+      }
+      if (!group.empty() && (max_finds_g != 0 || min_finds_g != 0)) {
+        if (!addGroupOptions(group, max_finds_g, min_finds_g)) {
+          std::cerr << "Error: The file \"" << config_file << "\" contains an error" << std::endl;
+          return false;
+        }
       }
     }
     checkInit();
@@ -955,6 +967,30 @@ struct SplitCode {
     return true;
   }
   
+  bool addGroupOptions(std::string group_name, uint16_t max_finds, uint16_t min_finds) {
+    const auto& itnames = find(group_names.begin(), group_names.end(), group_name);
+    if (itnames == group_names.end()) {
+      std::cerr << "Error: Group name \"" << group_name << "\" does not exist" << std::endl;
+      return false;
+    }
+    auto i = itnames - group_names.begin();
+    if (max_finds > 0) {
+      if (max_finds_group_map.find(i) != max_finds_group_map.end() && max_finds_group_map[i] != max_finds) {
+        std::cerr << "Error: Group name \"" << group_name << "\" had max finds specified multiple times" << std::endl;
+        return false;
+      }
+      max_finds_group_map[i] = max_finds;
+    }
+    if (min_finds > 0) {
+      if (min_finds_group_map.find(i) != min_finds_group_map.end() && min_finds_group_map[i] != min_finds) {
+        std::cerr << "Error: Group name \"" << group_name << "\" had min finds specified multiple times" << std::endl;
+        return false;
+      }
+      min_finds_group_map[i] = min_finds;
+    }
+    return true;
+  }
+  
   class Locations {
   public:
     Locations(std::vector<std::pair<int,int>>& kmers, int rlen) : kmers(kmers), size(kmers.size()), rlen(rlen) {
@@ -1034,6 +1070,8 @@ struct SplitCode {
     results.id = -1;
     auto min_finds = min_finds_map; // copy
     auto max_finds = max_finds_map; // copy
+    auto min_finds_group = min_finds_group_map; // copy
+    auto max_finds_group = max_finds_group_map; // copy
     bool check_group = keep_check_group || discard_check_group;
     std::vector<uint32_t> group_v(0);
     if (check_group) {
@@ -1075,9 +1113,17 @@ struct SplitCode {
           if (tag.min_finds > 0) {
             min_finds[tag_id]--;
           }
+          if (min_finds_group.find(tag.group) != min_finds_group.end()) {
+            min_finds_group[tag.group]--;
+          }
           if (tag.max_finds > 0) {
             if (max_finds[tag_id]-- <= 0) {
               continue; // maxFinds exceeded; just continue
+            }
+          }
+          if (max_finds_group.find(tag.group) != max_finds_group.end()) {
+            if (max_finds_group[tag.group]-- <= 0) {
+              continue; // maxFindsG exceeded; just continue
             }
           }
           if (!tag.not_include_in_barcode) {
@@ -1120,6 +1166,12 @@ struct SplitCode {
     for (auto& it : min_finds) {
       if (it.second > 0) {
         results.name_ids.clear(); // minFinds not met
+        break;
+      }
+    }
+    for (auto& it : min_finds_group) {
+      if (it.second > 0) {
+        results.name_ids.clear(); // minFindsG not met
         break;
       }
     }
@@ -1294,6 +1346,8 @@ struct SplitCode {
   
   std::unordered_map<uint32_t,int> min_finds_map;
   std::unordered_map<uint32_t,int> max_finds_map;
+  std::unordered_map<uint32_t,int> min_finds_group_map;
+  std::unordered_map<uint32_t,int> max_finds_group_map;
   std::vector<bool> initiator_files;
   
   std::vector<std::vector<std::pair<int,int>>> kmer_size_locations;

@@ -33,6 +33,8 @@ struct ProgramOptions {
   std::string group_identifiers_str;
   std::string max_finds_str;
   std::string min_finds_str;
+  std::string max_finds_group_str;
+  std::string min_finds_group_str;
   std::string exclude_str;
   std::string config_file;
   std::string mapping_file;
