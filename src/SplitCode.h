@@ -118,6 +118,8 @@ struct SplitCode {
         tag.id_before = id;
       }
     }
+    before_after_vec.clear();
+    before_after_vec.shrink_to_fit();
     // Trim out some tags to create the final 'index'
     for (auto x : tags_to_remove) {
       SeqString sstr(x.first);
@@ -315,15 +317,16 @@ struct SplitCode {
   };
   
   
-  void generate_hamming_mismatches(std::string seq, int dist, std::unordered_map<std::string,int>& results, std::vector<size_t> pos = std::vector<size_t>()) {
+  void generate_hamming_mismatches(std::string seq, int dist, std::unordered_map<std::string,int>& results, bool use_N = false, std::vector<size_t> pos = std::vector<size_t>()) {
     if (dist == 0) {
       return;
     }
     size_t bc = seq.length();
     for (size_t i = 0; i < bc; ++i) {
       if (std::find(pos.begin(), pos.end(),i)==pos.end()) {
-        char bases[] = {'A','T','C','G'};
-        for (int d = 0; d < 4; d++) {
+        char bases[] = {'A','T','C','G','N'};
+        int l = use_N ? 5 : 4;
+        for (int d = 0; d < l; d++) {
           if (seq[i] != bases[d]) {
             std::string y = seq;
             y[i] = bases[d];
@@ -331,14 +334,14 @@ struct SplitCode {
               results[y] = dist-1;
             }
             pos.push_back(i);
-            generate_hamming_mismatches(y, dist-1, results, pos);
+            generate_hamming_mismatches(y, dist-1, results, use_N, pos);
           }
         }
       }
     }
   }
   
-  void generate_indels(std::string seq, int dist, std::unordered_map<std::string,int>& results, std::string original = "") {
+  void generate_indels(std::string seq, int dist, std::unordered_map<std::string,int>& results, bool use_N = false, std::string original = "") {
     if (dist == 0) {
       return;
     }
@@ -347,14 +350,15 @@ struct SplitCode {
     }
     size_t bc = seq.length();
     for (size_t i = 0; i <= bc; ++i) {
-      char bases[] = {'A','T','C','G'};
+      char bases[] = {'A','T','C','G','N'};
+      int l = use_N ? 5 : 4;
       // Insertions: 
-      for (int d = 0; d < 4; d++) {
+      for (int d = 0; d < l; d++) {
         std::string y = seq;
         y.insert(i,1,bases[d]);
         if (y != original && (results.find(y) == results.end() || results[y] < dist-1)) {
           results[y] = dist-1;
-          generate_indels(y, dist-1, results, original);
+          generate_indels(y, dist-1, results, use_N, original);
         }
       }
       // Deletions:
@@ -363,26 +367,27 @@ struct SplitCode {
         y.erase(i,1);
         if (y != original && y != "" && (results.find(y) == results.end() || results[y] < dist-1)) {
           results[y] = dist-1;
-          generate_indels(y, dist-1, results, original);
+          generate_indels(y, dist-1, results, use_N, original);
         }
       }
     }
   }
   
   void generate_indels_hamming_mismatches(std::string seq, int mismatch_dist, int indel_dist, int total_dist, std::unordered_map<std::string,int>& results) {
+    bool use_N = !random_replacement;
     mismatch_dist = std::min(mismatch_dist, total_dist);
     indel_dist = std::min(indel_dist, total_dist);
     if (indel_dist == 0) { // Handle hamming mismatches only
-      generate_hamming_mismatches(seq, mismatch_dist, results);
+      generate_hamming_mismatches(seq, mismatch_dist, results, use_N);
       return;
     }
     std::unordered_map<std::string,int> indel_results; // Contains the modified string and how many remaining modifications could be applied
-    generate_indels(seq, indel_dist, indel_results);
+    generate_indels(seq, indel_dist, indel_results, use_N);
     results = indel_results;
-    generate_hamming_mismatches(seq, mismatch_dist, results);
+    generate_hamming_mismatches(seq, mismatch_dist, results, use_N);
     for (auto r : indel_results) {
       int indels_dist_used = indel_dist - r.second;
-      generate_hamming_mismatches(r.first, std::min(total_dist - indels_dist_used, mismatch_dist), results);
+      generate_hamming_mismatches(r.first, std::min(total_dist - indels_dist_used, mismatch_dist), results, use_N);
     }
     results.erase(seq); // Remove the original sequence in case it was generated
   }
@@ -744,7 +749,7 @@ struct SplitCode {
   }
   
   bool getTag(std::string& seq, uint32_t& tag_id, int file, int pos, int k, bool look_for_initiator = false,
-              bool search_tag_name = false, bool search_group_after = false, uint32_t search_id_after = -1) {
+              bool search_tag_name_after = false, bool search_group_after = false, uint32_t search_id_after = -1) {
     checkInit();
     const auto& it = tags.find(SeqString(seq.c_str()+pos, k));
     if (it == tags.end()) {
@@ -754,7 +759,7 @@ struct SplitCode {
     for (auto &x : it->second) {
       tag_id = x.first;
       auto& tag = tags_vec[tag_id];
-      if (search_tag_name && tag.name_id != search_id_after) {
+      if (search_tag_name_after && tag.name_id != search_id_after) {
         continue;
       } else if (search_group_after && tag.group != search_id_after) {
         continue;
@@ -1202,13 +1207,17 @@ struct SplitCode {
       uint32_t rando;
       for (auto& c: seq) {
         c &= 0xDF; // Convert a/t/c/g to upper case
-        if (c != 'A' && c != 'T' && c != 'C' && c != 'G' && random_replacement) {
-          if (!found_weird_base) {
-            rando = hashSequence(seq);
-            found_weird_base = true;
+        if (c != 'A' && c != 'T' && c != 'C' && c != 'G') {
+          if (random_replacement) {
+            if (!found_weird_base) {
+              rando = hashSequence(seq);
+              found_weird_base = true;
+            }
+            c = "ATCG"[rando%4]; // substitute non-ATCG base for pseudo-random base
+            rando = ((rando ^ (rando >> 3)) ^ (rando << 20)) ^ (rando >> 9);
+          } else {
+            c = 'N';
           }
-          c = "ATCG"[rando%4]; // substitute non-ATCG base for pseudo-random base
-          rando = ((rando ^ (rando >> 3)) ^ (rando << 20)) ^ (rando >> 9);
         }
       }
       int left_trim = 0;
