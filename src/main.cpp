@@ -86,6 +86,7 @@ void usage() {
        << "    --gzip       Output compressed gzip'ed FASTQ files" << endl
        << "    --no-output  Don't output any sequences (output statistics only)" << endl
        << "    --mod-names  Modify names of outputted sequences to include identified barcodes" << endl
+       << "    --com-names  Modify names of outputted sequences to include final barcode sequence ID" << endl
        << "Other Options:" << endl
        << "-N, --nFastqs    Number of FASTQ file(s) per run" << endl
        << "                 (default: 1) (specify 2 for paired-end)" << endl
@@ -109,6 +110,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   int no_output_flag = 0;
   int gzip_flag = 0;
   int mod_names_flag = 0;
+  int com_names_flag = 0;
   int disable_n_flag = 0;
 
   const char *opt_string = "t:N:b:d:i:l:f:F:e:c:o:O:u:m:k:r:A:L:R:E:g:y:Y:j:J:a:Tph";
@@ -119,6 +121,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"no-output", no_argument, &no_output_flag, 1},
     {"gzip", no_argument, &gzip_flag, 1},
     {"mod-names", no_argument, &mod_names_flag, 1},
+    {"com-names", no_argument, &com_names_flag, 1},
     {"disable-n", no_argument, &disable_n_flag, 1},
     // short args
     {"help", no_argument, 0, 'h'},
@@ -323,6 +326,9 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   if (mod_names_flag) {
     opt.mod_names = true;
   }
+  if (com_names_flag) {
+    opt.com_names = true;
+  }
   if (gzip_flag) {
     opt.gzip = true;
   }
@@ -385,8 +391,8 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
       std::cerr << ERROR_STR << " Cannot specify an output option when --no-output is specified" << std::endl;
       ret = false;
     }
-    if (opt.mod_names) {
-      std::cerr << ERROR_STR << " Cannot use --mod-names when --no-output is specified" << std::endl;
+    if (opt.mod_names || opt.com_names) {
+      std::cerr << ERROR_STR << " Cannot use --mod-names/--com-names when --no-output is specified" << std::endl;
       ret = false;
     }
     if (opt.gzip) {

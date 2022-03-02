@@ -221,6 +221,10 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
     if ((assigned || r.discard) && opt.mod_names) {
       mod_name = "::" + sc.getNameString(r); // Barcode names
     }
+    if (assigned && opt.com_names) {
+      mod_name += " BI:i:" + std::to_string(r.id);
+      //mod_name += "\t" + "CB:Z:" + sc.binaryToString(r.id, sc.FAKE_BARCODE_LEN)
+    }
     if (assigned && (write_barcode_separate_fastq || opt.pipe) && !sc.always_assign) { // Write out barcode read
       std::stringstream o;
       // Write out barcode read

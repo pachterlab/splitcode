@@ -17,6 +17,7 @@ struct ProgramOptions {
   bool output_fastq_specified;
   bool verbose;
   bool mod_names;
+  bool com_names;
   bool gzip;
   bool discard;
   bool trim_only;
@@ -54,6 +55,7 @@ struct ProgramOptions {
     output_fastq_specified(false),
     verbose(false),
     mod_names(false),
+    com_names(false),
     gzip(false),
     discard(false),
     trim_only(false),
