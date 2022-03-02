@@ -257,7 +257,7 @@ struct SplitCode {
   
   struct VectorHasher {
     size_t operator()(const std::vector<uint32_t>& v) const {
-      uint64_t r = 0;
+      uint64_t r = v.size()-1;
       int i=0;
       for (auto x : v) {
         r ^= (r<<2) + (r>>1) + (x<<2) + (x|i) + i;
