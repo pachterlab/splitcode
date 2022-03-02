@@ -218,7 +218,7 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
     auto& r = rv[readnum];
     bool assigned = sc.isAssigned(r);
     std::string mod_name = "";
-    if (assigned && opt.mod_names) {
+    if ((assigned || r.discard) && opt.mod_names) {
       mod_name = "::" + sc.getNameString(r); // Barcode names
     }
     if (assigned && (write_barcode_separate_fastq || opt.pipe) && !sc.always_assign) { // Write out barcode read

@@ -297,6 +297,7 @@ struct SplitCode {
     std::vector<uint32_t> name_ids;
     std::vector<std::pair<int,std::pair<int,int>>> modtrim;
     int id;
+    bool discard;
   };
   
   struct SeqString {
@@ -1188,6 +1189,7 @@ struct SplitCode {
   void processRead(std::vector<const char*>& s, std::vector<int>& l, int jmax, Results& results) {
     // Note: s and l may end up being trimmed/modified (even if the read ends up becoming unassigned)
     results.id = -1;
+    results.discard = false;
     auto min_finds = min_finds_map; // copy
     auto max_finds = max_finds_map; // copy
     auto min_finds_group = min_finds_group_map; // copy
@@ -1331,19 +1333,19 @@ struct SplitCode {
       return;
     }
     if (keep_check && idmapinv_keep.find(u) == idmapinv_keep.end()) {
-      results.name_ids.clear();
+      results.discard = true;
       return;
     }
     if (discard_check && idmapinv_discard.find(u) != idmapinv_discard.end()) {
-      results.name_ids.clear();
+      results.discard = true;
       return;
     }
     if (keep_check_group && groupmapinv_keep.find(group_v) == groupmapinv_keep.end()) {
-      results.name_ids.clear();
+      results.discard = true;
       return;
     }
     if (discard_check_group && groupmapinv_discard.find(group_v) != groupmapinv_discard.end()) {
-      results.name_ids.clear();
+      results.discard = true;
       return;
     }
   }
@@ -1388,7 +1390,7 @@ struct SplitCode {
   }
   
   bool isAssigned(Results& r) {
-    return !r.name_ids.empty() || always_assign;
+    return (!r.discard && !r.name_ids.empty()) || always_assign;
   }
   
   std::string getNameString(Results& r) {

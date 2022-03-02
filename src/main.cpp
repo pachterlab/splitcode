@@ -404,6 +404,9 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
       } else if (opt.gzip && opt.unassigned_files.size() == 0) { // Still allow --unassigned with --pipe --gzip
         std::cerr << ERROR_STR << " Cannot use --gzip when no output files are specified" << std::endl;
         ret = false;
+      } else if (opt.unassigned_files.size() != 0 && opt.unassigned_files.size() % opt.nfiles != 0) {
+        std::cerr << ERROR_STR << " Incorrect number of --unassigned output files" << std::endl;
+        ret = false;
       }
     } else {
       if (opt.output_files.size() % opt.nfiles != 0 || opt.unassigned_files.size() % opt.nfiles != 0) {
