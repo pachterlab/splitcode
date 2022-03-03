@@ -258,10 +258,8 @@ struct SplitCode {
   struct VectorHasher {
     size_t operator()(const std::vector<uint32_t>& v) const {
       uint64_t r = v.size()-1;
-      int i=0;
       for (auto x : v) {
-        r ^= (r<<2) + (r>>1) + (x<<2) + (x|i) + i;
-        i = (i+1)%64;
+        r ^= x + 0x9e3779b9 + (r<<6) + (r>>2); // boost hash_combine method
       }
       return r;
     }
@@ -1371,7 +1369,7 @@ struct SplitCode {
     // Should only be called under a lock (can't have multiple threads accessing a common container)
     for (auto& r : rv) {
       auto& u = r.name_ids;
-      if (u.empty()) {
+      if (u.empty() || !isAssigned(r)) {
         continue;
       }
       auto it = idmapinv.find(u);
@@ -1381,6 +1379,9 @@ struct SplitCode {
         idcount[id]++;
       } else {
         id = idmapinv.size();
+        // DEBUG hash function:
+        //VectorHasher h;
+        //std::cout << h(u) << std::endl;
         idmapinv.insert({u,id});
         idmap.push_back(u);
         idcount.push_back(1);
@@ -1492,7 +1493,7 @@ struct SplitCode {
   std::vector<std::pair<uint32_t,std::pair<bool,std::string>>> before_after_vec;
   
   std::vector<std::vector<uint32_t>> idmap;
-  std::unordered_map<std::vector<uint32_t>, int, VectorHasher> idmapinv;
+  robin_hood::unordered_flat_map<std::vector<uint32_t>, int, VectorHasher> idmapinv;
   std::vector<int> idcount;
   std::unordered_map<std::vector<uint32_t>, int, VectorHasher> idmapinv_keep;
   std::unordered_map<std::vector<uint32_t>, int, VectorHasher> idmapinv_discard;
