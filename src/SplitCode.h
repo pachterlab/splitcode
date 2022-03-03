@@ -1492,7 +1492,7 @@ struct SplitCode {
   std::vector<std::pair<uint32_t,std::pair<bool,std::string>>> before_after_vec;
   
   std::vector<std::vector<uint32_t>> idmap;
-  robin_hood::unordered_flat_map<std::vector<uint32_t>, int, VectorHasher> idmapinv;
+  std::unordered_map<std::vector<uint32_t>, int, VectorHasher> idmapinv;
   std::vector<int> idcount;
   std::unordered_map<std::vector<uint32_t>, int, VectorHasher> idmapinv_keep;
   std::unordered_map<std::vector<uint32_t>, int, VectorHasher> idmapinv_discard;
