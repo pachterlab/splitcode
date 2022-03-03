@@ -59,6 +59,7 @@ public:
   FastqSequenceReader(const ProgramOptions& opt) : SequenceReader(opt),
   current_file(0), files(opt.files) {
     SequenceReader::state = false;
+    interleave_nfiles = opt.input_interleaved_nfiles;
     nfiles = opt.nfiles;
     reserveNfiles(nfiles);
   }
@@ -86,6 +87,7 @@ public:
   std::vector<std::string> files;
   int current_file;
   std::vector<kseq_t*> seq;
+  int interleave_nfiles;
 };
 
 class MasterProcessor {

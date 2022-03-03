@@ -98,6 +98,7 @@ void usage() {
        << "-t, --threads    Number of threads to use" << endl
        << "-T, --trim-only  All reads are assigned and trimmed regardless of barcode identification" << endl
        << "-h, --help       Displays usage information" << endl
+       << "    --inleaved   Specifies that input is an interleaved FASTQ file" << endl
        << "    --disable-n  Disables replacing ambiguous bases with pseudorandom bases" << endl
        << "    --version    Prints version number" << endl
        << "    --cite       Prints citation information" << endl;
@@ -112,6 +113,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   int mod_names_flag = 0;
   int com_names_flag = 0;
   int disable_n_flag = 0;
+  int interleaved_flag = 0;
 
   const char *opt_string = "t:N:b:d:i:l:f:F:e:c:o:O:u:m:k:r:A:L:R:E:g:y:Y:j:J:a:Tph";
   static struct option long_options[] = {
@@ -123,6 +125,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"mod-names", no_argument, &mod_names_flag, 1},
     {"com-names", no_argument, &com_names_flag, 1},
     {"disable-n", no_argument, &disable_n_flag, 1},
+    {"inleaved", no_argument, &interleaved_flag, 1},
     // short args
     {"help", no_argument, 0, 'h'},
     {"pipe", no_argument, 0, 'p'},
@@ -335,6 +338,9 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   if (disable_n_flag) {
     opt.disable_n = true;
   }
+  if (interleaved_flag) {
+    opt.input_interleaved_nfiles = 1;
+  }
   
   for (int i = optind; i < argc; i++) {
     opt.files.push_back(argv[i]);
@@ -369,8 +375,12 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
   if (opt.nfiles <= 0) {
     std::cerr << ERROR_STR << " nFastqs must be a non-zero positive number" << std::endl;
     ret = false;
-  }
-  else {
+  } else if (opt.input_interleaved_nfiles != 0) {
+    if (opt.files.size() != 1) {
+      std::cerr << ERROR_STR << " interleaved input cannot consist of more than one input" << std::endl;
+      ret = false;
+    }
+  } else {
     if (opt.files.size() % opt.nfiles != 0) {
       std::cerr << ERROR_STR << " incorrect number of FASTQ file(s)" << std::endl;
       ret = false;
@@ -804,6 +814,11 @@ int main(int argc, char *argv[]) {
     usage();
     exit(1);
   }
+  if (opt.input_interleaved_nfiles != 0) {
+    opt.input_interleaved_nfiles = opt.nfiles;
+    opt.nfiles = 1;
+  }
+  
   if (opt.verbose) {
   std::cerr << "* Using a list of " << sc.getNumTags() << " barcodes (map size: " << pretty_num(sc.getMapSize()) << "; num elements: " << pretty_num(sc.getMapSize(false)) << ")" << std::endl;
   }

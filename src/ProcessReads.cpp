@@ -203,9 +203,10 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
                                   std::vector<std::pair<const char*, int>>& names,
                                   std::vector<std::pair<const char*, int>>& quals) {
   // Write out fastq
-  int incf, jmax;
-  incf = opt.nfiles-1;
-  jmax = opt.nfiles;
+  int incf, jmax, nfiles;
+  nfiles = opt.input_interleaved_nfiles == 0 ? opt.nfiles : opt.input_interleaved_nfiles;
+  incf = nfiles-1;
+  jmax = nfiles;
   
   std::vector<const char*> s(jmax, nullptr);
   std::vector<const char*> n(jmax, nullptr);
@@ -338,6 +339,7 @@ void ReadProcessor::operator()() {
     std::vector<std::string> umis;
     // grab the reader lock
     if (mp.parallel_read) {
+      // assert(mp.opt.input_interleaved_nfiles == 0);
       int nbatches = mp.opt.files.size() / mp.opt.nfiles;
       int i = parallel_read_counter % nbatches;
       if (parallel_read_empty.size() >= nbatches) {
@@ -366,7 +368,8 @@ void ReadProcessor::operator()() {
     processBuffer();
 
     // update the results, MP acquires the lock
-    mp.update(seqs.size() / mp.opt.nfiles, rv, seqs, names, quals);
+    int nfiles = mp.opt.input_interleaved_nfiles == 0 ? mp.opt.nfiles : mp.opt.input_interleaved_nfiles;
+    mp.update(seqs.size() / nfiles, rv, seqs, names, quals);
     clear();
   }
 }
@@ -374,9 +377,10 @@ void ReadProcessor::operator()() {
 void ReadProcessor::processBuffer() {
   // actually process the sequence
   
-  int incf, jmax;
-  incf = mp.opt.nfiles-1;
-  jmax = mp.opt.nfiles;
+  int incf, jmax, nfiles;
+  nfiles = mp.opt.input_interleaved_nfiles == 0 ? mp.opt.nfiles : mp.opt.input_interleaved_nfiles;
+  incf = nfiles-1;
+  jmax = nfiles;
 
   std::vector<const char*> s(jmax, nullptr);
   std::vector<int> l(jmax,0);
@@ -494,6 +498,7 @@ bool FastqSequenceReader::fetchSequences(char *buf, const int limit, std::vector
   flags.clear();
   
   int bufpos = 0;
+  int count = 0; // for interleaving
   int pad = nfiles;
   while (true) {
     if (!state) { // should we open a file
@@ -537,6 +542,13 @@ bool FastqSequenceReader::fetchSequences(char *buf, const int limit, std::vector
       }
 
       if (bufpos+bufadd< limit) {
+        if (interleave_nfiles != 0) { // Hack to allow interleaving
+          // assert(nfiles == 1);
+          if (bufpos+bufadd >= limit-262144 && count % interleave_nfiles == 0) {
+            return true;
+          }
+          count++;
+        }
 
         for (int i = 0; i < nfiles; i++) {
           char *pi = buf + bufpos;

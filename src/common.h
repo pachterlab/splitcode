@@ -12,6 +12,7 @@ typedef unsigned int uint;
 struct ProgramOptions {
   int threads;
   int nfiles;
+  int input_interleaved_nfiles;
   bool no_output;
   bool pipe;
   bool output_fastq_specified;
@@ -50,6 +51,7 @@ struct ProgramOptions {
   ProgramOptions() :
     threads(1),
     nfiles(1),
+    input_interleaved_nfiles(0),
     no_output(false),
     pipe(false),
     output_fastq_specified(false),
