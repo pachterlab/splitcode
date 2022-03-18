@@ -234,6 +234,12 @@ struct SplitCode {
           }
         }
       }
+      // Sort kmer_size_locations[i] and ensure all elements are unique
+      std::set<std::pair<int,int>> s(kmer_size_locations[i].begin(), kmer_size_locations[i].end());
+      kmer_size_locations[i].assign(s.begin(), s.end()); // Make sure all elements are unique
+      std::sort(kmer_size_locations[i].begin(), kmer_size_locations[i].end(), [](std::pair<int,int> a, std::pair<int,int> b) {
+        return (a.first == b.first) ? (a.second == -1 || b.second == -1 ? a.second > b.second : a.second < b.second) : (a.first < b.first);
+        });
     }
     initiator_files.resize(kmer_size_locations.size(), false);
     for (int i = 0; i < tags_vec.size(); i++) { // Set up minFinds and maxFinds and initiators
@@ -252,6 +258,156 @@ struct SplitCode {
         }
       }
     }
+    // Set up expansions vectors (in a map with keys being k-mer sizes):
+    struct Expansion {
+      int kmer_size, kmer_size_2, start_pos, start_pos_2, file;
+    };
+    std::unordered_map<int,std::vector<Expansion>> emap;
+    for (int i = 0; i < kmer_size_locations.size(); i++) { // Go through locations to figure out where expansions may 'potentially' occur (on the basis of location)
+      int prev_kmer_size = -1;
+      int prev_start_pos = -1;
+      std::pair<int,int> max_loc = std::make_pair(-1,-1); // k-mer location with the rightmost non-(-1) location
+      int smallest_kmer_unbound = -1; // the smallest k-mer size with a -1 location
+      for (auto &loc : kmer_size_locations[i]) {
+        if (smallest_kmer_unbound == -1 && loc.second == -1) {
+          smallest_kmer_unbound = loc.first;
+        }
+        if (loc.second > max_loc.second) {
+          max_loc.first = loc.first; // max_loc.first will be the smallest k if there are ties
+          max_loc.second = loc.second;
+        }
+      }
+      if (max_loc.second != -1) {
+        // Extend all -1's to max_loc
+        int prev_k = -1;
+        int prev_pos = -1;
+        for (int j = 0; j < kmer_size_locations[i].size(); j++) {
+          if (kmer_size_locations[i][j].second == -1) {
+            int k = kmer_size_locations[i][j].first;
+            int pos = kmer_size_locations[i][j].second;
+            if (pos == -1 && prev_k != -1 && k == prev_k && prev_pos != -1) {
+              auto &v = kmer_size_locations[i];
+              std::vector<std::pair<int,int>> new_v;
+              for (int p = prev_pos+1; p <= max_loc.second; p++) {
+                new_v.push_back(std::make_pair(k,p));
+              }
+              v.insert(v.begin()+j,new_v.begin(),new_v.end());
+              j += new_v.size();
+            }
+          }
+          prev_k = kmer_size_locations[i][j].first;
+          prev_pos = kmer_size_locations[i][j].second;
+        }
+      }
+      std::set<std::pair<int,int>> deletions;
+      for (int j = 0; j < kmer_size_locations[i].size(); j++) {
+        int kmer_size = kmer_size_locations[i][j].first;
+        int start_pos = kmer_size_locations[i][j].second;
+        int prev_kmer_size_2 = -1;
+        int prev_start_pos_2 = -1;
+        for (int k = j+1; k < kmer_size_locations[i].size(); k++) {
+          int kmer_size_2 = kmer_size_locations[i][k].first;
+          int start_pos_2 = kmer_size_locations[i][k].second;
+          if (kmer_size_2 <= kmer_size) {
+            continue;
+          }
+          int actual_start_pos_2 = start_pos_2 == -1 && prev_start_pos_2 != -1 && prev_kmer_size_2 != -1 && prev_kmer_size_2 == kmer_size_2 ? prev_start_pos_2 : start_pos_2;
+          int actual_start_pos = start_pos == -1 && prev_start_pos != -1 && prev_kmer_size != -1 && prev_kmer_size == kmer_size ? prev_start_pos : start_pos;
+          // If we can expand from kmer_size to kmer_size_2:
+          if (((start_pos == -1 || start_pos_2 == -1) && ((actual_start_pos_2 == -1 || actual_start_pos == -1) || (actual_start_pos_2 == actual_start_pos))) 
+                || (start_pos != -1 && start_pos_2 != -1 && start_pos_2 == start_pos)) {
+            Expansion e;
+            e.kmer_size = kmer_size;
+            e.kmer_size_2 = kmer_size_2;
+            e.start_pos = actual_start_pos;
+            e.start_pos_2 = actual_start_pos_2;
+            e.file = i;
+            emap[kmer_size_2].push_back(e);
+            if (!(smallest_kmer_unbound == e.kmer_size_2 && start_pos_2 == -1)) {
+              deletions.insert(std::make_pair(e.kmer_size_2, start_pos_2)); // Mark location with larger k-mer for deletion (since we can expand to it)
+            }
+          }
+          prev_kmer_size_2 = kmer_size_2;
+          prev_start_pos_2 = start_pos_2;
+        }
+        prev_kmer_size = kmer_size;
+        prev_start_pos = start_pos;
+      }
+      // Delete marked locations
+      for (auto d : deletions) {
+        kmer_size_locations[i].erase(std::remove(kmer_size_locations[i].begin(), kmer_size_locations[i].end(), d), kmer_size_locations[i].end());
+      }
+      // Find the -1 position (if it exists) and make sure it's preceded by max_loc.second+1
+      auto it = std::find(kmer_size_locations[i].begin(), kmer_size_locations[i].end(), std::pair<int,int>(smallest_kmer_unbound, -1));
+      if (it != kmer_size_locations[i].end()) {
+        kmer_size_locations[i].insert(it, std::pair<int,int>(smallest_kmer_unbound, max_loc.second+1));
+      }
+      // Sort by location (aka the second element in the pair) rather than by k-mer size
+      std::sort(kmer_size_locations[i].begin(), kmer_size_locations[i].end(), [](std::pair<int,int> a, std::pair<int,int> b) {
+        return (a.second == -1 || b.second == -1 ? a.second > b.second : a.second < b.second);
+      });
+    }
+    // For all sequences in map, decompose them into smaller substrings
+    std::set<std::pair<std::string,int>> decomposed_kmers;
+    for (auto& it: tags) {
+      int kmer_size = it.first.length();
+      if (emap.find(kmer_size) != emap.end()) { // emap[kmer_size]
+        for (auto &e : emap[kmer_size]) {
+          bool found = false;
+          // Check if any tags associated with the current sequence are in the same location as the current expansion 
+          for (auto x : it.second) {
+            auto &tag = tags_vec[x.first];
+            if (overlapRegion(e.file, e.start_pos_2 == -1 ? 0 : e.start_pos_2, e.start_pos_2 == -1 ? 0 : e.start_pos_2+e.kmer_size_2, tag.file, tag.pos_start, tag.pos_end)) {
+              found = true;
+            }
+          }
+          if (!found) {
+            continue;
+          }
+          // Decompose kmer of kmer_size by substring'ing
+          int decomposed_kmer_size = e.kmer_size;
+          std::string s = it.first.s_;
+          decomposed_kmers.insert(std::make_pair(s.substr(0, decomposed_kmer_size), kmer_size)); // to be added to tags map
+        }
+      }
+    }
+    for (auto& d : decomposed_kmers) { // Put decomposed k-mer strings into the tags map
+      SeqString sstr(d.first);
+      int k_expanded = d.second;
+      if (tags.find(sstr) != tags.end()) {
+        auto& tag_v = tags[sstr];
+        if (tag_v.size() > 0 && tag_v[0].second == -1) {
+          if (k_expanded < tag_v[0].first) {
+            // If encounter duplicate expansions, use the one with the smaller k-mer size
+            tag_v[0].first = k_expanded;
+          }
+        } else {
+          tag_v.insert(tag_v.begin(), std::make_pair(k_expanded,-1)); // Put expansion at beginning of vector
+        }
+      } else { // String not previously seen in map (vector is empty)
+        tags[sstr].push_back(std::make_pair(k_expanded,-1)); // Put expansion at beginning of vector
+      }
+    }
+    // DEBUG: Print out final locations
+    /*for (int i = 0; i < kmer_size_locations.size(); i++) {
+      for (int j = 0; j < kmer_size_locations[i].size(); j++) {
+        int kmer_size = kmer_size_locations[i][j].first;
+        int start_pos = kmer_size_locations[i][j].second;
+        std::cout << i << ":" << kmer_size << ":" << start_pos << std::endl;
+      }
+    }*/
+    // DEBUG: Print out tags map
+    /*for (auto& it: tags) {
+      std::cout << it.first.s_ << "; k = " << it.first.length() << std::endl;
+      auto &v = it.second;
+      for (auto &x : v) {
+        if (x.second != -1) {
+          std::cout << "\t" << names[tags_vec[x.first].name_id] << " " << x.second << std::endl;
+        } else {
+          std::cout << "\t" << "Expansion: " << x.first << std::endl;
+        }
+      }
+    }*/
     init = true;
   }
   
@@ -747,7 +903,7 @@ struct SplitCode {
     return true;
   }
   
-  bool getTag(std::string& seq, uint32_t& tag_id, int file, int pos, int k, bool look_for_initiator = false,
+  bool getTag(std::string& seq, uint32_t& tag_id, int file, int pos, int& k, bool look_for_initiator = false,
               bool search_tag_name_after = false, bool search_group_after = false, uint32_t search_id_after = -1) {
     checkInit();
     const auto& it = tags.find(SeqString(seq.c_str()+pos, k));
@@ -757,15 +913,27 @@ struct SplitCode {
     bool found = false;
     for (auto &x : it->second) {
       tag_id = x.first;
+      int k_updated = k;
+      if (x.second == -1) {
+        // TODO: [choose option w/ smallest error and longest k]
+        // Recursively expand
+        int k_expanded = x.first;
+        bool found_expansion = getTag(seq, tag_id, file, pos, k_expanded, look_for_initiator, search_tag_name_after, search_group_after, search_id_after);
+        if (!found_expansion) {
+          continue;
+        }
+        k_updated = k_expanded;
+      }
       auto& tag = tags_vec[tag_id];
       if (search_tag_name_after && tag.name_id != search_id_after) {
         continue;
       } else if (search_group_after && tag.group != search_id_after) {
         continue;
       }
-      if (containsRegion(tag.file, tag.pos_start, tag.pos_end, file, pos, pos+k)) {
+      if (containsRegion(tag.file, tag.pos_start, tag.pos_end, file, pos, pos+k_updated)) {
         if (!look_for_initiator || (look_for_initiator && tags_vec[tag_id].initiator)) {
           found = true;
+          k = k_updated;
           break;
         }
       }
