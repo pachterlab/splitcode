@@ -818,6 +818,18 @@ int main(int argc, char *argv[]) {
     opt.input_interleaved_nfiles = opt.nfiles;
     opt.nfiles = 1;
   }
+  if (!opt.output_files.empty() && !opt.gzip) {
+    bool use_gz = true;
+    for (std::string f : opt.output_files) {
+      if (!(f.size() > 3 && f.compare(f.size() - 3, 3, ".gz") == 0)) {
+        use_gz = false;
+      }
+    }
+    if (use_gz) {
+      std::cerr << "* Forcing --gzip because all output file names end in .gz" << std::endl;
+      opt.gzip = true;
+    }
+  }
   
   if (opt.verbose) {
   std::cerr << "* Using a list of " << sc.getNumTags() << " barcodes (map size: " << pretty_num(sc.getMapSize()) << "; num elements: " << pretty_num(sc.getMapSize(false)) << ")" << std::endl;
