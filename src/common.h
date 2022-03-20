@@ -47,6 +47,8 @@ struct ProgramOptions {
   std::string left_str;
   std::string right_str;
   std::string empty_read_sequence;
+  std::string trim_5_str;
+  std::string trim_3_str;
   
   ProgramOptions() :
     threads(1),

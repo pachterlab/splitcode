@@ -32,12 +32,15 @@ struct SplitCode {
     setNFiles(0);
   }
   
-  SplitCode(int nFiles, bool trim_only = false, bool disable_n = false) {
+  SplitCode(int nFiles, bool trim_only = false, bool disable_n = false,
+            std::string trim_5_str = "", std::string trim_3_str = "") {
     init = false;
     discard_check = false;
     keep_check = false;
     discard_check_group = false;
     keep_check_group = false;
+    this->trim_5_str = trim_5_str;
+    this->trim_3_str = trim_3_str;
     setNFiles(nFiles);
     setTrimOnly(trim_only);
     setRandomReplacement(!disable_n);
@@ -61,6 +64,38 @@ struct SplitCode {
     }
     if (nFiles <= 0) {
       std::cerr << "Error: nFiles must be set to a positive integer" << std::endl;
+      exit(1);
+    }
+    // Process 5′/3′ end-trimming
+    std::stringstream ss_trim_5(this->trim_5_str);
+    std::stringstream ss_trim_3(this->trim_3_str);
+    std::string trim_val;
+    trim_5_3_vec.resize(nFiles, std::make_pair(0,0));
+    try {
+      int i = 0;
+      while (std::getline(ss_trim_5, trim_val, ',')) {
+        if (!trim_val.empty()) {
+          trim_5_3_vec[i].first = std::max(0,std::stoi(trim_val));
+        }
+        i++;
+      }
+      if (i != nFiles && i != 0) {
+        std::cerr << "Error: 5′/3′ trimming invalid; need to specify as many values as nFastqs" << std::endl;
+        exit(1);
+      }
+      i = 0;
+      while (std::getline(ss_trim_3, trim_val, ',')) {
+        if (!trim_val.empty()) {
+          trim_5_3_vec[i].second = std::max(0,std::stoi(trim_val));
+        }
+        i++;
+      }
+      if (i != nFiles && i != 0) {
+        std::cerr << "Error: 5′/3′ trimming invalid; need to specify as many values as nFastqs" << std::endl;
+        exit(1);
+      }
+    } catch (std::invalid_argument &e) {
+      std::cerr << "Error: Could not convert \"" << trim_val << "\" to int in 5′/3′ trimming" << std::endl;
       exit(1);
     }
     // Process before_after_vec
@@ -592,7 +627,7 @@ struct SplitCode {
       return false;
     }
     for (int i = 0; i < name.size(); i++) {
-      if (name[i] == '#' || name[i] == '|' || name[i] == '(' || name[i] == ')' || name[i] == '[' || name[i] == ']' || name[i] == '{' || name[i] == '}') {
+      if (name[i] == '#' || name[i] == '|' || name[i] == '(' || name[i] == ')' || name[i] == '[' || name[i] == ']' || name[i] == '{' || name[i] == '}' || name[i] == '@') {
         std::cerr << "Error: The name of sequence #" << new_tag_index+1 << ": \"" << name << "\" contains an invalid character" << std::endl;
         return false;
       }
@@ -606,7 +641,7 @@ struct SplitCode {
       name_id = itnames - names.begin();
     }
     for (int i = 0; i < group_name.size(); i++) {
-      if (group_name[i] == '#' || group_name[i] == '|' || group_name[i] == '(' || group_name[i] == ')' || group_name[i] == '[' || group_name[i] == ']' || group_name[i] == '{' || group_name[i] == '}') {
+      if (group_name[i] == '#' || group_name[i] == '|' || group_name[i] == '(' || group_name[i] == ')' || group_name[i] == '[' || group_name[i] == ']' || group_name[i] == '{' || group_name[i] == '}' || group_name[i] == '@') {
         std::cerr << "Error: The group name: \"" << group_name << "\" contains an invalid character" << std::endl;
         return false;
       }
@@ -809,6 +844,30 @@ struct SplitCode {
         continue;
       }
       if (line[0] == '#') {
+        continue;
+      }
+      if (line[0] == '@') {
+        std::stringstream ss(line);
+        std::string field;
+        std::string value;
+        ss >> field >> value;
+        if (value.empty()) {
+          std::cerr << "Error: The file \"" << config_file << "\" contains an invalid line starting with @" << std::endl;
+          return false;
+        }
+        if (field == "@trim-5") {
+          if (!this->trim_5_str.empty()) {
+            std::cerr << "Error: The file \"" << config_file << "\" specifies @trim-5 which was already previously set" << std::endl;
+            return false;
+          }
+          this->trim_5_str = value;
+        } else if (field == "@trim-3") {
+          if (!this->trim_3_str.empty()) {
+            std::cerr << "Error: The file \"" << config_file << "\" specifies @trim-3 which was already previously set" << std::endl;
+            return false;
+          }
+          this->trim_3_str = value;
+        }
         continue;
       }
       std::stringstream ss(line);
@@ -1366,9 +1425,22 @@ struct SplitCode {
       group_v.reserve(16);
     }
     int n = std::min(jmax, (int)kmer_size_locations.size());
-    for (int j = 0; j < n; j++) {
+    for (int j = 0; j < jmax; j++) {
       int file = j;
       int readLength = l[file];
+      // First, let's do end-trimming
+      int trim_5 = std::min(trim_5_3_vec[file].first, l[file]);
+      s[file] += trim_5;
+      l[file] -= trim_5;
+      int trim_3 = std::min(trim_5_3_vec[file].second, l[file]);
+      l[file] = l[file] - trim_3 <= 0 ? 0 : l[file] - trim_3;
+      if (l[file] != readLength) {
+        results.modtrim.push_back(std::make_pair(file, std::make_pair(trim_5, l[file])));
+      }
+      if (j >= n) {
+        continue;
+      }
+      readLength = l[file];
       bool look_for_initiator = initiator_files[file];
       std::string seq(s[file], readLength);
       bool found_weird_base = false; // non-ATCG bases
@@ -1675,6 +1747,10 @@ struct SplitCode {
   std::vector<bool> initiator_files;
   
   std::vector<std::vector<std::pair<int,int>>> kmer_size_locations;
+  
+  
+  std::string trim_5_str, trim_3_str;
+  std::vector<std::pair<int,int>> trim_5_3_vec;
   
   bool init;
   bool discard_check;

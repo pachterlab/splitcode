@@ -115,7 +115,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   int disable_n_flag = 0;
   int interleaved_flag = 0;
 
-  const char *opt_string = "t:N:b:d:i:l:f:F:e:c:o:O:u:m:k:r:A:L:R:E:g:y:Y:j:J:a:Tph";
+  const char *opt_string = "t:N:b:d:i:l:f:F:e:c:o:O:u:m:k:r:A:L:R:E:g:y:Y:j:J:a:5:3:Tph";
   static struct option long_options[] = {
     // long args
     {"version", no_argument, &version_flag, 1},
@@ -156,6 +156,8 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"empty", required_argument, 0, 'E'},
     {"keep-grp", required_argument, 0, 'y'},
     {"remove-grp", required_argument, 0, 'Y'},
+    {"trim-5", required_argument, 0, '5'},
+    {"trim-3", required_argument, 0, '3'},
     {0,0,0,0}
   };
   
@@ -305,6 +307,14 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
       while (std::getline(ss, filename, ',')) { 
         opt.unassigned_files.push_back(filename);
       }
+      break;
+    }
+    case '5': {
+      stringstream(optarg) >> opt.trim_5_str;
+      break;
+    }
+    case '3': {
+      stringstream(optarg) >> opt.trim_3_str;
       break;
     }
     default: break;
@@ -809,7 +819,7 @@ int main(int argc, char *argv[]) {
   setvbuf(stdout, NULL, _IOFBF, 1048576);
   ProgramOptions opt;
   ParseOptions(argc,argv,opt);
-  SplitCode sc(opt.nfiles, opt.trim_only, opt.disable_n);
+  SplitCode sc(opt.nfiles, opt.trim_only, opt.disable_n, opt.trim_5_str, opt.trim_3_str);
   if (!CheckOptions(opt, sc)) {
     usage();
     exit(1);
