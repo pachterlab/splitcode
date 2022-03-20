@@ -71,6 +71,8 @@ void usage() {
        << "                 (Note: for --after, specify barcode names as {name} and specify barcode group names as {{group}}" << endl
        << "                 Can also specify the number of base pairs that must appear between the current barcode and the next barcode." << endl
        << "                 E.g. {bc}4-12 means the next barcode to find is 4-12 bases away and has name 'bc')" << endl
+       << "-5, --trim-5     Number of base pairs to trim from the 5′-end of reads (comma-separated; one number per each FASTQ file in a run)" << endl
+       << "-3, --trim-3     Number of base pairs to trim from the 3′-end of reads (comma-separated; one number per each FASTQ file in a run)" << endl
        << "Options (configurations supplied in a file):" << endl
        << "-c, --config     Configuration file" << endl
        << "Output Options:" << endl
