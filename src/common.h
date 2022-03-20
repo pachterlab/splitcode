@@ -14,6 +14,7 @@ struct ProgramOptions {
   int nfiles;
   int input_interleaved_nfiles;
   bool no_output;
+  bool no_output_barcodes;
   bool pipe;
   bool output_fastq_specified;
   bool verbose;
@@ -55,6 +56,7 @@ struct ProgramOptions {
     nfiles(1),
     input_interleaved_nfiles(0),
     no_output(false),
+    no_output_barcodes(false),
     pipe(false),
     output_fastq_specified(false),
     verbose(false),

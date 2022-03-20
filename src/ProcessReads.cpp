@@ -112,21 +112,6 @@ void MasterProcessor::processReads() {
   for (int i = 0; i < opt.threads; i++) {
     workers[i].join(); //wait for them to finish
   }
-  
-  /*// now handle the modification of the mincollector
-  for (int i = 0; i < bus_ecmap.size(); i++) {
-    auto &u = bus_ecmap[i];
-    int ec = index.ecmapinv.size();
-    auto it = bus_ecmapinv.find(u);
-    if (it->second != ec) {
-      std::cout << "Error" << std::endl;
-      exit(1);
-    }      
-    index.ecmapinv.insert({u,ec});
-    index.ecmap.push_back(u);
-  }
-
-  busf_out.close();*/
 }
 
 void MasterProcessor::update(int n, std::vector<SplitCode::Results>& rv,
@@ -135,58 +120,6 @@ void MasterProcessor::update(int n, std::vector<SplitCode::Results>& rv,
                              std::vector<std::pair<const char*, int>>& quals) {
   // acquire the writer lock
   std::lock_guard<std::mutex> lock(this->writer_lock);
-
-  /*for (int i = 0; i < c.size(); i++) {
-    tc.counts[i] += c[i]; // add up ec counts
-    nummapped += c[i];
-  }
-
-  if (!opt.batch_mode || opt.batch_bus) {
-    for(auto &u : newEcs) {
-      ++newECcount[u];
-    }
-  }
-  nummapped += newEcs.size();
-
-  if (opt.bus_mode || opt.batch_bus) {
-    int bus_bc_sum = 0;
-    int bus_umi_sum = 0;
-    for (int i = 0; i <= 32; i++) {
-      bus_bc_sum += bus_bc_len[i];
-      bus_umi_sum += bus_umi_len[i];
-    }
-
-    if (bus_bc_sum < 10000 or bus_umi_sum < 10000) {
-      for (int i = 0; i < 32; i++) {
-        bus_bc_len[i] += bc_len[i];
-        bus_umi_len[i] += umi_len[i];
-      }
-    }
-
-    // add new equiv classes to extra format
-    int offset = index.ecmapinv.size();
-    for (auto &bp : newBP) {
-      auto& u = bp.second;
-      int ec = -1;
-      auto it = bus_ecmapinv.find(u);
-      if (it != bus_ecmapinv.end()) {
-        ec = it->second;
-      } else {
-        ec = offset + bus_ecmapinv.size();
-        bus_ecmapinv.insert({u,ec});
-        bus_ecmap.push_back(u);
-      }
-      auto &b = bp.first;
-      b.ec = ec;
-      bv.push_back(b);
-    }
-
-    //copy bus mode information, write to disk or queue up
-    writeBUSData(busf_out, bv); 
-    //for (auto &bp : newBP) {
-    //  newB.push_back(std::move(bp));
-    //}
-  }*/
   
   sc.update(rv);
   
@@ -226,7 +159,7 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
       mod_name += " BI:i:" + std::to_string(r.id);
       //mod_name += "\t" + "CB:Z:" + sc.binaryToString(r.id, sc.FAKE_BARCODE_LEN)
     }
-    if (assigned && (write_barcode_separate_fastq || opt.pipe) && !sc.always_assign) { // Write out barcode read
+    if (assigned && (write_barcode_separate_fastq || opt.pipe) && !sc.always_assign && !opt.no_output_barcodes) { // Write out barcode read
       std::stringstream o;
       // Write out barcode read
       o << "@" << std::string(names[i].first, names[i].second) << mod_name << "\n";
@@ -252,7 +185,7 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
       int nl = names[i+j].second;
       const char* q = quals[i+j].first;
       // Write out read
-      bool embed_final_barcode = assigned && j==0 && !write_barcode_separate_fastq && !opt.pipe && !sc.always_assign;
+      bool embed_final_barcode = assigned && j==0 && !write_barcode_separate_fastq && !opt.pipe && !sc.always_assign && !opt.no_output_barcodes;
       o << "@";
       o << std::string(n,nl) << mod_name << "\n";
       if (embed_final_barcode) {
@@ -290,16 +223,6 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
     i += incf;
   }
 }
-
-/*
-void MasterProcessor::outputFusion(const std::stringstream &o) {
-  std::string os = o.str();
-  if (!os.empty()) {
-    std::lock_guard<std::mutex> lock(this->writer_lock);
-    ofusion << os << "\n";
-  }
-}
-*/
 
 ReadProcessor::ReadProcessor(const ProgramOptions& opt, MasterProcessor& mp) : 
   mp(mp), numreads(0) {
