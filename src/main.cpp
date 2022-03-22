@@ -850,7 +850,10 @@ int main(int argc, char *argv[]) {
   }
   
   if (opt.verbose) {
-  std::cerr << "* Using a list of " << sc.getNumTags() << " barcodes (map size: " << pretty_num(sc.getMapSize()) << "; num elements: " << pretty_num(sc.getMapSize(false)) << ")" << std::endl;
+    std::cerr << "* Using a list of " << sc.getNumTagsOriginallyAdded() << 
+      " barcodes (vector size: " << sc.getNumTags() << 
+      "; map size: " << pretty_num(sc.getMapSize()) << 
+      "; num elements in map: " << pretty_num(sc.getMapSize(false)) << ")" << std::endl;
   }
   MasterProcessor MP(sc, opt);
   ProcessReads(MP, opt);

@@ -29,6 +29,7 @@ struct SplitCode {
     keep_check_group = false;
     always_assign = false;
     random_replacement = false;
+    n_tag_entries = 0;
     setNFiles(0);
   }
   
@@ -39,6 +40,7 @@ struct SplitCode {
     keep_check = false;
     discard_check_group = false;
     keep_check_group = false;
+    n_tag_entries = 0;
     this->trim_5_str = trim_5_str;
     this->trim_3_str = trim_3_str;
     setNFiles(nFiles);
@@ -394,6 +396,7 @@ struct SplitCode {
             auto &tag = tags_vec[x.first];
             if (overlapRegion(e.file, e.start_pos_2 == -1 ? 0 : e.start_pos_2, e.start_pos_2 == -1 ? 0 : e.start_pos_2+e.kmer_size_2, tag.file, tag.pos_start, tag.pos_end)) {
               found = true;
+              break;
             }
           }
           if (!found) {
@@ -609,6 +612,7 @@ struct SplitCode {
     new_tag.initiator = false;
     new_tag.terminator = false;
     uint32_t new_tag_index = tags_vec.size();
+    ++n_tag_entries;
 
     if (seq.length() > 0 && seq[0] == '*') {
       new_tag.initiator = true;
@@ -619,16 +623,16 @@ struct SplitCode {
       seq.erase(seq.end()-1);
     }
     if (seq.length() == 0) {
-      std::cerr << "Error: Sequence #" << new_tag_index+1 << ": \"" << name << "\" is empty" << std::endl;
+      std::cerr << "Error: Sequence #" << n_tag_entries << ": \"" << name << "\" is empty" << std::endl;
       return false;
     }
     if (max_finds < min_finds && max_finds != 0) {
-      std::cerr << "Error: Sequence #" << new_tag_index+1 << ": \"" << name << "\" -- max finds cannot be less than min finds" << std::endl;
+      std::cerr << "Error: Sequence #" << n_tag_entries << ": \"" << name << "\" -- max finds cannot be less than min finds" << std::endl;
       return false;
     }
     for (int i = 0; i < name.size(); i++) {
       if (name[i] == '#' || name[i] == '|' || name[i] == '(' || name[i] == ')' || name[i] == '[' || name[i] == ']' || name[i] == '{' || name[i] == '}' || name[i] == '@') {
-        std::cerr << "Error: The name of sequence #" << new_tag_index+1 << ": \"" << name << "\" contains an invalid character" << std::endl;
+        std::cerr << "Error: The name of sequence #" << n_tag_entries << ": \"" << name << "\" contains an invalid character" << std::endl;
         return false;
       }
     }
@@ -673,76 +677,84 @@ struct SplitCode {
     new_tag.has_before = false;
     
     // Now deal with adding the actual sequence:
-    char delimeter = '/'; // Sequence can be delimited by '/' if the user gives multiple sequences for one tag record
-    std::stringstream ss(new_tag.seq);
-    int num_seqs = 0;
-    tags_vec.push_back(new_tag);
-    while (std::getline(ss, seq, delimeter)) {
-      if (seq.empty()) {
-        continue;
-      }
-      ++num_seqs;
-      for (int i = 0; i < seq.size(); i++) {
-        if (seq[i] != 'A' && seq[i] != 'T' && seq[i] != 'C' && seq[i] != 'G') {
-          std::cerr << "Error: Sequence #" << new_tag_index+1 << ": \"" << name << "\" contains a non-ATCG character" << std::endl;
-          return false;
-        }
-      }
-      if (pos_end != 0 && pos_end - pos_start < seq.length()) {
-        std::cerr << "Error: Sequence #" << new_tag_index+1 << ": \"" << name << "\" is too long to fit in the supplied location" << std::endl;
-        return false;
-      }
-      
-      SeqString sstr(seq);
-      if (tags.find(sstr) != tags.end()) { // If we've seen that sequence before
-        const auto& v = tags[sstr];
-        std::vector<uint32_t> vi;
-        if (checkCollision(new_tag, v, vi)) {
-          for (auto i : vi) {
-            if (i != new_tag_index) {
-              std::cerr << "Error: Sequence #" << new_tag_index+1 << ": \"" << name << "\" collides with sequence #" << i+1 << ": \"" << names[tags_vec[i].name_id] << "\"" << std::endl;
-              return false;
-            }
-          }
-        }
-      }
-      
-      std::unordered_map<std::string,int> mismatches;
-      generate_indels_hamming_mismatches(seq, mismatch_dist, indel_dist, total_dist, mismatches);
-      for (auto mm : mismatches) {
-        std::string mismatch_seq = mm.first;
-        int error = total_dist - mm.second; // The number of substitutions, insertions, or deletions
-        auto mismatch_sstr = SeqString(mismatch_seq);
-        if (tags.find(mismatch_sstr) != tags.end()) { // If we've seen that sequence (mismatch_seq) before
-          auto& v = tags[mismatch_sstr];
-          std::vector<uint32_t> vi;
-          bool collision = checkCollision(new_tag, v, vi);
-          if (collision) {
-            for (auto i : vi) {
-              if (i == new_tag_index) {
-                continue;
-              }
-              if (matchSequences(tags_vec[i], mismatch_seq)) { // If there is a collision AND the sequence seen before is an original (i.e. non-mismatched-generated) sequence
-                std::cerr << "Error: Sequence #" << new_tag_index+1 << ": \"" << name << "\" collides with sequence #" << i+1 << ": \"" << names[tags_vec[i].name_id] << "\"" << std::endl;
-                return false;
-              }
-              tags_to_remove.insert(std::make_pair(mismatch_seq, i)); // Mark for removal
-              tags_to_remove.insert(std::make_pair(mismatch_seq, new_tag_index)); // Mark new_tag for removal (we remove later rather than now to account for future addTag(...) collision)
-            }
-          }
-        }
-        addToMap(mismatch_seq, new_tag_index, error);
-      }
-      addToMap(seq, new_tag_index);
-    }
-    
-    if (num_seqs == 0) {
-      std::cerr << "Error: Sequence #" << new_tag_index+1 << ": \"" << name << "\" is empty" << std::endl;
+    if (nFiles <= 0 && new_tag.file == -1) { // Make sure we have nFiles set if tag can belong to any file
+      std::cerr << "Error: nFiles must be set to a positive integer" << std::endl;
       return false;
     }
-    
-    if (!after_str.empty()) {
-      before_after_vec.push_back(std::make_pair(new_tag_index, std::make_pair(true, after_str)));
+    // Only go through loop once; but if tag can belong to any file (new_tag.file == -1), iterate through nFiles (we'll make one new_tag per file)
+    int start_file = new_tag.file == -1 ? 0 : new_tag.file;
+    int end_file = new_tag.file == -1 ? nFiles : new_tag.file+1;
+    for (file = start_file; file < end_file; file++,new_tag_index++) {
+      new_tag.file = file;
+      char delimeter = '/'; // Sequence can be delimited by '/' if the user gives multiple sequences for one tag record
+      std::stringstream ss(new_tag.seq);
+      int num_seqs = 0;
+      tags_vec.push_back(new_tag);
+      while (std::getline(ss, seq, delimeter)) {
+        if (seq.empty()) {
+          continue;
+        }
+        ++num_seqs;
+        for (int i = 0; i < seq.size(); i++) {
+          if (seq[i] != 'A' && seq[i] != 'T' && seq[i] != 'C' && seq[i] != 'G') {
+            std::cerr << "Error: Sequence #" << n_tag_entries << ": \"" << name << "\" contains a non-ATCG character" << std::endl;
+            return false;
+          }
+        }
+        if (pos_end != 0 && pos_end - pos_start < seq.length()) {
+          std::cerr << "Error: Sequence #" << n_tag_entries << ": \"" << name << "\" is too long to fit in the supplied location" << std::endl;
+          return false;
+        }
+        
+        SeqString sstr(seq);
+        if (tags.find(sstr) != tags.end()) { // If we've seen that sequence before
+          const auto& v = tags[sstr];
+          std::vector<uint32_t> vi;
+          if (checkCollision(new_tag, v, vi)) {
+            for (auto i : vi) {
+              if (i != new_tag_index) {
+                std::cerr << "Error: Sequence #" << n_tag_entries << ": \"" << name << "\" collides with a previous sequence" << ": \"" << names[tags_vec[i].name_id] << "\"" << std::endl;
+                return false;
+              }
+            }
+          }
+        }
+        
+        std::unordered_map<std::string,int> mismatches;
+        generate_indels_hamming_mismatches(seq, mismatch_dist, indel_dist, total_dist, mismatches);
+        for (auto mm : mismatches) {
+          std::string mismatch_seq = mm.first;
+          int error = total_dist - mm.second; // The number of substitutions, insertions, or deletions
+          auto mismatch_sstr = SeqString(mismatch_seq);
+          if (tags.find(mismatch_sstr) != tags.end()) { // If we've seen that sequence (mismatch_seq) before
+            auto& v = tags[mismatch_sstr];
+            std::vector<uint32_t> vi;
+            bool collision = checkCollision(new_tag, v, vi);
+            if (collision) {
+              for (auto i : vi) {
+                if (i == new_tag_index) {
+                  continue;
+                }
+                if (matchSequences(tags_vec[i], mismatch_seq)) { // If there is a collision AND the sequence seen before is an original (i.e. non-mismatched-generated) sequence
+                  std::cerr << "Error: Sequence #" << n_tag_entries << ": \"" << name << "\" collides with a previous sequence" << ": \"" << names[tags_vec[i].name_id] << "\"" << std::endl;
+                  return false;
+                }
+                tags_to_remove.insert(std::make_pair(mismatch_seq, i)); // Mark for removal
+                tags_to_remove.insert(std::make_pair(mismatch_seq, new_tag_index)); // Mark new_tag for removal (we remove later rather than now to account for future addTag(...) collision)
+              }
+            }
+          }
+          addToMap(mismatch_seq, new_tag_index, error);
+        }
+        addToMap(seq, new_tag_index);
+      }
+      if (num_seqs == 0) {
+        std::cerr << "Error: Sequence #" << n_tag_entries << ": \"" << name << "\" is empty" << std::endl;
+        return false;
+      }
+      if (!after_str.empty()) {
+        before_after_vec.push_back(std::make_pair(new_tag_index, std::make_pair(true, after_str)));
+      }
     }
     
     return true;
@@ -1002,6 +1014,10 @@ struct SplitCode {
   
   int getNumTags() {
     return tags_vec.size();
+  }
+  
+  int getNumTagsOriginallyAdded() {
+    return n_tag_entries;
   }
   
   int getMapSize(bool unique = true) {
@@ -1760,6 +1776,7 @@ struct SplitCode {
   bool always_assign;
   bool random_replacement;
   int nFiles;
+  int n_tag_entries;
   static const int MAX_K = 32;
   static const size_t FAKE_BARCODE_LEN = 16;
   static const char QUAL = 'K';
