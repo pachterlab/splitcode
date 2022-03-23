@@ -157,23 +157,6 @@ struct SplitCode {
     }
     before_after_vec.clear();
     before_after_vec.shrink_to_fit();
-    // Trim out some tags to create the final 'index'
-    for (auto x : tags_to_remove) {
-      SeqString sstr(x.first);
-      auto& v = tags[sstr];
-      auto it = v.begin();
-      while (it != v.end()) {
-        if ((*it).first == x.second) {
-          it = v.erase(it); // Remove the sequence from the vector stored in the map
-        } else {
-          ++it;
-        }
-      }
-      if (v.size() == 0) { // If the vector stored in the map is now empty, remove the entry from the map
-        tags.erase(sstr);
-      }
-    }
-    tags_to_remove.clear();
     // Fill in k-mer sizes by location (e.g. search for k-mers of length n at positions a-b in file c):
     // (we have to be sure to merge overlapping intervals and having intervals in sorted order which is what most of what the code below does)
     int POS_MAX = std::numeric_limits<std::int32_t>::max();
@@ -191,7 +174,6 @@ struct SplitCode {
           for (int i = 0; i < nFiles; i++) {
             files.push_back(i);
           }
-          // TODO: What if tag.file = -1? resize vector to nfiles+1, then loop through nfiles; tag.file = 0...nfiles [what about -l 0 but -N 2]; e.g. -b ATCG,ATAA -l 0,-1 -d 1 completely gets rid of intersection ATCA (which should be allowed in files other than 0; same thing if small region overlapped by large region [should be allowed outside small region])
         } else {
           kmer_map_vec.resize(std::max((int)kmer_map_vec.size(),tag.file+1));
           files.push_back(tag.file);
@@ -706,44 +688,11 @@ struct SplitCode {
           return false;
         }
         
-        SeqString sstr(seq);
-        if (tags.find(sstr) != tags.end()) { // If we've seen that sequence before
-          const auto& v = tags[sstr];
-          std::vector<uint32_t> vi;
-          if (checkCollision(new_tag, v, vi)) {
-            for (auto i : vi) {
-              if (i != new_tag_index) {
-                std::cerr << "Error: Sequence #" << n_tag_entries << ": \"" << name << "\" collides with a previous sequence" << ": \"" << names[tags_vec[i].name_id] << "\"" << std::endl;
-                return false;
-              }
-            }
-          }
-        }
-        
         std::unordered_map<std::string,int> mismatches;
         generate_indels_hamming_mismatches(seq, mismatch_dist, indel_dist, total_dist, mismatches);
         for (auto mm : mismatches) {
           std::string mismatch_seq = mm.first;
           int error = total_dist - mm.second; // The number of substitutions, insertions, or deletions
-          auto mismatch_sstr = SeqString(mismatch_seq);
-          if (tags.find(mismatch_sstr) != tags.end()) { // If we've seen that sequence (mismatch_seq) before
-            auto& v = tags[mismatch_sstr];
-            std::vector<uint32_t> vi;
-            bool collision = checkCollision(new_tag, v, vi);
-            if (collision) {
-              for (auto i : vi) {
-                if (i == new_tag_index) {
-                  continue;
-                }
-                if (matchSequences(tags_vec[i], mismatch_seq)) { // If there is a collision AND the sequence seen before is an original (i.e. non-mismatched-generated) sequence
-                  std::cerr << "Error: Sequence #" << n_tag_entries << ": \"" << name << "\" collides with a previous sequence" << ": \"" << names[tags_vec[i].name_id] << "\"" << std::endl;
-                  return false;
-                }
-                tags_to_remove.insert(std::make_pair(mismatch_seq, i)); // Mark for removal
-                tags_to_remove.insert(std::make_pair(mismatch_seq, new_tag_index)); // Mark new_tag for removal (we remove later rather than now to account for future addTag(...) collision)
-              }
-            }
-          }
           addToMap(mismatch_seq, new_tag_index, error);
         }
         addToMap(seq, new_tag_index);
@@ -974,26 +923,36 @@ struct SplitCode {
     return true;
   }
   
-  bool getTag(std::string& seq, uint32_t& tag_id, int file, int pos, int& k, bool look_for_initiator = false,
+  int getTag(std::string& seq, uint32_t& tag_id, int file, int pos, int& k, bool look_for_initiator = false,
               bool search_tag_name_after = false, bool search_group_after = false, uint32_t search_id_after = -1) {
     checkInit();
     const auto& it = tags.find(SeqString(seq.c_str()+pos, k));
     if (it == tags.end()) {
-      return false;
+      return -1;
     }
+    uint32_t tag_id_;
+    int error_prev;
+    int error_expansion;
     bool found = false;
+    bool found_expansion = false; // Note: there should only be at most one expansion in the following loop and it should appear at the very beginning
+    int k_expanded;
+    uint32_t tag_id_expanded;
+    uint32_t name_id_expanded;
+    uint32_t name_id_prev;
     for (auto &x : it->second) {
       tag_id = x.first;
-      int k_updated = k;
       if (x.second == -1) {
-        // TODO: [choose option w/ smallest error and longest k]
-        // Recursively expand
-        int k_expanded = x.first;
-        bool found_expansion = getTag(seq, tag_id, file, pos, k_expanded, look_for_initiator, search_tag_name_after, search_group_after, search_id_after);
+        // Recursively expand (note: tag_id and k are pass-by-reference)
+        // Might change to an iterative solution in the future
+        k_expanded = x.first;
+        error_expansion = getTag(seq, tag_id_expanded, file, pos, k_expanded, look_for_initiator, search_tag_name_after, search_group_after, search_id_after);
+        found_expansion = (error_expansion != -1);
         if (!found_expansion) {
           continue;
         }
-        k_updated = k_expanded;
+        tag_id = tag_id_expanded; // unnecessary
+        name_id_expanded = tags_vec[tag_id].name_id;
+        continue;
       }
       auto& tag = tags_vec[tag_id];
       if (search_tag_name_after && tag.name_id != search_id_after) {
@@ -1001,15 +960,46 @@ struct SplitCode {
       } else if (search_group_after && tag.group != search_id_after) {
         continue;
       }
-      if (containsRegion(tag.file, tag.pos_start, tag.pos_end, file, pos, pos+k_updated)) {
+      if (containsRegion(tag.file, tag.pos_start, tag.pos_end, file, pos, pos+k)) {
         if (!look_for_initiator || (look_for_initiator && tags_vec[tag_id].initiator)) {
+          if (found && tag.name_id != name_id_prev) {
+            found = false; // seq maps to multiple tags of different names
+            break;
+          }
+          if (!found || (found && error_prev > x.second)) {
+            error_prev = x.second;
+            tag_id_ = tag_id; // if tags have same name but different mismatch errors: choose the tag w/ smallest error
+          }
+          name_id_prev = tag.name_id;
           found = true;
-          k = k_updated;
-          break;
         }
       }
     }
-    return found;
+    // Algorithm works as follows:
+    // // for a given k, remove that k from consideration if there are multiple tag.name_id's for that k
+    // // however, if there are multiple tags of the same name_id for that k, pick the tag with the smallest error
+    // // afterwards, compare across all k's being considered: if multiple tag.name_id's across different k's, return false (-1), otherwise pick the tag associated with the largest k
+    if (found_expansion || found) {
+      if (found_expansion && !found) {
+        k = k_expanded;
+        tag_id = tag_id_expanded;
+      } else if (!found_expansion && found) {
+        tag_id = tag_id_;
+      } else { // Choose smallest error first and if errors are equal, then choose the larger k-mer
+        if (name_id_expanded != name_id_prev) {
+          return -1; // multiple tags of different names
+        }
+        if (error_expansion <= error_prev) {
+          k = k_expanded;
+          tag_id = tag_id_expanded;
+          error_prev = error_expansion; // for return value
+        } else {
+          tag_id = tag_id_;
+        }
+      }
+      return error_prev;
+    }
+    return -1; // returns -1 if not found and returns the error (distance) otherwise
   }
   
   int getNumTags() {
@@ -1501,7 +1491,7 @@ struct SplitCode {
           }
         }
         uint32_t tag_id;
-        if (getTag(seq, tag_id, file, pos, k, look_for_initiator, search_tag_name_after, search_group_after, search_id_after)) {
+        if (getTag(seq, tag_id, file, pos, k, look_for_initiator, search_tag_name_after, search_group_after, search_id_after) != -1) {
           look_for_initiator = false;
           auto& tag = tags_vec[tag_id];
           if (tag.min_finds > 0) {
@@ -1742,7 +1732,6 @@ struct SplitCode {
   
   std::vector<SplitCodeTag> tags_vec;
   robin_hood::unordered_flat_map<SeqString, std::vector<tval>, SeqStringHasher> tags;
-  std::set<std::pair<std::string, uint32_t>> tags_to_remove;
   std::vector<std::string> names;
   std::vector<std::string> group_names;
   
