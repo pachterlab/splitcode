@@ -923,83 +923,84 @@ struct SplitCode {
     return true;
   }
   
-  int getTag(std::string& seq, uint32_t& tag_id, int file, int pos, int& k, bool look_for_initiator = false,
-              bool search_tag_name_after = false, bool search_group_after = false, uint32_t search_id_after = -1) {
+  bool getTag(std::string& seq, uint32_t& tag_id, int file, int pos, int& k, bool look_for_initiator = false,
+             bool search_tag_name_after = false, bool search_group_after = false, uint32_t search_id_after = -1) {
     checkInit();
-    const auto& it = tags.find(SeqString(seq.c_str()+pos, k));
-    if (it == tags.end()) {
-      return -1;
-    }
-    uint32_t tag_id_;
-    int error_prev;
-    int error_expansion;
+    int k_expanded = k;
+    uint32_t updated_tag_id;
+    uint32_t updated_name_id;
+    int updated_k;
+    int updated_error;
     bool found = false;
-    bool found_expansion = false; // Note: there should only be at most one expansion in the following loop and it should appear at the very beginning
-    int k_expanded;
-    uint32_t tag_id_expanded;
-    uint32_t name_id_expanded;
-    uint32_t name_id_prev;
-    for (auto &x : it->second) {
-      tag_id = x.first;
-      if (x.second == -1) {
-        // Recursively expand (note: tag_id and k are pass-by-reference)
-        // Might change to an iterative solution in the future
-        k_expanded = x.first;
-        error_expansion = getTag(seq, tag_id_expanded, file, pos, k_expanded, look_for_initiator, search_tag_name_after, search_group_after, search_id_after);
-        found_expansion = (error_expansion != -1);
-        if (!found_expansion) {
+    while (k_expanded != -1) {
+      bool found_curr = false;
+      uint32_t tag_id_;
+      int error_prev;
+      uint32_t name_id_curr;
+      uint32_t tag_id_curr;
+      int curr_k = k_expanded;
+      k_expanded = -1;
+      const auto& it = tags.find(SeqString(seq.c_str()+pos, curr_k));
+      if (it == tags.end()) {
+        break;
+      }
+      for (auto &x : it->second) {
+        if (x.second == -1) {
+          k_expanded = x.first;
           continue;
         }
-        tag_id = tag_id_expanded; // unnecessary
-        name_id_expanded = tags_vec[tag_id].name_id;
-        continue;
-      }
-      auto& tag = tags_vec[tag_id];
-      if (search_tag_name_after && tag.name_id != search_id_after) {
-        continue;
-      } else if (search_group_after && tag.group != search_id_after) {
-        continue;
-      }
-      if (containsRegion(tag.file, tag.pos_start, tag.pos_end, file, pos, pos+k)) {
-        if (!look_for_initiator || (look_for_initiator && tags_vec[tag_id].initiator)) {
-          if (found && tag.name_id != name_id_prev) {
-            found = false; // seq maps to multiple tags of different names
-            break;
+        tag_id_ = x.first;
+        auto& tag = tags_vec[tag_id_];
+        if (search_tag_name_after && tag.name_id != search_id_after) {
+          continue;
+        } else if (search_group_after && tag.group != search_id_after) {
+          continue;
+        }
+        if (containsRegion(tag.file, tag.pos_start, tag.pos_end, file, pos, pos+curr_k)) {
+          if (!look_for_initiator || (look_for_initiator && tags_vec[tag_id_].initiator)) {
+            if (found_curr && tag.name_id != name_id_curr) {
+              found_curr = false; // seq of length curr_k maps to multiple tags of different names
+              break;
+            }
+            if (!found_curr || (found_curr && error_prev > x.second)) {
+              error_prev = x.second;
+              tag_id_curr = tag_id_; // if tags have same name but different mismatch errors: choose the tag w/ smallest error
+            }
+            name_id_curr = tag.name_id;
+            found_curr = true;
           }
-          if (!found || (found && error_prev > x.second)) {
-            error_prev = x.second;
-            tag_id_ = tag_id; // if tags have same name but different mismatch errors: choose the tag w/ smallest error
-          }
-          name_id_prev = tag.name_id;
+        }
+      }
+      // Algorithm works as follows:
+      // // for a given k, remove that k from consideration if there are multiple tag.name_id's for that k
+      // // however, if there are multiple tags of the same name_id for that k, pick the tag with the smallest error
+      // // afterwards, compare across all k's being considered: if multiple tag.name_id's across different k's, return false (-1), otherwise pick the tag associated with the largest k
+      if (found_curr) {
+        if (!found) { // First time identifying a tag
           found = true;
+          updated_tag_id = tag_id_curr;
+          updated_k = curr_k;
+          updated_error = error_prev;
+          updated_name_id = name_id_curr;
+        } else { // Already previously identified a tag when looking at a smaller k
+          if (updated_name_id != name_id_curr) {
+            return false; // multiple tags of different names
+          }
+          if (updated_error <= error_prev) { // Choose smallest error first when deciding if to update to larger k
+            updated_tag_id = tag_id_curr;
+            updated_k = curr_k; // Update to larger k
+            updated_error = error_prev;
+            updated_name_id = name_id_curr;
+          }
         }
       }
     }
-    // Algorithm works as follows:
-    // // for a given k, remove that k from consideration if there are multiple tag.name_id's for that k
-    // // however, if there are multiple tags of the same name_id for that k, pick the tag with the smallest error
-    // // afterwards, compare across all k's being considered: if multiple tag.name_id's across different k's, return false (-1), otherwise pick the tag associated with the largest k
-    if (found_expansion || found) {
-      if (found_expansion && !found) {
-        k = k_expanded;
-        tag_id = tag_id_expanded;
-      } else if (!found_expansion && found) {
-        tag_id = tag_id_;
-      } else { // Choose smallest error first and if errors are equal, then choose the larger k-mer
-        if (name_id_expanded != name_id_prev) {
-          return -1; // multiple tags of different names
-        }
-        if (error_expansion <= error_prev) {
-          k = k_expanded;
-          tag_id = tag_id_expanded;
-          error_prev = error_expansion; // for return value
-        } else {
-          tag_id = tag_id_;
-        }
-      }
-      return error_prev;
+    if (found) {
+      tag_id = updated_tag_id;
+      k = updated_k;
+      return true;
     }
-    return -1; // returns -1 if not found and returns the error (distance) otherwise
+    return false;
   }
   
   int getNumTags() {
@@ -1491,7 +1492,7 @@ struct SplitCode {
           }
         }
         uint32_t tag_id;
-        if (getTag(seq, tag_id, file, pos, k, look_for_initiator, search_tag_name_after, search_group_after, search_id_after) != -1) {
+        if (getTag(seq, tag_id, file, pos, k, look_for_initiator, search_tag_name_after, search_group_after, search_id_after)) {
           look_for_initiator = false;
           auto& tag = tags_vec[tag_id];
           if (tag.min_finds > 0) {
