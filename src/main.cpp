@@ -67,8 +67,8 @@ void usage() {
        << "-R, --right      List of what barcodes to include when trimming from the right (comma-separated; 1 = include, 0 = exclude)" << endl
        << "                 (Note: for --left/--right, can specify an included barcode as 1:x where x = number of extra bp's to trim" << endl
        << "                 from left/right side if the that included barcode is at the leftmost/rightmost position)" << endl
-       << "-a, --after      List of what barcode names must come immediately after each barcode (comma-separated)" << endl
-       << "                 (Note: for --after, specify barcode names as {name} and specify barcode group names as {{group}}" << endl
+       << "-a, --next       List of what barcode names must come immediately after each barcode (comma-separated)" << endl
+       << "                 (Note: for --next, specify barcode names as {name} and specify barcode group names as {{group}}" << endl
        << "                 Can also specify the number of base pairs that must appear between the current barcode and the next barcode." << endl
        << "                 E.g. {bc}4-12 means the next barcode to find is 4-12 bases away and has name 'bc')" << endl
        << "-5, --trim-5     Number of base pairs to trim from the 5′-end of reads (comma-separated; one number per each FASTQ file in a run)" << endl
@@ -147,6 +147,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"maxFindsG", required_argument, 0, 'J'},
     {"minFindsG", required_argument, 0, 'j'},
     {"exclude", required_argument, 0, 'e'},
+    {"next", required_argument, 0, 'a'},
     {"after", required_argument, 0, 'a'},
     {"config", required_argument, 0, 'c'},
     {"output", required_argument, 0, 'o'},
@@ -653,6 +654,7 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
       }
       if (!SplitCode::validateBeforeAfterStr(after_str)) {
         std::cerr << ERROR_STR << " --after is invalid" << std::endl;
+        ret = false;
       }
       if (!sc.addTag(bc, name.empty() ? bc : name, group, mismatch, indel, total_dist, file, pos_start, pos_end, max_finds, min_finds, exclude, trim_dir, trim_offset, after_str)) {
         std::cerr << ERROR_STR << " Could not finish processing supplied barcode list" << std::endl;

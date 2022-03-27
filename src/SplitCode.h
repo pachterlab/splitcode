@@ -890,7 +890,7 @@ struct SplitCode {
           std::stringstream(field) >> max_finds_g;
         } else if (h[i] == "EXCLUDE") {
           std::stringstream(field) >> exclude;
-        } else if (h[i] == "AFTER") {
+        } else if (h[i] == "AFTER" || h[i] == "NEXT") {
           std::stringstream(field) >> after_str;
           ret = ret && validateBeforeAfterStr(after_str);
         } else if (h[i] == "LEFT") {
