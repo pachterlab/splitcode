@@ -1728,11 +1728,15 @@ struct SplitCode {
     if (k > MAX_K) {
       k = MAX_K;
     }
-    for (size_t i = 0; i < k; ++i) {
-      uint64_t x = ((*s) & 4) >> 1;
+    for (size_t i = 0; i < k/4; s += 4, ++i) {
+      uint32_t x = (*(const uint32_t*)(s));
+      x = (x ^ (x >> 1)) & 101058054;
+      r = r << 8;
+      r |= (((x<<5) | (x>>5) | (x>>15) | (x>>25)) & 255);
+    }
+    for (size_t i = 0; i < k%4; ++i, ++s) {
       r = r << 2;
-      r |= (x + ((x ^ (*s & 2)) >>1));
-      s++;
+      r |= ((((*s) ^ ((*s) >> 1))) >> 1) & 3;
     }
     return r;
   }
