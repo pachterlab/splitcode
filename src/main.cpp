@@ -873,6 +873,12 @@ int main(int argc, char *argv[]) {
         use_gz = false;
       }
     }
+    if (!opt.outputb_file.empty()) {
+      std::string f = opt.outputb_file;
+      if (!(f.size() > 3 && f.compare(f.size() - 3, 3, ".gz") == 0)) {
+        use_gz = false;
+      }
+    }
     if (use_gz) {
       std::cerr << "* Forcing --gzip because all output file names end in .gz" << std::endl;
       opt.gzip = true;
@@ -888,8 +894,17 @@ int main(int argc, char *argv[]) {
   MasterProcessor MP(sc, opt);
   ProcessReads(MP, opt);
   fflush(stdout);
-  if (!opt.mapping_file.empty()) {
-    sc.writeBarcodeMapping(opt.mapping_file);
+  if (!opt.mapping_file.empty()) { // output mapping file:
+    if (!(opt.mapping_file.size() > 3 && opt.mapping_file.compare(opt.mapping_file.size() - 3, 3, ".gz") == 0)) {
+      sc.writeBarcodeMapping(opt.mapping_file); // output plaintext mapping file
+    } else {
+      gzFile out_gz = gzopen(opt.mapping_file.c_str(), "wb6");
+      std::string o;
+      while ((o = sc.fetchNextBarcodeMapping()) != "") {
+        gzwrite(out_gz, o.c_str(), o.length()); // output gzip mapping file
+      }
+      gzclose(out_gz);
+    }
   }
 
   return 0;

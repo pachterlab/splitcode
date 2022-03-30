@@ -30,6 +30,7 @@ struct SplitCode {
     always_assign = false;
     random_replacement = false;
     n_tag_entries = 0;
+    curr_barcode_mapping_i = 0;
     setNFiles(0);
   }
   
@@ -41,6 +42,7 @@ struct SplitCode {
     discard_check_group = false;
     keep_check_group = false;
     n_tag_entries = 0;
+    curr_barcode_mapping_i = 0;
     this->trim_5_str = trim_5_str;
     this->trim_3_str = trim_3_str;
     setNFiles(nFiles);
@@ -1689,21 +1691,33 @@ struct SplitCode {
       std::cerr << "Error: Couldn't open file: " << fname << std::endl;
       exit(1);
     }
-    for (int i = 0; i < idmap.size(); i++) {
-      auto &u = idmap[i];
-      auto it = idmapinv.find(u);
-      int id = it->second;
-      int n = idcount[i];
-      std::string barcode_str = "";
-      for (auto& tag_id : u) {
-        barcode_str += names[tags_vec[tag_id].name_id] + ",";
-      }
-      if (!barcode_str.empty()) {
-        barcode_str.resize(barcode_str.size()-1);
-      }
-      of << binaryToString(id, FAKE_BARCODE_LEN) << "\t" << barcode_str << "\t" << n << """\n";
+    std::string o;
+    while ((o = fetchNextBarcodeMapping()) != "") {
+      of << o;
     }
     of.close();
+  }
+  
+  std::string fetchNextBarcodeMapping() {
+    int i = curr_barcode_mapping_i;
+    if (i >= idmap.size()) {
+      curr_barcode_mapping_i = 0;
+      return "";
+    }
+    auto &u = idmap[i];
+    auto it = idmapinv.find(u);
+    int id = it->second;
+    int n = idcount[i];
+    std::string barcode_str = "";
+    for (auto& tag_id : u) {
+      barcode_str += names[tags_vec[tag_id].name_id] + ",";
+    }
+    if (!barcode_str.empty()) {
+      barcode_str.resize(barcode_str.size()-1);
+    }
+    std::string o = binaryToString(id, FAKE_BARCODE_LEN) + "\t" + barcode_str + "\t" + std::to_string(n) + "\n";
+    ++curr_barcode_mapping_i;
+    return o;
   }
   
   static std::string binaryToString(uint64_t x, size_t len) {
@@ -1806,6 +1820,7 @@ struct SplitCode {
   bool random_replacement;
   int nFiles;
   int n_tag_entries;
+  int curr_barcode_mapping_i;
   static const int MAX_K = 32;
   static const size_t FAKE_BARCODE_LEN = 16;
   static const char QUAL = 'K';
