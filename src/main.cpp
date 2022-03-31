@@ -94,6 +94,7 @@ void usage() {
        << "Other Options:" << endl
        << "-N, --nFastqs    Number of FASTQ file(s) per run" << endl
        << "                 (default: 1) (specify 2 for paired-end)" << endl
+       << "-n, --numReads   Maximum number of reads to process from supplied input" << endl
        << "-A, --append     An existing mapping file that will be added on to" << endl
        << "-k, --keep       File containing a list of final barcodes to keep" << endl
        << "-r, --remove     File containing a list of final barcodes to remove/discard" << endl
@@ -120,7 +121,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   int disable_n_flag = 0;
   int interleaved_flag = 0;
 
-  const char *opt_string = "t:N:b:d:i:l:f:F:e:c:o:O:u:m:k:r:A:L:R:E:g:y:Y:j:J:a:v:5:3:Tph";
+  const char *opt_string = "t:N:n:b:d:i:l:f:F:e:c:o:O:u:m:k:r:A:L:R:E:g:y:Y:j:J:a:v:5:3:Tph";
   static struct option long_options[] = {
     // long args
     {"version", no_argument, &version_flag, 1},
@@ -138,6 +139,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"trim-only", no_argument, 0, 'T'},
     {"threads", required_argument, 0, 't'},
     {"nFastqs", required_argument, 0, 'N'},
+    {"numReads", required_argument, 0, 'n'},
     {"barcodes", required_argument, 0, 'b'},
     {"distances", required_argument, 0, 'd'},
     {"locations", required_argument, 0, 'l'},
@@ -203,6 +205,13 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     }
     case 'N': {
       stringstream(optarg) >> opt.nfiles;
+      break;
+    }
+    case 'n': {
+      stringstream(optarg) >> opt.max_num_reads;
+      if (opt.max_num_reads == 0) {
+        opt.max_num_reads = -1;
+      }
       break;
     }
     case 'b': {
@@ -411,6 +420,10 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
       std::cerr << ERROR_STR << " incorrect number of FASTQ file(s)" << std::endl;
       ret = false;
     }
+  }
+  if (opt.max_num_reads < 0) {
+    std::cerr << ERROR_STR << " --numReads must be a positive number" << std::endl;
+    ret = false;
   }
   if (opt.mapping_file.empty() && !opt.trim_only) {
     std::cerr << ERROR_STR << " --mapping must be provided" << std::endl;
@@ -892,7 +905,7 @@ int main(int argc, char *argv[]) {
       "; num elements in map: " << pretty_num(sc.getMapSize(false)) << ")" << std::endl;
   }
   MasterProcessor MP(sc, opt);
-  ProcessReads(MP, opt);
+  int numreads = ProcessReads(MP, opt);
   fflush(stdout);
   if (!opt.mapping_file.empty()) { // output mapping file:
     if (!(opt.mapping_file.size() > 3 && opt.mapping_file.compare(opt.mapping_file.size() - 3, 3, ".gz") == 0)) {
@@ -905,6 +918,11 @@ int main(int argc, char *argv[]) {
       }
       gzclose(out_gz);
     }
+  }
+  
+  if (opt.max_num_reads != 0 && numreads < opt.max_num_reads) {
+    std::cerr << "Note: Number of reads processed is less than --numReads: " << opt.max_num_reads << ", returning 1" << std::endl;
+    return 1;
   }
 
   return 0;

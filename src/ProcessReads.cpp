@@ -121,6 +121,11 @@ void MasterProcessor::update(int n, std::vector<SplitCode::Results>& rv,
   // acquire the writer lock
   std::lock_guard<std::mutex> lock(this->writer_lock);
   
+  if (opt.max_num_reads != 0 && numreads+n > opt.max_num_reads) {
+    n = opt.max_num_reads-numreads;
+    rv.resize(n);
+  }
+  
   sc.update(rv);
   
   if (write_output_fastq) {
@@ -148,7 +153,7 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
   std::vector<int> l(jmax,0);
   
   int readnum = 0;
-  for (int i = 0; i + incf < seqs.size(); i++, readnum++) {
+  for (int i = 0; i + incf < seqs.size() && readnum < rv.size(); i++, readnum++) {
     auto& r = rv[readnum];
     bool assigned = sc.isAssigned(r);
     std::string mod_name = "";
@@ -294,6 +299,9 @@ void ReadProcessor::operator()() {
     int nfiles = mp.opt.input_interleaved_nfiles == 0 ? mp.opt.nfiles : mp.opt.input_interleaved_nfiles;
     mp.update(seqs.size() / nfiles, rv, seqs, names, quals);
     clear();
+    if (mp.opt.max_num_reads != 0 && mp.numreads >= mp.opt.max_num_reads) {
+      return;
+    }
   }
 }
 

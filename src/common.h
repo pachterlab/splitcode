@@ -13,6 +13,7 @@ struct ProgramOptions {
   int threads;
   int nfiles;
   int input_interleaved_nfiles;
+  int64_t max_num_reads;
   bool no_output;
   bool no_output_barcodes;
   bool pipe;
@@ -56,6 +57,7 @@ struct ProgramOptions {
     threads(1),
     nfiles(1),
     input_interleaved_nfiles(0),
+    max_num_reads(0),
     no_output(false),
     no_output_barcodes(false),
     pipe(false),
