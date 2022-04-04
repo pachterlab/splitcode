@@ -429,6 +429,10 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
     std::cerr << ERROR_STR << " --mapping must be provided" << std::endl;
     ret = false;
   }
+  if (opt.no_output_barcodes && !opt.outputb_file.empty()) {
+    std::cerr << ERROR_STR << " --no-outb cannot be specified with --outb" << std::endl;
+    ret = false;
+  }
   
   bool output_files_specified = opt.output_files.size() > 0 || opt.unassigned_files.size() > 0 || !opt.outputb_file.empty();
   if (opt.output_files.size() == 0 && output_files_specified && !opt.pipe) {
@@ -455,9 +459,6 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
     } else if (opt.pipe) {
       if (opt.output_files.size() > 0 || !opt.outputb_file.empty()) { // Still allow --unassigned with --pipe
         std::cerr << ERROR_STR << " Cannot provide output files when --pipe is specified" << std::endl;
-        ret = false;
-      } else if (opt.gzip && opt.unassigned_files.size() == 0) { // Still allow --unassigned with --pipe --gzip
-        std::cerr << ERROR_STR << " Cannot use --gzip when no output files are specified" << std::endl;
         ret = false;
       } else if (opt.unassigned_files.size() != 0 && opt.unassigned_files.size() % opt.nfiles != 0) {
         std::cerr << ERROR_STR << " Incorrect number of --unassigned output files" << std::endl;
@@ -890,6 +891,13 @@ int main(int argc, char *argv[]) {
       std::string f = opt.outputb_file;
       if (!(f.size() > 3 && f.compare(f.size() - 3, 3, ".gz") == 0)) {
         use_gz = false;
+      }
+    }
+    if (!opt.unassigned_files.size()) {
+      for (std::string f : opt.unassigned_files) {
+        if (!(f.size() > 3 && f.compare(f.size() - 3, 3, ".gz") == 0)) {
+          use_gz = false;
+        }
       }
     }
     if (use_gz) {

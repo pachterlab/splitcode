@@ -474,6 +474,7 @@ struct SplitCode {
     std::vector<std::pair<int,std::pair<int,int>>> modtrim;
     int id;
     bool discard;
+    std::string ofile;
   };
   
   struct SeqString {
@@ -1263,8 +1264,18 @@ struct SplitCode {
     std::ifstream kfile(keep_file);
     std::string line;
     while (std::getline(kfile,line)) {
+      std::string ofile = "";
       if (line.size() == 0) {
         continue;
+      }
+      std::stringstream s(line);
+      if (!discard) {
+        std::string a,b;
+        s >> a >> b;
+        line = a;
+        if (!b.empty()) {
+          ofile = b;
+        }
       }
       std::stringstream ss(line);
       std::string name;
@@ -1295,7 +1306,7 @@ struct SplitCode {
         idmapinv_discard.insert({u,0});
         discard_check = true;
       } else {
-        idmapinv_keep.insert({u,0});
+        idmapinv_keep.insert({u,ofile});
         keep_check = true;
       }
     }
@@ -1312,8 +1323,18 @@ struct SplitCode {
     std::ifstream kfile(keep_file);
     std::string line;
     while (std::getline(kfile,line)) {
+      std::string ofile = "";
       if (line.size() == 0) {
         continue;
+      }
+      std::stringstream s(line);
+      if (!discard) {
+        std::string a,b;
+        s >> a >> b;
+        line = a;
+        if (!b.empty()) {
+          ofile = b;
+        }
       }
       std::stringstream ss(line);
       std::string name;
@@ -1340,7 +1361,7 @@ struct SplitCode {
         groupmapinv_discard.insert({u,0});
         discard_check_group = true;
       } else {
-        groupmapinv_keep.insert({u,0});
+        groupmapinv_keep.insert({u,ofile});
         keep_check_group = true;
       }
     }
@@ -1612,17 +1633,27 @@ struct SplitCode {
     if (u.empty()) {
       return;
     }
-    if (keep_check && idmapinv_keep.find(u) == idmapinv_keep.end()) {
-      results.discard = true;
-      return;
+    if (keep_check) {
+      auto it = idmapinv_keep.find(u);
+      if (it == idmapinv_keep.end()) {
+        results.discard = true;
+        return;
+      }
+      results.ofile = it->second;
     }
     if (discard_check && idmapinv_discard.find(u) != idmapinv_discard.end()) {
       results.discard = true;
       return;
     }
-    if (keep_check_group && groupmapinv_keep.find(group_v) == groupmapinv_keep.end()) {
-      results.discard = true;
-      return;
+    if (keep_check_group) {
+      auto it = groupmapinv_keep.find(group_v);
+      if (it == groupmapinv_keep.end()) {
+        results.discard = true;
+        return;
+      }
+      if (results.ofile.empty()) { // We prioritize name IDs over groups for user-specified output files
+        results.ofile = it->second;
+      }
     }
     if (discard_check_group && groupmapinv_discard.find(group_v) != groupmapinv_discard.end()) {
       results.discard = true;
@@ -1794,9 +1825,9 @@ struct SplitCode {
   std::vector<std::vector<uint32_t>> idmap;
   robin_hood::unordered_flat_map<std::vector<uint32_t>, int, VectorHasher> idmapinv;
   std::vector<int> idcount;
-  std::unordered_map<std::vector<uint32_t>, int, VectorHasher> idmapinv_keep;
+  std::unordered_map<std::vector<uint32_t>, std::string, VectorHasher> idmapinv_keep;
   std::unordered_map<std::vector<uint32_t>, int, VectorHasher> idmapinv_discard;
-  std::unordered_map<std::vector<uint32_t>, int, VectorHasher> groupmapinv_keep;
+  std::unordered_map<std::vector<uint32_t>, std::string, VectorHasher> groupmapinv_keep;
   std::unordered_map<std::vector<uint32_t>, int, VectorHasher> groupmapinv_discard;
   
   std::unordered_map<uint32_t,int> min_finds_map;

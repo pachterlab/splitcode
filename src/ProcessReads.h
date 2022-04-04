@@ -97,6 +97,7 @@ public:
 
     SR = new FastqSequenceReader(opt);
     verbose = opt.verbose;
+    nfiles = opt.input_interleaved_nfiles == 0 ? opt.nfiles : opt.input_interleaved_nfiles;
     for (auto f : opt.output_files) {
       if (opt.gzip) {
         out_gz.push_back(gzopen(f.c_str(), "wb1"));
@@ -111,9 +112,62 @@ public:
         outu.push_back(fopen(f.c_str(), "wb"));
       }
     }
+    write_barcode_separate_fastq = !opt.outputb_file.empty() && !opt.no_output_barcodes; // We write separate barcode file if this option is nonempty
+    bool write_barcode_separate_fastq_keep = write_barcode_separate_fastq || (opt.pipe && !opt.no_output_barcodes); // For the files specified in the --keep options, we'll also write separate barcode file(s) if the user chose to --pipe
+    const std::string suffix = ".fastq";
+    const std::string suffix_gz = ".fastq.gz";
+    for (auto f : sc.idmapinv_keep) {
+      if (opt.gzip) {
+        auto it = out_keep_gz.find(f.second);
+        if (it == out_keep_gz.end()) {
+          for (int i = 0; i <= nfiles; i++) {
+            if (i == 0 && !write_barcode_separate_fastq_keep) {
+              out_keep_gz[f.second].push_back(nullptr);
+              continue;
+            }
+            out_keep_gz[f.second].push_back(gzopen((f.second + "_" + (i == 0 ? "barcodes" : std::to_string(i)) + suffix_gz).c_str(), "wb1"));
+          }
+        }
+      } else {
+        auto it = out_keep.find(f.second);
+        if (it == out_keep.end()) {
+          for (int i = 0; i <= nfiles; i++) {
+            if (i == 0 && !write_barcode_separate_fastq_keep) {
+              out_keep[f.second].push_back(nullptr);
+              continue;
+            }
+            out_keep[f.second].push_back(fopen((f.second + "_" + (i == 0 ? "barcodes" : std::to_string(i)) + suffix).c_str(), "wb"));
+          }
+        }
+      }
+    }
+    for (auto f : sc.groupmapinv_keep) {
+      if (opt.gzip) {
+        auto it = out_keep_gz.find(f.second);
+        if (it == out_keep_gz.end()) {
+          for (int i = 0; i <= nfiles; i++) {
+            if (i == 0 && !write_barcode_separate_fastq_keep) {
+              out_keep_gz[f.second].push_back(nullptr); // zeroth index is the barcodes file or nullptr if we're not writing a separate barcodes file
+              continue;
+            }
+            out_keep_gz[f.second].push_back(gzopen((f.second + "_" + (i == 0 ? "barcodes" : std::to_string(i)) + suffix_gz).c_str(), "wb1"));
+          }
+        }
+      } else {
+        auto it = out_keep.find(f.second);
+        if (it == out_keep.end()) {
+          for (int i = 0; i <= nfiles; i++) {
+            if (i == 0 && !write_barcode_separate_fastq_keep) {
+              out_keep[f.second].push_back(nullptr);
+              continue;
+            }
+            out_keep[f.second].push_back(fopen((f.second + "_" + (i == 0 ? "barcodes" : std::to_string(i)) + suffix).c_str(), "wb"));
+          }
+        }
+      }
+    }
     write_output_fastq = opt.output_fastq_specified || opt.pipe;
     write_unassigned_fastq = outu.size() > 0 || outu_gz.size() > 0;
-    write_barcode_separate_fastq = !opt.outputb_file.empty();
     if (write_barcode_separate_fastq) {
       if (opt.gzip) {
         outb_gz = gzopen(opt.outputb_file.c_str(), "wb1");
@@ -121,7 +175,7 @@ public:
         outb = fopen(opt.outputb_file.c_str(), "wb");
       }
     }
-    }
+  }
   
   ~MasterProcessor() {
     for (auto& of : out) {
@@ -143,6 +197,20 @@ public:
         fclose(outb);
       }
     }
+    for (auto e : out_keep) {
+      for (auto f : e.second) {
+        if (f != nullptr) {
+          fclose(f);
+        }
+      }
+    }
+    for (auto e : out_keep_gz) {
+      for (auto f : e.second) {
+        if (f != nullptr) {
+          gzclose(f);
+        }
+      }
+    }
     delete SR;
   }
   
@@ -157,6 +225,8 @@ public:
   gzFile outb_gz;
   std::vector<FILE*> outu;
   std::vector<gzFile> outu_gz;
+  std::unordered_map<std::string, std::vector<FILE*>> out_keep;
+  std::unordered_map<std::string, std::vector<gzFile>> out_keep_gz;
   bool write_output_fastq;
   bool write_barcode_separate_fastq;
   bool write_unassigned_fastq;
@@ -169,6 +239,7 @@ public:
   const ProgramOptions& opt;
   int64_t numreads;
   size_t bufsize;
+  int nfiles;
 
   void processReads();
   void update(int n, std::vector<SplitCode::Results>& rv,

@@ -141,8 +141,7 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
                                   std::vector<std::pair<const char*, int>>& names,
                                   std::vector<std::pair<const char*, int>>& quals) {
   // Write out fastq
-  int incf, jmax, nfiles;
-  nfiles = opt.input_interleaved_nfiles == 0 ? opt.nfiles : opt.input_interleaved_nfiles;
+  int incf, jmax;
   incf = nfiles-1;
   jmax = nfiles;
   
@@ -155,7 +154,13 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
   int readnum = 0;
   for (int i = 0; i + incf < seqs.size() && readnum < rv.size(); i++, readnum++) {
     auto& r = rv[readnum];
+    if (sc.always_assign) {
+      r.ofile = ""; // If always-assign, don't allow writing output to alternative files based on identified tags
+    }
     bool assigned = sc.isAssigned(r);
+    bool use_pipe = opt.pipe && r.ofile.empty(); // Conditions under which we'll write to stdout
+    // Conditions under which we'll write to separate barcode file (either write_barcode_separate_fastq specified previously or we need to write reads out to r.ofile even though user specified --pipe):
+    bool write_barcode_separate_fastq_ = write_barcode_separate_fastq || (!r.ofile.empty() && (opt.pipe && !opt.no_output_barcodes));
     std::string mod_name = "";
     if ((assigned || r.discard) && opt.mod_names) {
       mod_name = "::" + sc.getNameString(r); // Barcode names
@@ -164,7 +169,7 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
       mod_name += " BI:i:" + std::to_string(r.id);
       //mod_name += "\t" + "CB:Z:" + sc.binaryToString(r.id, sc.FAKE_BARCODE_LEN)
     }
-    if (assigned && (write_barcode_separate_fastq || opt.pipe) && !sc.always_assign && !opt.no_output_barcodes) { // Write out barcode read
+    if (assigned && (write_barcode_separate_fastq_ || use_pipe) && !sc.always_assign && !opt.no_output_barcodes) { // Write out barcode read
       std::stringstream o;
       // Write out barcode read
       o << "@" << std::string(names[i].first, names[i].second) << mod_name << "\n";
@@ -173,10 +178,12 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
       o << std::string(sc.FAKE_BARCODE_LEN, sc.QUAL) << "\n";
       const std::string& ostr = o.str();
       size_t ostr_len = ostr.length();
-      if (opt.gzip && !opt.pipe) {
-        gzwrite(outb_gz, ostr.c_str(), ostr_len);
+      if (use_pipe && !write_barcode_separate_fastq_) {
+        fwrite(ostr.c_str(), 1, ostr_len, stdout);
+      } else if (opt.gzip) {
+        gzwrite(r.ofile.empty() ? outb_gz : out_keep_gz[r.ofile][0], ostr.c_str(), ostr_len);
       } else {
-        fwrite(ostr.c_str(), 1, ostr_len, opt.pipe ? stdout : outb);
+        fwrite(ostr.c_str(), 1, ostr_len, r.ofile.empty() ? outb : out_keep[r.ofile][0]);
       }
     }
     for (int j = 0; j < jmax; j++) {
@@ -190,7 +197,7 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
       int nl = names[i+j].second;
       const char* q = quals[i+j].first;
       // Write out read
-      bool embed_final_barcode = assigned && j==0 && !write_barcode_separate_fastq && !opt.pipe && !sc.always_assign && !opt.no_output_barcodes;
+      bool embed_final_barcode = assigned && j==0 && !write_barcode_separate_fastq_ && !use_pipe && !sc.always_assign && !opt.no_output_barcodes;
       o << "@";
       o << std::string(n,nl) << mod_name << "\n";
       if (embed_final_barcode) {
@@ -209,19 +216,22 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
       
       const std::string& ostr = o.str();
       size_t ostr_len = ostr.length();
-      if (opt.pipe && assigned) {
-        fwrite(ostr.c_str(), 1, ostr_len, stdout);
-      } else if (!assigned) {
+      if (assigned) {
+        if (use_pipe) {
+          fwrite(ostr.c_str(), 1, ostr_len, stdout);
+        } else {
+          if (opt.gzip) {
+            gzwrite(r.ofile.empty() ? out_gz[j] : out_keep_gz[r.ofile][j+1], ostr.c_str(), ostr_len);
+          } else {
+            // note: we use j+1 for out_keep and out_keep_gz because the zeroth index is the barcodes file
+            fwrite(ostr.c_str(), 1, ostr_len, r.ofile.empty() ? out[j] : out_keep[r.ofile][j+1]);
+          }
+        }
+      } else {
         if (opt.gzip) {
           gzwrite(outu_gz[j], ostr.c_str(), ostr_len);
         } else {
           fwrite(ostr.c_str(), 1, ostr_len, outu[j]);
-        }
-      } else {
-        if (opt.gzip) {
-          gzwrite(out_gz[j], ostr.c_str(), ostr_len);
-        } else {
-          fwrite(ostr.c_str(), 1, ostr_len, opt.pipe ? stdout : out[j]);
         }
       }
     }
@@ -296,7 +306,7 @@ void ReadProcessor::operator()() {
     processBuffer();
 
     // update the results, MP acquires the lock
-    int nfiles = mp.opt.input_interleaved_nfiles == 0 ? mp.opt.nfiles : mp.opt.input_interleaved_nfiles;
+    int nfiles = mp.nfiles;
     mp.update(seqs.size() / nfiles, rv, seqs, names, quals);
     clear();
     if (mp.opt.max_num_reads != 0 && mp.numreads >= mp.opt.max_num_reads) {
@@ -309,7 +319,7 @@ void ReadProcessor::processBuffer() {
   // actually process the sequence
   
   int incf, jmax, nfiles;
-  nfiles = mp.opt.input_interleaved_nfiles == 0 ? mp.opt.nfiles : mp.opt.input_interleaved_nfiles;
+  nfiles = mp.nfiles;
   incf = nfiles-1;
   jmax = nfiles;
 
