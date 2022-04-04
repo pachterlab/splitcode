@@ -104,7 +104,6 @@ void usage() {
        << "-T, --trim-only  All reads are assigned and trimmed regardless of barcode identification" << endl
        << "-h, --help       Displays usage information" << endl
        << "    --inleaved   Specifies that input is an interleaved FASTQ file" << endl
-       << "    --disable-n  Disables replacing ambiguous bases with pseudorandom bases" << endl
        << "    --version    Prints version number" << endl
        << "    --cite       Prints citation information" << endl;
 }

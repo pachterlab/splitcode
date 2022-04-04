@@ -34,7 +34,7 @@ struct SplitCode {
     setNFiles(0);
   }
   
-  SplitCode(int nFiles, bool trim_only = false, bool disable_n = false,
+  SplitCode(int nFiles, bool trim_only = false, bool disable_n = true,
             std::string trim_5_str = "", std::string trim_3_str = "") {
     init = false;
     discard_check = false;

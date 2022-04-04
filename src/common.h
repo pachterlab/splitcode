@@ -69,7 +69,7 @@ struct ProgramOptions {
     discard(false),
     trim_only(false),
     discard_group(false),
-    disable_n(false)
+    disable_n(true)
   {}
 };
 
