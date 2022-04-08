@@ -166,16 +166,16 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
       mod_name = "::" + sc.getNameString(r); // Barcode names
     }
     if (assigned && opt.com_names) {
-      mod_name += " BI:i:" + std::to_string(r.id);
-      //mod_name += "\t" + "CB:Z:" + sc.binaryToString(r.id, sc.FAKE_BARCODE_LEN)
+      mod_name += " BI:i:" + std::to_string(sc.getID(r.id));
+      //mod_name += "\t" + "CB:Z:" + sc.binaryToString(sc.getID(r.id), sc.getBarcodeLength())
     }
     if (assigned && (write_barcode_separate_fastq_ || use_pipe) && !sc.always_assign && !opt.no_output_barcodes) { // Write out barcode read
       std::stringstream o;
       // Write out barcode read
       o << "@" << std::string(names[i].first, names[i].second) << mod_name << "\n";
-      o << sc.binaryToString(r.id, sc.FAKE_BARCODE_LEN) << "\n";
+      o << sc.binaryToString(sc.getID(r.id), sc.getBarcodeLength()) << "\n";
       o << "+" << "\n";
-      o << std::string(sc.FAKE_BARCODE_LEN, sc.QUAL) << "\n";
+      o << std::string(sc.getBarcodeLength(), sc.QUAL) << "\n";
       const std::string& ostr = o.str();
       size_t ostr_len = ostr.length();
       if (use_pipe && !write_barcode_separate_fastq_) {
@@ -201,14 +201,14 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
       o << "@";
       o << std::string(n,nl) << mod_name << "\n";
       if (embed_final_barcode) {
-        o << sc.binaryToString(r.id, sc.FAKE_BARCODE_LEN);
+        o << sc.binaryToString(sc.getID(r.id), sc.getBarcodeLength());
       } else if (l == 0 && !opt.empty_read_sequence.empty()) {
         o << opt.empty_read_sequence;
       }
       o << std::string(s,l) << "\n";
       o << "+" << "\n";
       if (embed_final_barcode) {
-        o << std::string(sc.FAKE_BARCODE_LEN, sc.QUAL);
+        o << std::string(sc.getBarcodeLength(), sc.QUAL);
       } else if (l == 0 && !opt.empty_read_sequence.empty()) {
         o << std::string(opt.empty_read_sequence.length(), sc.QUAL);
       }

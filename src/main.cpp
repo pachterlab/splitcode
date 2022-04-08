@@ -74,6 +74,7 @@ void usage() {
        << "                 E.g. {bc}4-12 means the next/previous barcode is 4-12 bases away and has name 'bc')" << endl
        << "-5, --trim-5     Number of base pairs to trim from the 5′-end of reads (comma-separated; one number per each FASTQ file in a run)" << endl
        << "-3, --trim-3     Number of base pairs to trim from the 3′-end of reads (comma-separated; one number per each FASTQ file in a run)" << endl
+       << "-P, --prefix     Bases that will prefix each final barcode sequence (useful for merging separate experiments)" << endl
        << "Options (configurations supplied in a file):" << endl
        << "-c, --config     Configuration file" << endl
        << "Output Options:" << endl
@@ -120,7 +121,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   int disable_n_flag = 0;
   int interleaved_flag = 0;
 
-  const char *opt_string = "t:N:n:b:d:i:l:f:F:e:c:o:O:u:m:k:r:A:L:R:E:g:y:Y:j:J:a:v:5:3:Tph";
+  const char *opt_string = "t:N:n:b:d:i:l:f:F:e:c:o:O:u:m:k:r:A:L:R:E:g:y:Y:j:J:a:v:5:3:P:Tph";
   static struct option long_options[] = {
     // long args
     {"version", no_argument, &version_flag, 1},
@@ -168,6 +169,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"remove-grp", required_argument, 0, 'Y'},
     {"trim-5", required_argument, 0, '5'},
     {"trim-3", required_argument, 0, '3'},
+    {"prefix", required_argument, 0, 'P'},
     {0,0,0,0}
   };
   
@@ -336,6 +338,10 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     }
     case '3': {
       stringstream(optarg) >> opt.trim_3_str;
+      break;
+    }
+    case 'P': {
+      stringstream(optarg) >> opt.barcode_prefix;
       break;
     }
     default: break;
@@ -870,7 +876,7 @@ int main(int argc, char *argv[]) {
   setvbuf(stdout, NULL, _IOFBF, 1048576);
   ProgramOptions opt;
   ParseOptions(argc,argv,opt);
-  SplitCode sc(opt.nfiles, opt.trim_only, opt.disable_n, opt.trim_5_str, opt.trim_3_str);
+  SplitCode sc(opt.nfiles, opt.trim_only, opt.disable_n, opt.trim_5_str, opt.trim_3_str, opt.barcode_prefix);
   if (!CheckOptions(opt, sc)) {
     usage();
     exit(1);

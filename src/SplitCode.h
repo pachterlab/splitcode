@@ -35,7 +35,7 @@ struct SplitCode {
   }
   
   SplitCode(int nFiles, bool trim_only = false, bool disable_n = true,
-            std::string trim_5_str = "", std::string trim_3_str = "") {
+            std::string trim_5_str = "", std::string trim_3_str = "", std::string barcode_prefix = "") {
     init = false;
     discard_check = false;
     keep_check = false;
@@ -45,6 +45,7 @@ struct SplitCode {
     curr_barcode_mapping_i = 0;
     this->trim_5_str = trim_5_str;
     this->trim_3_str = trim_3_str;
+    this->barcode_prefix = barcode_prefix;
     setNFiles(nFiles);
     setTrimOnly(trim_only);
     setRandomReplacement(!disable_n);
@@ -101,6 +102,20 @@ struct SplitCode {
     } catch (std::invalid_argument &e) {
       std::cerr << "Error: Could not convert \"" << trim_val << "\" to int in 5′/3′ trimming" << std::endl;
       exit(1);
+    }
+    // Process barcode prefix
+    if (!barcode_prefix.empty()) {
+      std::transform(barcode_prefix.begin(), barcode_prefix.end(), barcode_prefix.begin(), ::toupper);
+      if (barcode_prefix.length() > 8) {
+        std::cerr << "Error: Barcode prefix is too long" << std::endl;
+        exit(1);
+      }
+      for (int i = 0; i < barcode_prefix.size(); i++) {
+        if (barcode_prefix[i] != 'A' && barcode_prefix[i] != 'T' && barcode_prefix[i] != 'C' && barcode_prefix[i] != 'G') {
+          std::cerr << "Error: Barcode prefix contains a non-ATCG character" << std::endl;
+          exit(1);
+        }
+      }
     }
     // Process before_after_vec
     for (auto& x: before_after_vec) {
@@ -834,6 +849,12 @@ struct SplitCode {
             return false;
           }
           this->trim_3_str = value;
+        } else if (field == "@prefix") {
+          if (!this->barcode_prefix.empty()) {
+            std::cerr << "Error: The file \"" << config_file << "\" specifies @prefix which was already previously set" << std::endl;
+            return false;
+          }
+          this->barcode_prefix = value;
         }
         continue;
       }
@@ -1223,6 +1244,19 @@ struct SplitCode {
       std::string names_list;
       uint32_t count;
       ss >> barcode >> names_list >> count;
+      if (!barcode_prefix.empty()) {
+        std::string p = barcode.substr(0,barcode_prefix.length());
+        if (p != barcode_prefix) {
+          std::cerr << "Error: File " << mapping_file << " contains barcode: " << barcode << ", which does not have prefix: " << barcode_prefix << std::endl;
+          return false;
+        }
+      }
+      std::string barcode_no_prefix = barcode.substr(barcode_prefix.length());
+      if (barcode_no_prefix.length() != FAKE_BARCODE_LEN) {
+        std::cerr << "Error: File " << mapping_file << " contains a barcode of invalid length: " << barcode << std::endl;
+        return false;
+      }
+      barcode = barcode_no_prefix;
       if (hashKmer(barcode) != idmapinv.size()) { // Barcodes need to be ordered 0,1,2,3,... in terms of their binary values
         std::cerr << "Error: File " << mapping_file << " contains an invalid list of sequences in the first column" << std::endl;
         return false;
@@ -1746,9 +1780,20 @@ struct SplitCode {
     if (!barcode_str.empty()) {
       barcode_str.resize(barcode_str.size()-1);
     }
-    std::string o = binaryToString(id, FAKE_BARCODE_LEN) + "\t" + barcode_str + "\t" + std::to_string(n) + "\n";
+    std::string o = binaryToString(getID(id), getBarcodeLength()) + "\t" + barcode_str + "\t" + std::to_string(n) + "\n";
     ++curr_barcode_mapping_i;
     return o;
+  }
+  
+  uint64_t getID(uint64_t id) { // Get the "real ID" (aka results ID merged with prefix)
+    if (barcode_prefix.empty()) {
+      return id;
+    }
+    return ((hashKmer(barcode_prefix) << (2*FAKE_BARCODE_LEN)) | id);
+  }
+  
+  int getBarcodeLength() {
+    return FAKE_BARCODE_LEN+barcode_prefix.length();
   }
   
   static std::string binaryToString(uint64_t x, size_t len) {
@@ -1838,7 +1883,7 @@ struct SplitCode {
   
   std::vector<std::vector<std::pair<int,int>>> kmer_size_locations;
   
-  
+  std::string barcode_prefix;
   std::string trim_5_str, trim_3_str;
   std::vector<std::pair<int,int>> trim_5_3_vec;
   

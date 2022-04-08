@@ -52,6 +52,7 @@ struct ProgramOptions {
   std::string empty_read_sequence;
   std::string trim_5_str;
   std::string trim_3_str;
+  std::string barcode_prefix;
   
   ProgramOptions() :
     threads(1),
