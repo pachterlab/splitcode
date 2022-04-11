@@ -52,14 +52,23 @@ struct SplitCode {
   }
   
   void setNFiles(int nFiles) {
+    if (init) {
+      return;
+    }
     this->nFiles = nFiles;
   }
   
   void setTrimOnly(bool trim_only) {
+    if (init) {
+      return;
+    }
     this->always_assign = trim_only;
   }
   
   void setRandomReplacement(bool rand) {
+    if (init) {
+      return;
+    }
     this->random_replacement = rand;
   }
   
@@ -199,11 +208,11 @@ struct SplitCode {
           auto &kmer_map = kmer_map_vec[f];
           if (kmer_map.find(kmer_size) == kmer_map.end()) {
             kmer_map[kmer_size] = std::vector<std::pair<int,int>>(0);
-            kmer_map[kmer_size].push_back(std::make_pair(tag.pos_start, tag.pos_end));
+            kmer_map[kmer_size].push_back(std::make_pair(tag.pos_start < 0 ? 0 : tag.pos_start, tag.pos_end));
           } else {
             // Take the union of the intervals:
             auto& curr_intervals = kmer_map[kmer_size];
-            std::pair<int,int> new_interval = std::make_pair(tag.pos_start, tag.pos_end);
+            std::pair<int,int> new_interval = std::make_pair(tag.pos_start < 0 ? 0 : tag.pos_start, tag.pos_end);
             bool modified = false;
             bool update_vector = true;
             for (auto &interval : curr_intervals) {
@@ -749,10 +758,16 @@ struct SplitCode {
     return checkCollision(tag, v, vi, false);
   }
   
-  bool containsRegion(int16_t file_1, int32_t pos_start_1, int32_t pos_end_1, int16_t file_2, int32_t pos_start_2, int32_t pos_end_2) {
+  bool containsRegion(int16_t file_1, int32_t pos_start_1, int32_t pos_end_1, int16_t file_2, int32_t pos_start_2, int32_t pos_end_2, int l) {
     // Checks if 2 (the k-mer) is contained within 1 (the tag)
     if (file_1 != file_2 && !(file_1 == -1 || file_2 == -1)) {
       return false;
+    }
+    if (pos_start_1 < 0) { // If we have to calculate start position from the right-hand side of read
+      pos_start_1 = l+pos_start_1;
+      if (pos_start_1 < 0) {
+        return false; // Length of read sequence too short to get start position from right-hand side of read
+      }
     }
     if (pos_start_2 < pos_start_1) {
       return false;
@@ -954,7 +969,7 @@ struct SplitCode {
     return true;
   }
   
-  bool getTag(std::string& seq, uint32_t& tag_id, int file, int pos, int& k, bool look_for_initiator = false,
+  bool getTag(std::string& seq, uint32_t& tag_id, int file, int pos, int& k, int l, bool look_for_initiator = false,
              bool search_tag_name_after = false, bool search_group_after = false, uint32_t search_id_after = -1,
              bool search_tag_before = false, uint32_t group_curr = -1, uint32_t name_id_curr = -1, int end_pos_curr = 0) {
     checkInit();
@@ -1005,7 +1020,7 @@ struct SplitCode {
             }
           }
         }
-        if (containsRegion(tag.file, tag.pos_start, tag.pos_end, file, pos, pos+curr_k)) {
+        if (containsRegion(tag.file, tag.pos_start, tag.pos_end, file, pos, pos+curr_k, l)) {
           if (!look_for_initiator || (look_for_initiator && tags_vec[tag_id_].initiator)) {
             if (found_curr && tag.name_id != name_id_curr) {
               found_curr = false; // seq of length curr_k maps to multiple tags of different names
@@ -1140,7 +1155,7 @@ struct SplitCode {
         }
         i++;
       }
-      if (i > 3 || file < -1 || (file >= nFiles && nFiles != -1) || pos_start < 0 || pos_end < 0 || (pos_end <= pos_start && pos_end != 0)) {
+      if (i > 3 || file < -1 || (file >= nFiles && nFiles != -1) || pos_end < 0 || (pos_end <= pos_start && pos_end != 0)) {
         std::cerr << "Error: Location string is malformed; unable to parse \"" << location << "\"" << std::endl;
         return false;
       }
@@ -1577,7 +1592,7 @@ struct SplitCode {
           }
         }
         uint32_t tag_id;
-        if (getTag(seq, tag_id, file, pos, k, look_for_initiator, 
+        if (getTag(seq, tag_id, file, pos, k, readLength, look_for_initiator, 
                    search_tag_name_after, search_group_after, search_id_after,
                    search_tag_before, group_curr, name_id_curr, search_after_start)) {
           look_for_initiator = false;
