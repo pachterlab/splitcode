@@ -519,9 +519,12 @@ struct SplitCode {
   };
   
   
-  void generate_hamming_mismatches(std::string seq, int dist, std::unordered_map<std::string,int>& results, bool use_N = false, std::vector<size_t> pos = std::vector<size_t>()) {
+  void generate_hamming_mismatches(std::string seq, int dist, std::unordered_map<std::string,int>& results, bool use_N = false, int initial_dist = 0, std::vector<size_t> pos = std::vector<size_t>()) {
     if (dist == 0) {
       return;
+    }
+    if (initial_dist == 0) {
+      initial_dist = dist;
     }
     size_t bc = seq.length();
     for (size_t i = 0; i < bc; ++i) {
@@ -532,44 +535,48 @@ struct SplitCode {
           if (seq[i] != bases[d]) {
             std::string y = seq;
             y[i] = bases[d];
-            if (results.find(y) == results.end() || results[y] < dist-1) {
-              results[y] = dist-1;
+            if (results.find(y) == results.end() || results[y] > initial_dist-(dist-1)) {
+              results[y] = initial_dist-(dist-1); // contains the hamming mismatch error
             }
             pos.push_back(i);
-            generate_hamming_mismatches(y, dist-1, results, use_N, pos);
+            generate_hamming_mismatches(y, dist-1, results, use_N, initial_dist, pos);
           }
         }
       }
     }
   }
   
-  void generate_indels(std::string seq, int dist, std::unordered_map<std::string,int>& results, bool use_N = false, std::string original = "") {
+  void generate_indels(std::string seq, int dist, std::unordered_map<std::string,int>& results, bool use_N = false, bool do_insertion = true, bool do_deletion = true, int initial_dist = 0) {
     if (dist == 0) {
       return;
     }
-    if (original.empty()) {
-      original = seq;
+    if (initial_dist == 0) {
+      initial_dist = dist;
     }
     size_t bc = seq.length();
     for (size_t i = 0; i <= bc; ++i) {
       char bases[] = {'A','T','C','G','N'};
       int l = use_N ? 5 : 4;
       // Insertions: 
-      for (int d = 0; d < l; d++) {
-        std::string y = seq;
-        y.insert(i,1,bases[d]);
-        if (y != original && (results.find(y) == results.end() || results[y] < dist-1)) {
-          results[y] = dist-1;
-          generate_indels(y, dist-1, results, use_N, original);
+      if (do_insertion) {
+        for (int d = 0; d < l; d++) {
+          std::string y = seq;
+          y.insert(i,1,bases[d]);
+          if (results.find(y) == results.end() || results[y] > initial_dist-(dist-1)) {
+            results[y] = initial_dist-(dist-1);
+            generate_indels(y, dist-1, results, use_N, true, false, initial_dist);
+          }
         }
       }
       // Deletions:
-      if (i < bc) {
-        std::string y = seq;
-        y.erase(i,1);
-        if (y != original && y != "" && (results.find(y) == results.end() || results[y] < dist-1)) {
-          results[y] = dist-1;
-          generate_indels(y, dist-1, results, use_N, original);
+      if (do_deletion) {
+        if (i < bc) {
+          std::string y = seq;
+          y.erase(i,1);
+          if (y != "" && (results.find(y) == results.end() || results[y] > initial_dist-(dist-1))) {
+            results[y] = initial_dist-(dist-1);
+            generate_indels(y, dist-1, results, use_N, false, true, initial_dist);
+          }
         }
       }
     }
@@ -588,10 +595,20 @@ struct SplitCode {
     results = indel_results;
     generate_hamming_mismatches(seq, mismatch_dist, results, use_N);
     for (auto r : indel_results) {
-      int indels_dist_used = indel_dist - r.second;
-      generate_hamming_mismatches(r.first, std::min(total_dist - indels_dist_used, mismatch_dist), results, use_N);
+      int indels_dist_used = r.second;
+      int dist_remaining = std::min(total_dist - indels_dist_used, mismatch_dist);
+      generate_hamming_mismatches(r.first, dist_remaining, results, use_N, dist_remaining+indels_dist_used);
     }
     results.erase(seq); // Remove the original sequence in case it was generated
+    // Remove all keys containing the original sequence as a substring:
+    auto it = results.begin();
+    while (it != results.end()) {
+      if (it->first.length() > seq.length() && it->first.find(seq) != std::string::npos) {
+        it = results.erase(it);
+      } else {
+        it++;
+      }
+    }
   }
   
   bool matchSequences(const SplitCodeTag& tag, const std::string& match_seq) {
@@ -719,8 +736,10 @@ struct SplitCode {
         generate_indels_hamming_mismatches(seq, mismatch_dist, indel_dist, total_dist, mismatches);
         for (auto mm : mismatches) {
           std::string mismatch_seq = mm.first;
-          int error = total_dist - mm.second; // The number of substitutions, insertions, or deletions
+          int error = mm.second; // The number of substitutions, insertions, or deletions
           addToMap(mismatch_seq, new_tag_index, error);
+          // DEBUG:
+          // std::cout << seq << ": " << mismatch_seq << " " << error << " | " << total_dist << " " << mm.second << std::endl;
         }
         addToMap(seq, new_tag_index);
       }
@@ -1050,7 +1069,7 @@ struct SplitCode {
           if (updated_name_id != name_id_curr) {
             return false; // multiple tags of different names
           }
-          if (updated_error <= error_prev) { // Choose smallest error first when deciding if to update to larger k
+          if (updated_error >= error_prev) { // Choose smallest error first when deciding if to update to larger k
             updated_tag_id = tag_id_curr;
             updated_k = curr_k; // Update to larger k
             updated_error = error_prev;
@@ -1645,7 +1664,7 @@ struct SplitCode {
           if (tag.terminator) {
             break; // End the search for the current (j'th) read file's sequence
           }
-          locations.setJump();
+          locations.setJump(k);
         }
       }
       // Modify (trim) the reads
