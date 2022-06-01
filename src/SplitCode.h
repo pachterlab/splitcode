@@ -1320,7 +1320,7 @@ struct SplitCode {
         return false;
       }
       barcode = barcode_no_prefix;
-      if (hashKmer(barcode) != idmapinv.size()) { // Barcodes need to be ordered 0,1,2,3,... in terms of their binary values
+      if (hashKmer(barcode) != idmap_getsize()) { // Barcodes need to be ordered 0,1,2,3,... in terms of their binary values
         std::cerr << "Error: File " << mapping_file << " contains an invalid list of sequences in the first column" << std::endl;
         return false;
       }
@@ -1339,14 +1339,11 @@ struct SplitCode {
         }
         u.push_back(itnames - names.begin());
       }
-      auto it = idmapinv.find(u);
-      if (it != idmapinv.end()) {
+      if (idmap_find(u) != -1) {
         std::cerr << "Error: In file " << mapping_file << ", the following is duplicated: " << names_list << std::endl;
         return false;
       }
-      idmapinv.insert({u,idmapinv.size()});
-      idmap.push_back(std::move(u));
-      idcount.push_back(0);
+      idmap_insert(u, 0);
     }
     return true;
   }
@@ -1389,13 +1386,12 @@ struct SplitCode {
         }
         u.push_back(itnames - names.begin());
       }
-      auto it = idmapinv.find(u);
       auto it1 = idmapinv_keep.find(u);
       auto it2 = idmapinv_discard.find(u);
       if (it1 != idmapinv_keep.end() || it2 != idmapinv_discard.end()) {
         std::cerr << "Error: In file " << keep_file << ", the following line is duplicated: " << line << std::endl;
         return false;
-      } else if (discard && it != idmapinv.end()) {
+      } else if (discard && idmap_find(u) != -1) {
         std::cerr << "Error: In file " << keep_file << ", the following line cannot be used: " << line << std::endl;
         return false;
       }
@@ -2035,19 +2031,15 @@ struct SplitCode {
       if (u.empty() || !isAssigned(r)) {
         continue;
       }
-      auto it = idmapinv.find(u);
-      int id;
-      if (it != idmapinv.end()) {
-        id = it->second;
+      int id = idmap_find(u);
+      if (id != -1) {
         idcount[id]++;
       } else {
-        id = idmapinv.size();
+        id = idmap_getsize();
         // DEBUG hash function:
         //VectorHasher h;
         //std::cout << h(u) << std::endl;
-        idmapinv.insert({u,id});
-        idmap.push_back(u);
-        idcount.push_back(1);
+        idmap_insert(u,1);
       }
       r.id = id;
     }
@@ -2081,15 +2073,15 @@ struct SplitCode {
   
   std::string fetchNextBarcodeMapping() {
     int i = curr_barcode_mapping_i;
-    if (i >= idmap.size()) {
+    if (i >= idmap_getsize()) {
       curr_barcode_mapping_i = 0;
       return "";
     }
-    auto &u = idmap[i];
-    auto it = idmapinv.find(u);
-    int id = it->second;
     int n = idcount[i];
     std::string barcode_str = "";
+    int id;
+    auto &u = idmap[i];
+    id = idmap_find(u);
     for (auto& tag_id : u) {
       barcode_str += names[tags_vec[tag_id].name_id] + ",";
     }
@@ -2099,6 +2091,24 @@ struct SplitCode {
     std::string o = binaryToString(getID(id), getBarcodeLength()) + "\t" + barcode_str + "\t" + std::to_string(n) + "\n";
     ++curr_barcode_mapping_i;
     return o;
+  }
+  
+  int idmap_find(std::vector<uint32_t>& u) {
+    auto it = idmapinv.find(u);
+    if (it != idmapinv.end()) {
+      return it->second;
+    }
+    return -1;
+  }
+  
+  size_t idmap_getsize() {
+    return idmapinv.size();
+  }
+  
+  void idmap_insert(std::vector<uint32_t>& u, int val) {
+    idmapinv.insert({u,idmap_getsize()});
+    idmap.push_back(std::move(u));
+    idcount.push_back(val);
   }
   
   uint64_t getID(uint64_t id) { // Get the "real ID" (aka results ID merged with prefix)
@@ -2185,7 +2195,7 @@ struct SplitCode {
   
   std::vector<std::vector<uint32_t>> idmap;
   robin_hood::unordered_node_map<std::vector<uint32_t>, int, VectorHasher> idmapinv;
-  std::vector<int> idcount;
+  std::vector<uint32_t> idcount;
   std::unordered_map<std::vector<uint32_t>, std::string, VectorHasher> idmapinv_keep;
   std::unordered_map<std::vector<uint32_t>, int, VectorHasher> idmapinv_discard;
   std::unordered_map<std::vector<uint32_t>, std::string, VectorHasher> groupmapinv_keep;
