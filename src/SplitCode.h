@@ -31,11 +31,12 @@ struct SplitCode {
     random_replacement = false;
     n_tag_entries = 0;
     curr_barcode_mapping_i = 0;
+    curr_umi_id_i = 0;
     setNFiles(0);
   }
   
   SplitCode(int nFiles, bool trim_only = false, bool disable_n = true,
-            std::string trim_5_str = "", std::string trim_3_str = "", std::string barcode_prefix = "") {
+            std::string trim_5_str = "", std::string trim_3_str = "", std::string extract_str = "", std::string barcode_prefix = "") {
     init = false;
     discard_check = false;
     keep_check = false;
@@ -43,8 +44,10 @@ struct SplitCode {
     keep_check_group = false;
     n_tag_entries = 0;
     curr_barcode_mapping_i = 0;
+    curr_umi_id_i = 0;
     this->trim_5_str = trim_5_str;
     this->trim_3_str = trim_3_str;
+    this->extract_str = extract_str;
     this->barcode_prefix = barcode_prefix;
     setNFiles(nFiles);
     setTrimOnly(trim_only);
@@ -108,9 +111,16 @@ struct SplitCode {
         std::cerr << "Error: 5′/3′ trimming invalid; need to specify as many values as nFastqs" << std::endl;
         exit(1);
       }
-    } catch (std::invalid_argument &e) {
+    } catch (std::exception &e) {
       std::cerr << "Error: Could not convert \"" << trim_val << "\" to int in 5′/3′ trimming" << std::endl;
       exit(1);
+    }
+    // Process UMI string extraction
+    if (!extract_str.empty()) {
+      if (!parseExtractStr(extract_str)) {
+        std::cerr << "Error: Could not parse extraction pattern: \"" << extract_str << "\"" << std::endl;
+        exit(1);
+      }
     }
     // Process barcode prefix
     if (!barcode_prefix.empty()) {
@@ -136,7 +146,7 @@ struct SplitCode {
       if (s[1] == '{') {
         name = s.substr(2,s.find_first_of('}')-2);
         group = true;
-        const auto& itnames = find(group_names.begin(), group_names.end(), name);
+        const auto& itnames = std::find(group_names.begin(), group_names.end(), name);
         if (itnames == group_names.end()) {
           continue;
         } else {
@@ -144,7 +154,7 @@ struct SplitCode {
         }
       } else {
         name = s.substr(1,s.find_first_of('}')-1);
-        const auto& itnames = find(names.begin(), names.end(), name);
+        const auto& itnames = std::find(names.begin(), names.end(), name);
         if (itnames == names.end()) {
           continue;
         } else {
@@ -518,6 +528,19 @@ struct SplitCode {
     }
   };
   
+  struct UMI {
+    uint32_t id1, id2;
+    uint16_t length_range_start;
+    uint16_t length_range_end;
+    uint16_t padding_left;
+    uint16_t padding_right;
+    int16_t id;
+    std::pair<int,int> location1;
+    std::pair<int,int> location2;
+    std::string name;
+    bool group1, group2, id1_present, id2_present;
+  };
+  
   
   void generate_hamming_mismatches(std::string seq, int dist, std::unordered_map<std::string,int>& results, bool use_N = false, int initial_dist = 0, std::vector<size_t> pos = std::vector<size_t>()) {
     if (dist == 0) {
@@ -663,7 +686,7 @@ struct SplitCode {
       }
     }
     uint32_t name_id;
-    const auto& itnames = find(names.begin(), names.end(), name);
+    const auto& itnames = std::find(names.begin(), names.end(), name);
     if (itnames == names.end()) {
       name_id = names.size();
       names.push_back(name);
@@ -678,7 +701,7 @@ struct SplitCode {
     }
     uint32_t group_name_id = -1;
     if (!group_name.empty()) {
-      const auto& itgnames = find(group_names.begin(), group_names.end(), group_name);
+      const auto& itgnames = std::find(group_names.begin(), group_names.end(), group_name);
       if (itgnames == group_names.end()) {
         group_name_id = group_names.size();
         group_names.push_back(group_name);
@@ -889,6 +912,12 @@ struct SplitCode {
             return false;
           }
           this->barcode_prefix = value;
+        } else if (field == "@extract") {
+          if (!this->extract_str.empty()) {
+            std::cerr << "Error: The file \"" << config_file << "\" specifies @extract which was already previously set" << std::endl;
+            return false;
+          }
+          this->extract_str = value;
         }
         continue;
       }
@@ -1140,7 +1169,7 @@ struct SplitCode {
         std::cerr << "Error: Trim string is malformed; unable to parse \"" << s_trim << "\"" << std::endl;
         return false;
       }
-    } catch (std::invalid_argument &e) {
+    } catch (std::exception &e) {
       std::cerr << "Error: Could not convert \"" << trim_attribute << "\" to int in trim string" << std::endl;
       return false;
     }
@@ -1178,7 +1207,7 @@ struct SplitCode {
         std::cerr << "Error: Location string is malformed; unable to parse \"" << location << "\"" << std::endl;
         return false;
       }
-    } catch (std::invalid_argument &e) {
+    } catch (std::exception &e) {
       std::cerr << "Error: Could not convert \"" << location_attribute << "\" to int in location string" << std::endl;
       return false;
     }
@@ -1219,7 +1248,7 @@ struct SplitCode {
       if (total_dist == 0) {
         total_dist = mismatch + indel;
       }
-    } catch (std::invalid_argument &e) {
+    } catch (std::exception &e) {
       std::cerr << "Error: Could not convert \"" << dist_attribute << "\" to int in distance string" << std::endl;
       return false;
     }
@@ -1250,7 +1279,7 @@ struct SplitCode {
         while (std::getline(ss, s2, '-')) {
           std::stoi(s2);
         }
-      } catch (std::invalid_argument &e) {
+      } catch (std::exception &e) {
         ret = false;
       }
     }
@@ -1303,7 +1332,7 @@ struct SplitCode {
         if (name.size() == 0) {
           continue;
         }
-        const auto& itnames = find(names.begin(), names.end(), name);
+        const auto& itnames = std::find(names.begin(), names.end(), name);
         if (itnames == names.end()) {
           std::cerr << "Error: File " << mapping_file << " contains the name \"" << name << "\" which does not exist" << std::endl;
           return false;
@@ -1353,7 +1382,7 @@ struct SplitCode {
         if (name.size() == 0) {
           continue;
         }
-        const auto& itnames = find(names.begin(), names.end(), name);
+        const auto& itnames = std::find(names.begin(), names.end(), name);
         if (itnames == names.end()) {
           std::cerr << "Error: File " << keep_file << " contains the name \"" << name << "\" which does not exist" << std::endl;
           return false;
@@ -1412,7 +1441,7 @@ struct SplitCode {
         if (name.size() == 0) {
           continue;
         }
-        const auto& itnames = find(group_names.begin(), group_names.end(), name);
+        const auto& itnames = std::find(group_names.begin(), group_names.end(), name);
         if (itnames == group_names.end()) {
           std::cerr << "Error: File " << keep_file << " contains the group name \"" << name << "\" which does not exist" << std::endl;
           return false;
@@ -1437,7 +1466,7 @@ struct SplitCode {
   }
   
   bool addGroupOptions(std::string group_name, uint16_t max_finds, uint16_t min_finds) {
-    const auto& itnames = find(group_names.begin(), group_names.end(), group_name);
+    const auto& itnames = std::find(group_names.begin(), group_names.end(), group_name);
     if (itnames == group_names.end()) {
       std::cerr << "Error: Group name \"" << group_name << "\" does not exist" << std::endl;
       return false;
@@ -1458,6 +1487,255 @@ struct SplitCode {
       min_finds_group_map[i] = min_finds;
     }
     return true;
+  }
+  
+  bool parseExtractStr(std::string extract_str) {
+    std::string &s = extract_str;
+    s.erase(remove(s.begin(),s.end(),' '),s.end()); // remove spaces from string
+    if (s.find(',') != std::string::npos) { // If we are supplied multiple extraction patterns (comma-separated)
+      bool ret = false;
+      std::string s_ = "";
+      for (int i = 0; i < s.length(); i++) {
+        if (s[i] == ',') {
+          if (!parseExtractStr(s_)) {
+            return false;
+          }
+          s_ = "";
+        }
+        else {
+          s_.push_back(s[i]);
+        }
+      }
+      return parseExtractStr(s_);
+    }
+    UMI umi;
+    umi.id = curr_umi_id_i++;
+    auto& umi_name = umi.name;
+    auto& group1 = umi.group1;
+    auto& group2 = umi.group2;
+    auto& name1_present = umi.id1_present;
+    auto& name2_present = umi.id2_present;
+    auto& length_range_start = umi.length_range_start;
+    auto& length_range_end = umi.length_range_end;
+    auto& padding_left = umi.padding_left;
+    auto& padding_right = umi.padding_right;
+    length_range_start = 0;
+    length_range_end = 0;
+    padding_left = 0;
+    padding_right = 0;
+    int file1 = -1, file2 = -1, pos1 = -1, pos2 = -1;
+    try {
+      // Find the UMI name and position:
+      auto umi_open = s.find_first_of('<');
+      auto umi_close = s.find_first_of('>');
+      if (umi_open == std::string::npos || umi_close == std::string::npos || umi_open > umi_close ||
+          s.find_last_of('<') != umi_open || s.find_last_of('>') != umi_close) {
+        return false; // malformed
+      }
+      umi_name = s.substr(umi_open+1,umi_close-umi_open-1);
+      // Find the UMI length range (e.g. <umi[number]> or <umi[start-end]>):
+      auto length_range_open = umi_name.find_first_of('[');
+      auto length_range_close = umi_name.find_first_of(']');
+      if ((length_range_open == std::string::npos || length_range_close == std::string::npos || length_range_open > length_range_close ||
+          umi_name.find_last_of('[') != length_range_open || umi_name.find_last_of(']') != length_range_close || length_range_close != umi_name.length()-1) && 
+          !(length_range_open == std::string::npos && length_range_close == std::string::npos)) {
+          return false; // malformed
+      }
+      if (length_range_open != std::string::npos) {
+        std::string length_range_str = umi_name.substr(length_range_open+1,length_range_close-length_range_open-1); // extract length range
+        umi_name = umi_name.substr(0, length_range_open); // remove length range from umi_name
+        auto dash_pos = length_range_str.find_first_of('-');
+        if (dash_pos == std::string::npos) { // no range supplied, just a number
+          auto n = std::stoi(length_range_str);
+          if (n <= 0) {
+            return false;
+          }
+          length_range_start = n;
+          length_range_end = length_range_start;
+        } else {
+          auto n1 = std::stoi(length_range_str.substr(0, dash_pos));
+          auto n2 = std::stoi(length_range_str.substr(dash_pos+1, length_range_str.length()-dash_pos));
+          if (n1 <= 0 || n2 <= 0 || n1 > n2) {
+            return false;
+          }
+          length_range_start = n1;
+          length_range_end = n2;
+        }
+      }
+      if (std::count_if(umi_name.begin(),umi_name.end(),[](char c) { return !(std::isalnum(c) || c == '_'); }) > 1) {
+        return false; // malformed; non-alphanumeric (and non-underscore) character found in umi name
+      }
+      // Function to parse location strings: "file:pos"
+      auto parse_location = [](std::string str) { 
+        std::stringstream ss(str);
+        std::string location_attribute;
+        int file = -1;
+        int pos = -1;
+        int i = 0;
+        while (std::getline(ss, location_attribute, ':')) {
+          if (!location_attribute.empty()) {
+            if (i == 0) {
+              file = std::stoi(location_attribute);
+            } else if (i == 1) {
+              pos = std::stoi(location_attribute);
+            }
+          }
+          i++;
+        }
+        if (i > 2 || file < 0 || pos < -1) {
+          return std::pair<int,int>(-1,-1);
+        }
+        return std::pair<int,int>(file,pos);
+      };
+      // Find the barcode or location string before the UMI:
+      std::string name1 = "";
+      std::string s1 = s.substr(0,umi_open);
+      group1 = false; // Whether it's a barcode name {bc} or a barcode group {{group}}
+      auto pos1_open = s1.find_first_of('{');
+      auto pos1_close = s1.find_first_of('}');
+      name1_present = !(pos1_open == std::string::npos && pos1_close == std::string::npos);
+      if (!name1_present) {
+        if (!s1.empty()) {
+          // The string is formatted as [location]<umi> or [location]<umi>{bc} or [location]<umi>[padding]{bc}
+          auto loc = parse_location(s1);
+          file1 = loc.first;
+          pos1 = loc.second;
+          if (pos1 < 0 || file1 < 0 || file1 >= nFiles) {
+            return false;
+          }
+        }
+      } else if (pos1_open == std::string::npos || pos1_close == std::string::npos || pos1_open > pos1_close || pos1_open != 0) {
+        return false; // malformed
+      } else {
+        // Extract barcode or group name:
+        if (s1[pos1_open+1] == '{') {
+          if (s1[pos1_close+1] != '}') {
+            return false; // malformed
+          }
+          group1 = true;
+          name1 = s1.substr(pos1_open+2,pos1_close-pos1_open-2);
+          pos1_close++;
+        } else {
+          name1 = s1.substr(pos1_open+1,pos1_close-pos1_open-1);
+        }
+        // Extract padding: {bc}[padding]<umi>...
+        auto ss = s1.substr(pos1_close+1);
+        if (!ss.empty()) {
+          padding_left = std::stoi(ss);
+        }
+      }
+      // Find the barcode or location string after the UMI:
+      std::string s2 = s.substr(umi_close+1);
+      std::string name2 = "";
+      group2 = false; // Whether it's a barcode name {bc} or a barcode group {{group}}
+      auto pos2_open = s2.find_first_of('{');
+      auto pos2_close = s2.find_first_of('}');
+      name2_present = !(pos2_open == std::string::npos && pos2_close == std::string::npos);
+      if (!name2_present) {
+        if (!s2.empty()) {
+          // The string is formatted as {bc}<umi>[location] or {bc}[padding]<umi>[location] or <umi>[location] or [location]<umi>[location]
+          auto loc = parse_location(s2);
+          file2 = loc.first;
+          pos2 = loc.second;
+          if (pos2 < -1 || file2 < 0 || file2 >= nFiles) { // pos=-1 means we anchor at the end of the read
+            return false;
+          }
+        }
+      } else if (pos2_close == std::string::npos || pos2_close == std::string::npos || pos2_open > pos2_close || (pos2_close != s2.length()-1 && !(pos2_close+1 == s2.length()-1 && s2[pos2_close+1] == '}'))) {
+        return false; // malformed
+      } else {
+        // Extract barcode or group name:
+        if (s2[pos2_open+1] == '{') {
+          if (s2[pos2_close+1] != '}') {
+            return false; // malformed
+          }
+          group2 = true;
+          name2 = s2.substr(pos2_open+2,pos2_close-pos2_open-2);
+          pos2_close++;
+        } else {
+          name2 = s2.substr(pos2_open+1,pos2_close-pos2_open-1);
+        }
+        // Extract padding: ...<umi>[padding]{bc}
+        auto ss = s2.substr(0, pos2_open);
+        if (!ss.empty()) {
+          padding_right = std::stoi(ss);
+        }
+      }
+      // Process the barcodes, locations, paddings, and UMIs:
+      auto process_umi = [this, &umi](std::string name, bool first) {
+        auto name_present = first ? umi.id1_present : umi.id2_present;
+        auto group = first ? umi.group1 : umi.group2;
+        auto file = first ? umi.location1.first : umi.location2.first;
+        auto pos = first ? umi.location1.second : umi.location2.second;
+        auto& id = first ? umi.id1 : umi.id2;
+        if (name_present) {
+          if (group) {
+            const auto& itnames = std::find(this->group_names.begin(), this->group_names.end(), name);
+            if (itnames == this->group_names.end()) {
+              return false;
+            }
+            id = itnames - this->group_names.begin();
+            this->umi_group_map[id].push_back(umi);
+          } else {
+            const auto& itnames = std::find(this->names.begin(), this->names.end(), name);
+            if (itnames == this->names.end()) {
+              return false;
+            }
+            id = itnames - this->names.begin();
+            this->umi_name_map[id].push_back(umi);
+          }
+        } else {
+          this->umi_loc_map[std::make_pair(file,pos)].push_back(umi);
+        }
+        return true;
+      };
+      bool length_range_supplied = !(length_range_start == 0 && length_range_end == 0); // If a length range was supplied (e.g. <umi[number]> or <umi[start-end]>)
+      if ((name1_present || file1 >= 0) && (name2_present || file2 >= 0)) { // <umi> is sandwiched between {bc}'s and/or locations
+        // Length range is optional (if length range is provided and extracted UMI doesn't fit in length range, it's not identified)
+        // i.e. <umi[number]> or <umi[start-end]> or <umi> are all acceptable
+        if (!name1_present && !name2_present && file1 != file2) {
+          return false; // malformed; different file numbers supplied
+        } else if (!name1_present && !name2_present && pos1 >= pos2 && pos2 != -1) {
+          return false; // malformed; <umi> is sandwiched between two locations but the locations are invalid
+        }
+      } else if ((name1_present || file1 >= 0) || (name2_present || file2 >= 0)) { // <umi> has {bc} or location on either left side or right side of it
+        // Length range is necessary but only whole numbers, not ranges, allowed (number [length_range_start] dictates how many characters to extract on the right or left of the UMI)
+        // i.e. <umi[number]> is necessary; <umi[start-end]> or <umi> are not acceptable
+        if (!length_range_supplied || length_range_start == 0 || length_range_end != length_range_start) {
+          return false;
+        }
+      } else {
+        return false; // malformed; <umi> must have at least one {bc} or location next to it
+      }
+      umi.location1 = std::make_pair(file1, pos1);
+      umi.location2 = std::make_pair(file2, pos2);
+      bool ret = process_umi(name1, true) && process_umi(name2, false);
+      if (!ret) {
+        return false;
+      }
+      // DEBUG:
+      /*std::cout << "UMI " << umi.id << ": " << umi.name 
+                << "; length: (" << length_range_start << "," << length_range_end 
+                << "); padding: (" << padding_left << "," << padding_right << ")";
+      if (umi.id1_present) {
+        std::cout << " --- " << (umi.group1 ? "group1: " : "barcode1: ") << name1 << " " << umi.id1;
+      } else {
+        std::cout << " --- " << "location1: (" << umi.location1.first << "," << umi.location1.second << ")";
+      }
+      if (umi.id2_present) {
+        std::cout << ", " << (umi.group2 ? "group2: " : "barcode2: ") << name2 << " " << umi.id2;
+      } else {
+        std::cout << ", " << "location2: (" << umi.location2.first << "," << umi.location2.second << ")";
+      }
+      std::cout << std::endl;*/
+      // Add UMI name to vector:
+      if (std::find(umi_names.begin(), umi_names.end(), umi.name) == umi_names.end()) {
+        umi_names.push_back(umi.name);
+      }
+      return true;
+    } catch (std::exception &e) {
+      return false;
+    }
   }
   
   class Locations {
@@ -1915,10 +2193,16 @@ struct SplitCode {
   std::unordered_map<uint32_t,int> max_finds_group_map;
   std::vector<bool> initiator_files;
   
+  std::unordered_map<uint32_t,std::vector<UMI>> umi_name_map;
+  std::unordered_map<uint32_t,std::vector<UMI>> umi_group_map;
+  std::map<std::pair<int,int>,std::vector<UMI>> umi_loc_map; // hash for pair not defined for unordered_map
+  std::vector<std::string> umi_names;
+  
   std::vector<std::vector<std::pair<int,int>>> kmer_size_locations;
   
   std::string barcode_prefix;
   std::string trim_5_str, trim_3_str;
+  std::string extract_str;
   std::vector<std::pair<int,int>> trim_5_3_vec;
   
   bool init;
@@ -1931,6 +2215,7 @@ struct SplitCode {
   int nFiles;
   int n_tag_entries;
   int curr_barcode_mapping_i;
+  int curr_umi_id_i;
   static const int MAX_K = 32;
   static const size_t FAKE_BARCODE_LEN = 16;
   static const char QUAL = 'K';
