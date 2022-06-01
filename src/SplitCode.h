@@ -1927,6 +1927,10 @@ struct SplitCode {
             search_extra_after2 = tag.extra_after2;
           }
           if (!tag.not_include_in_barcode) {
+            int sz = results.name_ids.size();
+            if (sz >= 4) {
+              results.name_ids.reserve(sz*1.5);
+            }
             results.name_ids.push_back(tag.name_id);
             if (check_group) {
               group_v.push_back(tag.group);
@@ -2180,7 +2184,7 @@ struct SplitCode {
   std::vector<std::pair<uint32_t,std::pair<bool,std::string>>> before_after_vec;
   
   std::vector<std::vector<uint32_t>> idmap;
-  robin_hood::unordered_flat_map<std::vector<uint32_t>, int, VectorHasher> idmapinv;
+  robin_hood::unordered_node_map<std::vector<uint32_t>, int, VectorHasher> idmapinv;
   std::vector<int> idcount;
   std::unordered_map<std::vector<uint32_t>, std::string, VectorHasher> idmapinv_keep;
   std::unordered_map<std::vector<uint32_t>, int, VectorHasher> idmapinv_discard;
