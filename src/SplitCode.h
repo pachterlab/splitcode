@@ -29,6 +29,7 @@ struct SplitCode {
     keep_check_group = false;
     always_assign = false;
     random_replacement = false;
+    use_16 = false;
     n_tag_entries = 0;
     curr_barcode_mapping_i = 0;
     curr_umi_id_i = 0;
@@ -42,6 +43,7 @@ struct SplitCode {
     keep_check = false;
     discard_check_group = false;
     keep_check_group = false;
+    use_16 = false;
     n_tag_entries = 0;
     curr_barcode_mapping_i = 0;
     curr_umi_id_i = 0;
@@ -294,7 +296,7 @@ struct SplitCode {
       kmer_size_locations[i].assign(s.begin(), s.end()); // Make sure all elements are unique
       std::sort(kmer_size_locations[i].begin(), kmer_size_locations[i].end(), [](std::pair<int,int> a, std::pair<int,int> b) {
         return (a.first == b.first) ? (a.second == -1 || b.second == -1 ? a.second > b.second : a.second < b.second) : (a.first < b.first);
-        });
+      });
     }
     initiator_files.resize(kmer_size_locations.size(), false);
     for (int i = 0; i < tags_vec.size(); i++) { // Set up minFinds and maxFinds and initiators
@@ -312,6 +314,10 @@ struct SplitCode {
           initiator_files[tag.file] = true; // Identify which files have initiator sequences
         }
       }
+    }
+    // Decide on 16-bit vs. 32-bit int
+    if (names.size() < std::numeric_limits<std::uint16_t>::max() && idmap_getsize() == 0) {
+      use_16 = true;
     }
     // Set up expansions vectors (in a map with keys being k-mer sizes):
     struct Expansion {
@@ -475,6 +481,13 @@ struct SplitCode {
       }
       return r;
     }
+    size_t operator()(const std::vector<uint16_t>& v) const {
+      uint64_t r = v.size()-1;
+      for (auto x : v) {
+        r ^= x + 0x9E37 + (r<<6) + (r>>2); // boost hash_combine method
+      }
+      return r;
+    }
   };
   
   struct SplitCodeTag {
@@ -520,8 +533,8 @@ struct SplitCode {
     SeqString() : p_{nullptr}, s_(""), l_(0) { }
     bool operator==(const SeqString& ss) const {
       return p_ ? 
-        (ss.p_ ? ss.l_ == l_ && std::strncmp(p_, ss.p_, l_) == 0 : ss.l_ == l_ && strncmp(p_, ss.s_.c_str(), l_) == 0) : 
-        (ss.p_ ? ss.l_ == l_ && strncmp(ss.p_, s_.c_str(), l_) == 0 : s_ == ss.s_);
+      (ss.p_ ? ss.l_ == l_ && std::strncmp(p_, ss.p_, l_) == 0 : ss.l_ == l_ && strncmp(p_, ss.s_.c_str(), l_) == 0) : 
+      (ss.p_ ? ss.l_ == l_ && strncmp(ss.p_, s_.c_str(), l_) == 0 : s_ == ss.s_);
     }
     size_t length() const {
       return l_;
@@ -1018,8 +1031,8 @@ struct SplitCode {
   }
   
   bool getTag(std::string& seq, uint32_t& tag_id, int file, int pos, int& k, int l, bool look_for_initiator = false,
-             bool search_tag_name_after = false, bool search_group_after = false, uint32_t search_id_after = -1,
-             bool search_tag_before = false, uint32_t group_curr = -1, uint32_t name_id_curr = -1, int end_pos_curr = 0) {
+              bool search_tag_name_after = false, bool search_group_after = false, uint32_t search_id_after = -1,
+              bool search_tag_before = false, uint32_t group_curr = -1, uint32_t name_id_curr = -1, int end_pos_curr = 0) {
     checkInit();
     int k_expanded = k;
     uint32_t updated_tag_id;
@@ -2080,10 +2093,18 @@ struct SplitCode {
     int n = idcount[i];
     std::string barcode_str = "";
     int id;
-    auto &u = idmap[i];
-    id = idmap_find(u);
-    for (auto& tag_id : u) {
-      barcode_str += names[tags_vec[tag_id].name_id] + ",";
+    if (use_16) {
+      auto &u = idmap16[i];
+      id = idmap_find(u);
+      for (auto& tag_id : u) {
+        barcode_str += names[tags_vec[tag_id].name_id] + ",";
+      }
+    } else {
+      auto &u = idmap[i];
+      id = idmap_find(u);
+      for (auto& tag_id : u) {
+        barcode_str += names[tags_vec[tag_id].name_id] + ",";
+      }
     }
     if (!barcode_str.empty()) {
       barcode_str.resize(barcode_str.size()-1);
@@ -2094,20 +2115,39 @@ struct SplitCode {
   }
   
   int idmap_find(std::vector<uint32_t>& u) {
-    auto it = idmapinv.find(u);
-    if (it != idmapinv.end()) {
-      return it->second;
+    if (use_16) {
+      std::vector<uint16_t> u16(u.begin(), u.end());
+      auto it = idmapinv16.find(u16);
+      if (it != idmapinv16.end()) {
+        return it->second;
+      }
+    } else {
+      auto it = idmapinv.find(u);
+      if (it != idmapinv.end()) {
+        return it->second;
+      }
     }
     return -1;
   }
   
+  int idmap_find(std::vector<uint16_t>& u) {
+    std::vector<uint32_t> u32(u.begin(), u.end());
+    return idmap_find(u32);
+  }
+  
   size_t idmap_getsize() {
-    return idmapinv.size();
+    return use_16 ? idmapinv16.size() : idmapinv.size();
   }
   
   void idmap_insert(std::vector<uint32_t>& u, int val) {
-    idmapinv.insert({u,idmap_getsize()});
-    idmap.push_back(std::move(u));
+    if (use_16) {
+      std::vector<uint16_t> u16(u.begin(), u.end());
+      idmapinv16.insert({u16,idmap_getsize()});
+      idmap16.push_back(std::move(u16));
+    } else {
+      idmapinv.insert({u,idmap_getsize()});
+      idmap.push_back(std::move(u));
+    }
     idcount.push_back(val);
   }
   
@@ -2194,7 +2234,9 @@ struct SplitCode {
   std::vector<std::pair<uint32_t,std::pair<bool,std::string>>> before_after_vec;
   
   std::vector<std::vector<uint32_t>> idmap;
+  std::vector<std::vector<uint16_t>> idmap16;
   robin_hood::unordered_node_map<std::vector<uint32_t>, int, VectorHasher> idmapinv;
+  robin_hood::unordered_node_map<std::vector<uint16_t>, int, VectorHasher> idmapinv16;
   std::vector<uint32_t> idcount;
   std::unordered_map<std::vector<uint32_t>, std::string, VectorHasher> idmapinv_keep;
   std::unordered_map<std::vector<uint32_t>, int, VectorHasher> idmapinv_discard;
@@ -2226,6 +2268,7 @@ struct SplitCode {
   bool keep_check_group;
   bool always_assign;
   bool random_replacement;
+  bool use_16;
   int nFiles;
   int n_tag_entries;
   int curr_barcode_mapping_i;
