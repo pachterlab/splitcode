@@ -1675,29 +1675,40 @@ struct SplitCode {
         }
       }
       // Process the barcodes, locations, paddings, and UMIs:
-      auto process_umi = [this, &umi](std::string name, bool first) {
+      auto process_umi = [this, &umi](std::string name, bool first, bool add_to_vec) {
         auto name_present = first ? umi.id1_present : umi.id2_present;
         auto group = first ? umi.group1 : umi.group2;
         auto file = first ? umi.location1.first : umi.location2.first;
         auto pos = first ? umi.location1.second : umi.location2.second;
         auto& id = first ? umi.id1 : umi.id2;
         if (name_present) {
+          bool duplicated = umi.group1 == umi.group2 && umi.id1_present && umi.id2_present && umi.id1 == umi.id2 && !first; // situation where {bc1}<umi>{bc2} and bc1==bc2: don't add it twice
           if (group) {
-            const auto& itnames = std::find(this->group_names.begin(), this->group_names.end(), name);
-            if (itnames == this->group_names.end()) {
-              return false;
+            if (add_to_vec) {
+              if (!duplicated) {
+                this->umi_group_map[id].push_back(umi);
+              }
+            } else {
+              const auto& itnames = std::find(this->group_names.begin(), this->group_names.end(), name);
+              if (itnames == this->group_names.end()) {
+                return false;
+              }
+              id = itnames - this->group_names.begin();
             }
-            id = itnames - this->group_names.begin();
-            this->umi_group_map[id].push_back(umi);
           } else {
-            const auto& itnames = std::find(this->names.begin(), this->names.end(), name);
-            if (itnames == this->names.end()) {
-              return false;
+            if (add_to_vec) {
+              if (!duplicated) {
+                this->umi_name_map[id].push_back(umi);
+              }
+            } else {
+              const auto& itnames = std::find(this->names.begin(), this->names.end(), name);
+              if (itnames == this->names.end()) {
+                return false;
+              }
+              id = itnames - this->names.begin();
             }
-            id = itnames - this->names.begin();
-            this->umi_name_map[id].push_back(umi);
           }
-        } else {
+        } else if (add_to_vec) {
           this->umi_loc_map[std::make_pair(file,pos)].push_back(umi);
         }
         return true;
@@ -1730,7 +1741,7 @@ struct SplitCode {
       } else {
         umi.name_id = name_it - umi_names.begin();
       }
-      bool ret = process_umi(name1, true) && process_umi(name2, false);
+      bool ret = process_umi(name1, true, false) && process_umi(name2, false, false) && process_umi(name1, true, true) && process_umi(name2, false, true);
       if (!ret) {
         return false;
       }
@@ -1839,7 +1850,7 @@ struct SplitCode {
     for (int i = 0; i < umi_vec_name_size+umi_vec_group_size; i++) {
       bool group = (i >= umi_vec_name_size);
       const auto &u = !group ? umi_vec_name[i] : umi_vec_group[i-umi_vec_name_size];
-      auto tag_id = tag_name_id;
+      auto tag_id = !group ? tag_name_id : tag_group_id;
       if (u.id1_present && u.id1 == tag_id && u.group1 == group) {
         if (!u.id2_present) {
           if (u.location2.first == -1) {
@@ -2053,7 +2064,6 @@ struct SplitCode {
             }
           }
           if (do_extract) { // UMI extraction
-            // TODO: Location parsing and group parsing
             doUMIExtraction(seq, pos, k, readLength, umi_seen, umi_data, tag.name_id, tag.group);
           }
           if (tag.trim == left) {
