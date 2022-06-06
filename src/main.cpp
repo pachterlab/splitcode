@@ -94,6 +94,7 @@ void usage() {
        << "    --no-outb    Don't output barcode sequences" << endl
        << "    --mod-names  Modify names of outputted sequences to include identified barcodes" << endl
        << "    --com-names  Modify names of outputted sequences to include final barcode sequence ID" << endl
+       << "    --x-names    Modify names of outputted sequences to include extracted UMI-like sequences" << endl
        << "Other Options:" << endl
        << "-N, --nFastqs    Number of FASTQ file(s) per run" << endl
        << "                 (default: 1) (specify 2 for paired-end)" << endl
@@ -120,6 +121,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   int gzip_flag = 0;
   int mod_names_flag = 0;
   int com_names_flag = 0;
+  int x_names_flag = 0;
   int disable_n_flag = 0;
   int interleaved_flag = 0;
 
@@ -133,6 +135,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"gzip", no_argument, &gzip_flag, 1},
     {"mod-names", no_argument, &mod_names_flag, 1},
     {"com-names", no_argument, &com_names_flag, 1},
+    {"x-names", no_argument, &x_names_flag, 1},
     {"disable-n", no_argument, &disable_n_flag, 1},
     {"inleaved", no_argument, &interleaved_flag, 1},
     // short args
@@ -375,6 +378,9 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   }
   if (com_names_flag) {
     opt.com_names = true;
+  }
+  if (x_names_flag) {
+    opt.x_names = true;
   }
   if (gzip_flag) {
     opt.gzip = true;

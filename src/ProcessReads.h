@@ -98,6 +98,8 @@ public:
     SR = new FastqSequenceReader(opt);
     verbose = opt.verbose;
     nfiles = opt.input_interleaved_nfiles == 0 ? opt.nfiles : opt.input_interleaved_nfiles;
+    const std::string suffix = ".fastq";
+    const std::string suffix_gz = ".fastq.gz";
     for (auto f : opt.output_files) {
       if (opt.gzip) {
         out_gz.push_back(gzopen(f.c_str(), "wb1"));
@@ -112,10 +114,15 @@ public:
         outu.push_back(fopen(f.c_str(), "wb"));
       }
     }
+    for (auto f : sc.umi_names) {
+      if (opt.gzip) {
+        outumi_gz.push_back(gzopen((f+suffix_gz).c_str(), "wb1"));
+      } else {
+        outumi.push_back(fopen((f+suffix).c_str(), "wb"));
+      }
+    }
     write_barcode_separate_fastq = !opt.outputb_file.empty() && !opt.no_output_barcodes; // We write separate barcode file if this option is nonempty
     bool write_barcode_separate_fastq_keep = write_barcode_separate_fastq || (opt.pipe && !opt.no_output_barcodes); // For the files specified in the --keep options, we'll also write separate barcode file(s) if the user chose to --pipe
-    const std::string suffix = ".fastq";
-    const std::string suffix_gz = ".fastq.gz";
     for (auto f : sc.idmapinv_keep) {
       if (opt.gzip) {
         auto it = out_keep_gz.find(f.second);
@@ -184,10 +191,16 @@ public:
     for (auto& of : outu) {
       fclose(of);
     }
+    for (auto& of : outumi) {
+      fclose(of);
+    }
     for (auto& of : out_gz) {
       gzclose(of);
     }
     for (auto& of : outu_gz) {
+      gzclose(of);
+    }
+    for (auto& of : outumi_gz) {
       gzclose(of);
     }
     if (write_barcode_separate_fastq) {
@@ -227,6 +240,8 @@ public:
   std::vector<gzFile> outu_gz;
   std::unordered_map<std::string, std::vector<FILE*>> out_keep;
   std::unordered_map<std::string, std::vector<gzFile>> out_keep_gz;
+  std::vector<FILE*> outumi;
+  std::vector<gzFile> outumi_gz;
   bool write_output_fastq;
   bool write_barcode_separate_fastq;
   bool write_unassigned_fastq;

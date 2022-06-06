@@ -157,6 +157,7 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
     if (sc.always_assign) {
       r.ofile = ""; // If always-assign, don't allow writing output to alternative files based on identified tags
     }
+    auto& umi_vec = r.umi_data;
     bool assigned = sc.isAssigned(r);
     bool use_pipe = opt.pipe && r.ofile.empty(); // Conditions under which we'll write to stdout
     // Conditions under which we'll write to separate barcode file (either write_barcode_separate_fastq specified previously or we need to write reads out to r.ofile even though user specified --pipe):
@@ -168,6 +169,24 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
     if (assigned && opt.com_names) {
       mod_name += " BI:i:" + std::to_string(sc.getID(r.id));
       //mod_name += "\t" + "CB:Z:" + sc.binaryToString(sc.getID(r.id), sc.getBarcodeLength())
+    }
+    if (assigned && opt.x_names && !sc.umi_names.empty()) {
+      std::string mod_name2 = (opt.com_names ? "\t" : " ");
+      mod_name2 += "RX:Z:";
+      bool umi_empty = true;
+      for (int umi_index = 0; umi_index < sc.umi_names.size(); umi_index++) { // Iterate through vector of all UMI names
+        if (umi_index != 0) {
+          mod_name2 += "-";
+        }
+        std::string curr_umi = umi_vec[umi_index];
+        mod_name2 += curr_umi.empty() ? opt.empty_read_sequence : curr_umi;
+        if (!curr_umi.empty()) {
+          umi_empty = false;
+        }
+      }
+      if (!umi_empty) {
+        mod_name += mod_name2;
+      }
     }
     if (assigned && (write_barcode_separate_fastq_ || use_pipe) && !sc.always_assign && !opt.no_output_barcodes) { // Write out barcode read
       std::stringstream o;
@@ -184,6 +203,28 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
         gzwrite(r.ofile.empty() ? outb_gz : out_keep_gz[r.ofile][0], ostr.c_str(), ostr_len);
       } else {
         fwrite(ostr.c_str(), 1, ostr_len, r.ofile.empty() ? outb : out_keep[r.ofile][0]);
+      }
+    }
+    if (!sc.umi_names.empty() && assigned) { // Write out extracted UMIs as needed
+      for (int umi_index = 0; umi_index < sc.umi_names.size(); umi_index++) { // Iterate through vector of all UMI names
+        std::string curr_umi = umi_vec[umi_index];
+        if (curr_umi.empty()) {
+          curr_umi = opt.empty_read_sequence;
+        }
+        std::stringstream o;
+        o << "@" << std::string(names[i].first, names[i].second) << mod_name << "\n";
+        o << curr_umi << "\n";
+        o << "+" << "\n";
+        o << std::string(curr_umi.length(), sc.QUAL) << "\n";
+        const std::string& ostr = o.str();
+        size_t ostr_len = ostr.length();
+        if (use_pipe) {
+          fwrite(ostr.c_str(), 1, ostr_len, stdout);
+        } else if (opt.gzip) {
+          gzwrite(outumi_gz[umi_index], ostr.c_str(), ostr_len);
+        } else {
+          fwrite(ostr.c_str(), 1, ostr_len, outumi[umi_index]);
+        }
       }
     }
     for (int j = 0; j < jmax; j++) {
