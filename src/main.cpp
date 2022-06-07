@@ -92,6 +92,7 @@ void usage() {
        << "    --gzip       Output compressed gzip'ed FASTQ files" << endl
        << "    --no-output  Don't output any sequences (output statistics only)" << endl
        << "    --no-outb    Don't output barcode sequences" << endl
+       << "    --no-x-out   Don't output extracted UMI-like sequences (should be used with --x-names)" << endl
        << "    --mod-names  Modify names of outputted sequences to include identified barcodes" << endl
        << "    --com-names  Modify names of outputted sequences to include final barcode sequence ID" << endl
        << "    --x-names    Modify names of outputted sequences to include extracted UMI-like sequences" << endl
@@ -118,6 +119,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   int cite_flag = 0;
   int no_output_flag = 0;
   int no_output_barcodes_flag = 0;
+  int no_output_extracted_flag = 0;
   int gzip_flag = 0;
   int mod_names_flag = 0;
   int com_names_flag = 0;
@@ -132,6 +134,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"cite", no_argument, &cite_flag, 1},
     {"no-output", no_argument, &no_output_flag, 1},
     {"no-outb", no_argument, &no_output_barcodes_flag, 1},
+    {"no-x-out", no_argument, &no_output_extracted_flag, 1},
     {"gzip", no_argument, &gzip_flag, 1},
     {"mod-names", no_argument, &mod_names_flag, 1},
     {"com-names", no_argument, &com_names_flag, 1},
@@ -393,6 +396,9 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   }
   if (no_output_barcodes_flag) {
     opt.no_output_barcodes = true;
+  }
+  if (no_output_extracted_flag) {
+    opt.no_x_out = true;
   }
   
   for (int i = optind; i < argc; i++) {

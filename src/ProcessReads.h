@@ -114,11 +114,13 @@ public:
         outu.push_back(fopen(f.c_str(), "wb"));
       }
     }
-    for (auto f : sc.umi_names) {
-      if (opt.gzip) {
-        outumi_gz.push_back(gzopen((f+suffix_gz).c_str(), "wb1"));
-      } else {
-        outumi.push_back(fopen((f+suffix).c_str(), "wb"));
+    if (!opt.pipe && !opt.no_x_out) {
+      for (auto f : sc.umi_names) {
+        if (opt.gzip) {
+          outumi_gz.push_back(gzopen((f+suffix_gz).c_str(), "wb1"));
+        } else {
+          outumi.push_back(fopen((f+suffix).c_str(), "wb"));
+        }
       }
     }
     write_barcode_separate_fastq = !opt.outputb_file.empty() && !opt.no_output_barcodes; // We write separate barcode file if this option is nonempty

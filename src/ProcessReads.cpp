@@ -205,7 +205,7 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
         fwrite(ostr.c_str(), 1, ostr_len, r.ofile.empty() ? outb : out_keep[r.ofile][0]);
       }
     }
-    if (!sc.umi_names.empty() && assigned) { // Write out extracted UMIs as needed
+    if (!sc.umi_names.empty() && assigned && !opt.no_x_out) { // Write out extracted UMIs as needed
       for (int umi_index = 0; umi_index < sc.umi_names.size(); umi_index++) { // Iterate through vector of all UMI names
         std::string curr_umi = umi_vec[umi_index];
         if (curr_umi.empty()) {

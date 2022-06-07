@@ -16,6 +16,7 @@ struct ProgramOptions {
   int64_t max_num_reads;
   bool no_output;
   bool no_output_barcodes;
+  bool no_x_out;
   bool pipe;
   bool output_fastq_specified;
   bool verbose;
@@ -63,6 +64,7 @@ struct ProgramOptions {
     max_num_reads(0),
     no_output(false),
     no_output_barcodes(false),
+    no_x_out(false),
     pipe(false),
     output_fastq_specified(false),
     verbose(false),
