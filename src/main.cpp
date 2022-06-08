@@ -96,6 +96,7 @@ void usage() {
        << "    --mod-names  Modify names of outputted sequences to include identified barcodes" << endl
        << "    --com-names  Modify names of outputted sequences to include final barcode sequence ID" << endl
        << "    --x-names    Modify names of outputted sequences to include extracted UMI-like sequences" << endl
+       << "    --x-only     Only output extracted UMI-like sequences" << endl
        << "Other Options:" << endl
        << "-N, --nFastqs    Number of FASTQ file(s) per run" << endl
        << "                 (default: 1) (specify 2 for paired-end)" << endl
@@ -124,6 +125,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   int mod_names_flag = 0;
   int com_names_flag = 0;
   int x_names_flag = 0;
+  int x_only_flag = 0;
   int disable_n_flag = 0;
   int interleaved_flag = 0;
 
@@ -139,6 +141,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"mod-names", no_argument, &mod_names_flag, 1},
     {"com-names", no_argument, &com_names_flag, 1},
     {"x-names", no_argument, &x_names_flag, 1},
+    {"x-only", no_argument, &x_only_flag, 1},
     {"disable-n", no_argument, &disable_n_flag, 1},
     {"inleaved", no_argument, &interleaved_flag, 1},
     // short args
@@ -385,6 +388,9 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   if (x_names_flag) {
     opt.x_names = true;
   }
+  if (x_only_flag) {
+    opt.x_only = true;
+  }
   if (gzip_flag) {
     opt.gzip = true;
   }
@@ -457,9 +463,13 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
     std::cerr << ERROR_STR << " --no-outb cannot be specified with --outb" << std::endl;
     ret = false;
   }
+  if (opt.x_only && opt.no_x_out) {
+    std::cerr << ERROR_STR << " --x-only cannot be specified with --no-x-out" << std::endl;
+    ret = false;
+  }
   
   bool output_files_specified = opt.output_files.size() > 0 || opt.unassigned_files.size() > 0 || !opt.outputb_file.empty();
-  if (opt.output_files.size() == 0 && output_files_specified && !opt.pipe) {
+  if (opt.output_files.size() == 0 && output_files_specified && !opt.pipe && !opt.x_only) {
     std::cerr << ERROR_STR << " --output not provided" << std::endl;
     ret = false;
   }
@@ -468,18 +478,27 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
       std::cerr << ERROR_STR << " Cannot specify an output option when --no-output is specified" << std::endl;
       ret = false;
     }
-    if (opt.mod_names || opt.com_names) {
-      std::cerr << ERROR_STR << " Cannot use --mod-names/--com-names when --no-output is specified" << std::endl;
+    if (opt.mod_names || opt.com_names || opt.x_names) {
+      std::cerr << ERROR_STR << " Cannot use --mod-names/--com-names/--x-names when --no-output is specified" << std::endl;
       ret = false;
     }
     if (opt.gzip) {
       std::cerr << ERROR_STR << " Cannot use --gzip when --no-output is specified" << std::endl;
       ret = false;
     }
+    if (opt.x_only) {
+      std::cerr << ERROR_STR << " Cannot use --x-only when --no-output is specified" << std::endl;
+      ret = false;
+    }
   } else {
-    if (!output_files_specified && !opt.pipe) {
+    if (!output_files_specified && !opt.pipe && !opt.x_only) {
       std::cerr << ERROR_STR << " Must either specify an output option or --no-output" << std::endl;
       ret = false;
+    } else if (opt.x_only) {
+      if (opt.output_files.size() > 0 || opt.unassigned_files.size() > 0) {
+        std::cerr << ERROR_STR << " Cannot provide output files when --x-only is specified" << std::endl;
+        ret = false;
+      }
     } else if (opt.pipe) {
       if (opt.output_files.size() > 0 || !opt.outputb_file.empty()) { // Still allow --unassigned with --pipe
         std::cerr << ERROR_STR << " Cannot provide output files when --pipe is specified" << std::endl;

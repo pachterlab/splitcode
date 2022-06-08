@@ -23,6 +23,7 @@ struct ProgramOptions {
   bool mod_names;
   bool com_names;
   bool x_names;
+  bool x_only;
   bool gzip;
   bool discard;
   bool trim_only;
@@ -71,6 +72,7 @@ struct ProgramOptions {
     mod_names(false),
     com_names(false),
     x_names(false),
+    x_only(false),
     gzip(false),
     discard(false),
     trim_only(false),

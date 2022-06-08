@@ -114,7 +114,7 @@ public:
         outu.push_back(fopen(f.c_str(), "wb"));
       }
     }
-    if (!opt.pipe && !opt.no_x_out) {
+    if (!opt.pipe && !opt.no_x_out && !opt.no_output) {
       for (auto f : sc.umi_names) {
         if (opt.gzip) {
           outumi_gz.push_back(gzopen((f+suffix_gz).c_str(), "wb1"));
@@ -175,7 +175,7 @@ public:
         }
       }
     }
-    write_output_fastq = opt.output_fastq_specified || opt.pipe;
+    write_output_fastq = opt.output_fastq_specified || opt.pipe || opt.x_only;
     write_unassigned_fastq = outu.size() > 0 || outu_gz.size() > 0;
     if (write_barcode_separate_fastq) {
       if (opt.gzip) {

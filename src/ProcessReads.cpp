@@ -231,6 +231,9 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
       if (!assigned && !write_unassigned_fastq) {
         break;
       }
+      if (opt.x_only) {
+        break;
+      }
       std::stringstream o;
       const char* s = seqs[i+j].first;
       int l = seqs[i+j].second;
