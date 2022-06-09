@@ -1840,7 +1840,7 @@ struct SplitCode {
     bool invalid;
   };
   
-  void doUMIExtraction(std::string& seq, int pos, int k, int readLength, std::map<int16_t, std::vector<int32_t>>& umi_seen, std::map<int16_t, std::vector<int32_t>>& umi_seen_copy,
+  void doUMIExtraction(std::string& seq, int pos, int k, int file, int readLength, std::map<int16_t, std::vector<int32_t>>& umi_seen, std::map<int16_t, std::vector<int32_t>>& umi_seen_copy,
                        std::vector<std::string>& umi_data, uint32_t tag_name_id, uint32_t tag_group_id, std::pair<int16_t,int32_t> location = std::make_pair(-1,-1)) {
     const auto& umi_vec_name = umi_name_map.find(tag_name_id) != umi_name_map.end() ? umi_name_map[tag_name_id] : std::vector<UMI>(0);
     auto umi_vec_name_size = umi_vec_name.size();
@@ -1876,7 +1876,9 @@ struct SplitCode {
               umi_data[u.name_id] += extracted_umi;
             }
           } else { // Second location present; push_back the UMI onto the "seen" list to mark that the first barcode was read
-            umi_seen[u.id].push_back(pos+k);
+            if (u.location2.first == file) { // Make sure correct file
+              umi_seen[u.id].push_back(pos+k);
+            }
           }
         } else { // Second barcode present; push_back the UMI onto the "seen" list to mark that the first barcode was read
           umi_seen[u.id].push_back(pos+k);
@@ -1901,7 +1903,32 @@ struct SplitCode {
               umi_data[u.name_id] += extracted_umi;
             }
           } else {
-            // TODO: 
+            // [location]<umi[length_range_start-length_range_end]>[padding]{bc}: extract the UMI between location and barcode
+            auto p = u.location1.second;
+            auto extract_start_left = p+u.padding_left;
+            auto extract_start_right = pos-u.padding_right;
+            auto extract_len = u.length_range_end;
+            if (extract_len == 0) {
+              extract_len = pos-p; // Number of bases between location and barcode
+            }
+            if (extract_start_left+extract_len > extract_start_right) {
+              auto x1 = u.length_range_start;
+              auto x2 = extract_start_right-(extract_start_left);
+              extract_len = x1 > x2 ? x1 : x2;
+              if (extract_start_left+extract_len > extract_start_right) {
+                extract_len = 0; // Our extraction goes too far, so we don't extract UMI
+              }
+            }
+            if (extract_len < extract_start_right-extract_start_left) {
+              extract_len = 0; // The extraction is too short, so we don't extract UMI
+            }
+            if (u.location1.first != file) { // Wrong file
+              extract_len = 0;
+            }
+            if (extract_len != 0) {
+              std::string extracted_umi = seq.substr(extract_start_left, extract_len);
+              umi_data[u.name_id] += extracted_umi;
+            }
           }
         } else { // UMI is sandwiched between two barcodes
           // {bc1}[padding_left]<umi[length_range_start-length_range_end]>[padding_right]{bc2}
@@ -1937,7 +1964,7 @@ struct SplitCode {
         }
       }
       if (use_location) { // Location-based
-        // (Note: No need to validate whether it's the correct file; it's impossible for a key in the map to have a different file number than the associated UMI in the map to have a different file number than its associated UMI's locations)
+        // (Note: No need to validate whether it's the correct file; it's impossible for a key in the map to have a different file number than its associated UMI's locations)
         if (u.location1.first != -1 && u.location1.second == pos && !u.id1_present) {
           if (!u.id2_present) {
             if (u.location2.first == -1) {
@@ -1969,7 +1996,7 @@ struct SplitCode {
           pos = end_pos ? readLength : pos;
           if (!u.id1_present) {
             if (u.location1.first == -1) {
-              // <umi[length_range_start-length_range_end]>[padding]{bc}: extract the UMI before the tag based on length (extract_len)
+              // <umi[length_range_start-length_range_end]>[location]: extract the UMI before the location based on length (extract_len)
               auto extract_len = u.length_range_end;
               auto extract_start = pos-u.padding_right;
               if (extract_start-extract_len < 0) {
@@ -1993,7 +2020,7 @@ struct SplitCode {
               auto extract_start_right = pos-u.padding_right;
               auto extract_len = u.length_range_end;
               if (extract_len == 0) {
-                extract_len = pos-p; // Number of bases between the two barcodes
+                extract_len = pos-p; // Number of bases between barcode and location
               }
               if (extract_start_left+extract_len > extract_start_right) {
                 auto x1 = u.length_range_start;
@@ -2111,7 +2138,7 @@ struct SplitCode {
               if (it_umi_loc->first.second == -1) {
                 umi_loc_check_end = true;
               } else {
-                doUMIExtraction(seq, it_umi_loc->first.second, 0, readLength, umi_seen, umi_seen_copy, umi_data, 0, 0, std::make_pair(file, it_umi_loc->first.second));
+                doUMIExtraction(seq, it_umi_loc->first.second, 0, file, readLength, umi_seen, umi_seen_copy, umi_data, 0, 0, std::make_pair(file, it_umi_loc->first.second));
                 if (pos != it_umi_loc->first.second) { // Don't update copy if we're at the current pos (since we don't want the current location, which may be added/deleted in umi_seen, to affect the barcode-based UMI extraction)
                   umi_seen_copy = umi_seen;
                 }
@@ -2178,7 +2205,7 @@ struct SplitCode {
             }
           }
           if (do_extract) { // UMI extraction
-            doUMIExtraction(seq, pos, k, readLength, umi_seen, umi_seen_copy, umi_data, tag.name_id, tag.group);
+            doUMIExtraction(seq, pos, k, file, readLength, umi_seen, umi_seen_copy, umi_data, tag.name_id, tag.group);
           }
           if (tag.trim == left) {
             left_trim = pos+k+tag.trim_offset;
@@ -2201,14 +2228,14 @@ struct SplitCode {
             if (it_umi_loc->first.second == -1) {
               umi_loc_check_end = true;
             } else {
-              doUMIExtraction(seq, it_umi_loc->first.second, 0, readLength, umi_seen, umi_seen_copy, umi_data, 0, 0, std::make_pair(file, it_umi_loc->first.second));
+              doUMIExtraction(seq, it_umi_loc->first.second, 0, file, readLength, umi_seen, umi_seen_copy, umi_data, 0, 0, std::make_pair(file, it_umi_loc->first.second));
             }
           }
           umi_seen_copy = umi_seen;
           it_umi_loc++;
         }
         if (umi_loc_check_end) { // If we have -1 (denoting the end of the read)
-          doUMIExtraction(seq, -1, 0, readLength, umi_seen, umi_seen_copy, umi_data, 0, 0, std::make_pair(file, -1));
+          doUMIExtraction(seq, -1, 0, file, readLength, umi_seen, umi_seen_copy, umi_data, 0, 0, std::make_pair(file, -1));
         }
       }
       // Modify (trim) the reads
