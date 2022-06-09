@@ -1986,8 +1986,8 @@ struct SplitCode {
             } else {
               // TODO: (second location present)
             }
-          } else { // Second barcode present; push_back the UMI onto the "seen" list
-            umi_seen[u.id].push_back(pos+k);
+          } else { // Second barcode present
+            //umi_seen[u.id].push_back(pos+k); // Not necessary to do
           }
         }
         if (u.location2.first != -1 && u.location2.second == pos && !u.id2_present) {
