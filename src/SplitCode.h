@@ -1984,7 +1984,7 @@ struct SplitCode {
                 umi_data[u.name_id] += extracted_umi;
               }
             } else {
-              // TODO: (second location present)
+              // Do nothing
             }
           } else { // Second barcode present
             //umi_seen[u.id].push_back(pos+k); // Not necessary to do
@@ -2011,8 +2011,32 @@ struct SplitCode {
                 std::string extracted_umi = seq.substr(extract_start-extract_len, extract_len);
                 umi_data[u.name_id] += extracted_umi;
               }
-            } else {
-              // TODO: 
+            } else { // UMI is sandwiched between two locations
+              auto p = u.location1.second;
+              auto extract_start_left = p+u.padding_left;
+              auto extract_start_right = pos-u.padding_right;
+              auto extract_len = u.length_range_end;
+              if (extract_len == 0) {
+                extract_len = pos-p; // Number of bases between the two locations
+              }
+              if (extract_start_left+extract_len > extract_start_right) {
+                auto x1 = u.length_range_start;
+                auto x2 = extract_start_right-(extract_start_left);
+                extract_len = x1 > x2 ? x1 : x2;
+                if (extract_start_left+extract_len > extract_start_right) {
+                  extract_len = 0; // Our extraction goes too far, so we don't extract UMI
+                }
+              }
+              if (extract_len < extract_start_right-extract_start_left) {
+                extract_len = 0; // The extraction is too short, so we don't extract UMI
+              }
+              if (extract_start_right > readLength) {
+                extract_len = 0; // Our extraction point is too far right, so we don't extract UMI
+              }
+              if (extract_len != 0) {
+                std::string extracted_umi = seq.substr(extract_start_left, extract_len);
+                umi_data[u.name_id] += extracted_umi;
+              }
             }
           } else { // UMI is sandwiched between a barcode (1st) and location (2nd)
             for (auto p : umi_seen_copy[u.id]) {
