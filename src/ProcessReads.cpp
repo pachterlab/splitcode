@@ -166,7 +166,7 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
     if ((assigned || r.discard) && opt.mod_names) {
       mod_name = "::" + sc.getNameString(r); // Barcode names
     }
-    if (assigned && opt.com_names) {
+    if (assigned && opt.com_names && !sc.always_assign) {
       mod_name += " BI:i:" + std::to_string(sc.getID(r.id));
       //mod_name += "\t" + "CB:Z:" + sc.binaryToString(sc.getID(r.id), sc.getBarcodeLength())
     }
