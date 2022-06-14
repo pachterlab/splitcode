@@ -38,7 +38,8 @@ struct SplitCode {
   }
   
   SplitCode(int nFiles, bool trim_only = false, bool disable_n = true,
-            std::string trim_5_str = "", std::string trim_3_str = "", std::string extract_str = "", std::string barcode_prefix = "") {
+            std::string trim_5_str = "", std::string trim_3_str = "", std::string extract_str = "", std::string barcode_prefix = "",
+            std::string filter_length_str = "") {
     init = false;
     discard_check = false;
     keep_check = false;
@@ -53,6 +54,7 @@ struct SplitCode {
     this->trim_3_str = trim_3_str;
     this->extract_str = extract_str;
     this->barcode_prefix = barcode_prefix;
+    this->filter_length_str = filter_length_str;
     setNFiles(nFiles);
     setTrimOnly(trim_only);
     setRandomReplacement(!disable_n);
@@ -95,7 +97,7 @@ struct SplitCode {
     try {
       int i = 0;
       while (std::getline(ss_trim_5, trim_val, ',')) {
-        if (!trim_val.empty()) {
+        if (!trim_val.empty() && i < trim_5_3_vec.size()) {
           trim_5_3_vec[i].first = std::max(0,std::stoi(trim_val));
         }
         i++;
@@ -106,7 +108,7 @@ struct SplitCode {
       }
       i = 0;
       while (std::getline(ss_trim_3, trim_val, ',')) {
-        if (!trim_val.empty()) {
+        if (!trim_val.empty() && i < trim_5_3_vec.size()) {
           trim_5_3_vec[i].second = std::max(0,std::stoi(trim_val));
         }
         i++;
@@ -139,6 +141,40 @@ struct SplitCode {
           std::cerr << "Error: Barcode prefix contains a non-ATCG character" << std::endl;
           exit(1);
         }
+      }
+    }
+    // Process length trimming
+    if (!this->filter_length_str.empty()) {
+      std::stringstream ss_len_trim(this->filter_length_str);
+      std::string s1, s2;
+      filter_length_vec.resize(nFiles, std::make_pair(0,0));
+      try {
+        int i = 0;
+        while (std::getline(ss_len_trim, s1, ',')) {
+          if (!s1.empty() && i < filter_length_vec.size()) {
+            std::stringstream ss_len_trim2(s1);
+            int j = 0;
+            while (std::getline(ss_len_trim2, s2, ':')) {
+              if (j == 0) {
+                filter_length_vec[i].first = std::max(0,std::stoi(s2));
+              } else if (j == 1) {
+                filter_length_vec[i].second = std::max(0,std::stoi(s2));
+              } else {
+                std::cerr << "Error: Length filter string invalid: " << s1 << std::endl;
+                exit(1);
+              }
+              j++;
+            }
+          }
+          i++;
+        }
+        if (i != nFiles && i != 0) {
+          std::cerr << "Length filter invalid; need to specify as many values as nFastqs" << std::endl;
+          exit(1);
+        }
+      } catch (std::exception &e) {
+        std::cerr << "Error: Could not convert \"" << s2 << "\" to int in length filter" << std::endl;
+        exit(1);
       }
     }
     // Process before_after_vec
@@ -525,6 +561,7 @@ struct SplitCode {
     std::vector<std::pair<int,std::pair<int,int>>> modtrim;
     int id;
     bool discard;
+    bool passes_filter;
     std::string ofile;
   };
   
@@ -935,6 +972,12 @@ struct SplitCode {
             return false;
           }
           this->extract_str = value;
+        } else if (field == "@filter-len") {
+          if (!this->filter_length_str.empty()) {
+            std::cerr << "Error: The file \"" << config_file << "\" specifies @filter-len which was already previously set" << std::endl;
+            return false;
+          }
+          this->filter_length_str = value;
         }
         continue;
       }
@@ -2084,6 +2127,7 @@ struct SplitCode {
     // Note: s and l may end up being trimmed/modified (even if the read ends up becoming unassigned)
     results.id = -1;
     results.discard = false;
+    results.passes_filter = true;
     auto min_finds = min_finds_map; // copy
     auto max_finds = max_finds_map; // copy
     auto min_finds_group = min_finds_group_map; // copy
@@ -2278,6 +2322,13 @@ struct SplitCode {
       }
       if (l[file] != readLength) {
         results.modtrim.push_back(std::make_pair(file, std::make_pair(left_trim, l[file])));
+      }
+      if (filter_length_vec.size() > 0) { // Length filtering
+        if (filter_length_vec[file].first != 0 && l[file] < filter_length_vec[file].first) {
+          results.passes_filter = false; // read is too short
+        } else if (filter_length_vec[file].second != 0 && l[file] > filter_length_vec[file].second) {
+          results.passes_filter = false; // read is too long
+        }
       }
     }
     for (auto& it : min_finds) {
@@ -2563,7 +2614,9 @@ struct SplitCode {
   std::string barcode_prefix;
   std::string trim_5_str, trim_3_str;
   std::string extract_str;
+  std::string filter_length_str;
   std::vector<std::pair<int,int>> trim_5_3_vec;
+  std::vector<std::pair<int,int>> filter_length_vec;
   
   bool init;
   bool discard_check;

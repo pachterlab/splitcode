@@ -154,6 +154,10 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
   int readnum = 0;
   for (int i = 0; i + incf < seqs.size() && readnum < rv.size(); i++, readnum++) {
     auto& r = rv[readnum];
+    if (!r.passes_filter) {
+      i += incf;
+      continue;
+    }
     if (sc.always_assign) {
       r.ofile = ""; // If always-assign, don't allow writing output to alternative files based on identified tags
     }

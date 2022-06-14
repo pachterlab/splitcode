@@ -76,6 +76,7 @@ void usage() {
        << "                 (E.g. {bc}2<umi_1[5]> means extract a 5-bp UMI sequence, called umi_1, 2 base pairs following the barcode named 'bc')" << endl
        << "-5, --trim-5     Number of base pairs to trim from the 5′-end of reads (comma-separated; one number per each FASTQ file in a run)" << endl
        << "-3, --trim-3     Number of base pairs to trim from the 3′-end of reads (comma-separated; one number per each FASTQ file in a run)" << endl
+       << "-w, --filter-len Filter reads based on length (min_length:max_length)" << endl
        << "-P, --prefix     Bases that will prefix each final barcode sequence (useful for merging separate experiments)" << endl
        << "Options (configurations supplied in a file):" << endl
        << "-c, --config     Configuration file" << endl
@@ -129,7 +130,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   int disable_n_flag = 0;
   int interleaved_flag = 0;
 
-  const char *opt_string = "t:N:n:b:d:i:l:f:F:e:c:o:O:u:m:k:r:A:L:R:E:g:y:Y:j:J:a:v:5:3:x:P:Tph";
+  const char *opt_string = "t:N:n:b:d:i:l:f:F:e:c:o:O:u:m:k:r:A:L:R:E:g:y:Y:j:J:a:v:5:3:w:x:P:Tph";
   static struct option long_options[] = {
     // long args
     {"version", no_argument, &version_flag, 1},
@@ -180,6 +181,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"remove-grp", required_argument, 0, 'Y'},
     {"trim-5", required_argument, 0, '5'},
     {"trim-3", required_argument, 0, '3'},
+    {"filter-len", required_argument, 0, 'w'},
     {"extract", required_argument, 0, 'x'},
     {"prefix", required_argument, 0, 'P'},
     {0,0,0,0}
@@ -350,6 +352,10 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     }
     case '3': {
       stringstream(optarg) >> opt.trim_3_str;
+      break;
+    }
+    case 'w': {
+      stringstream(optarg) >> opt.filter_length_str;
       break;
     }
     case 'x': {
@@ -914,7 +920,7 @@ int main(int argc, char *argv[]) {
   setvbuf(stdout, NULL, _IOFBF, 1048576);
   ProgramOptions opt;
   ParseOptions(argc,argv,opt);
-  SplitCode sc(opt.nfiles, opt.trim_only, opt.disable_n, opt.trim_5_str, opt.trim_3_str, opt.extract_str, opt.barcode_prefix);
+  SplitCode sc(opt.nfiles, opt.trim_only, opt.disable_n, opt.trim_5_str, opt.trim_3_str, opt.extract_str, opt.barcode_prefix, opt.filter_length_str);
   if (!CheckOptions(opt, sc)) {
     usage();
     exit(1);
