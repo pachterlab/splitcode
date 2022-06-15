@@ -45,5 +45,5 @@ checkcmdoutput() {
 
 cmdexec "$splitcode --version"
 
-cmdexec "$splitcode -t 1 -o "$testdir/A_out_1.fastq.gz,$testdir/A_out_2.fastq.gz" -O A_out_barcodes.fastq.gz -N 2 -c splitcode_example_config.txt -y <(echo "DPM,Y,ODD,EVEN,ODD") --mod-names --gzip -m A_out_mapping.txt.gz A_1.fastq.gz A_2.fastq.gz"
-checkcmdoutput "zcat < $testdir/A_out_1.fastq.gz" 05eb0a03078777fb36ec0a463707b1c6
+cmdexec "$splitcode -t 1 -o "$test_dir/A_out_1.fastq.gz,$test_dir/A_out_2.fastq.gz" -O $test_dir/A_out_barcodes.fastq.gz -N 2 -c $test_dir/splitcode_example_config.txt -y <(echo "DPM,Y,ODD,EVEN,ODD") --mod-names --gzip -m $test_dir/A_out_mapping.txt.gz $test_dir/A_1.fastq.gz $test_dir/A_2.fastq.gz"
+checkcmdoutput "zcat < $test_dir/A_out_1.fastq.gz" 05eb0a03078777fb36ec0a463707b1c6
