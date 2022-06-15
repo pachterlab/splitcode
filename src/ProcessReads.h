@@ -126,6 +126,9 @@ public:
     write_barcode_separate_fastq = !opt.outputb_file.empty() && !opt.no_output_barcodes; // We write separate barcode file if this option is nonempty
     bool write_barcode_separate_fastq_keep = write_barcode_separate_fastq || (opt.pipe && !opt.no_output_barcodes); // For the files specified in the --keep options, we'll also write separate barcode file(s) if the user chose to --pipe
     for (auto f : sc.idmapinv_keep) {
+      if (f.second.empty()) {
+        continue;
+      }
       if (opt.gzip) {
         auto it = out_keep_gz.find(f.second);
         if (it == out_keep_gz.end()) {
@@ -151,6 +154,9 @@ public:
       }
     }
     for (auto f : sc.groupmapinv_keep) {
+      if (f.second.empty()) {
+        continue;
+      }
       if (opt.gzip) {
         auto it = out_keep_gz.find(f.second);
         if (it == out_keep_gz.end()) {
