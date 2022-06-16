@@ -90,5 +90,20 @@ checkcmdoutput "$splitcode -t 1 -N 2 -c $test_dir/splitcode_example_config.txt -
 checkcmdoutput "$splitcode -t 1 -N 2 -c $test_dir/splitcode_example_config.txt -y <(echo "DPM,Y,ODD,EVEN,ODD") --x-names -m /dev/null --pipe -x \"{{EVEN}}5<umi1>1:-1\" $test_dir/A_1.fastq.gz $test_dir/A_2.fastq.gz|head -16" 2687f12d1eb72da8c2999ddbf45da38f
 checkcmdoutput "$splitcode -t 1 -N 2 -c $test_dir/splitcode_example_config.txt -y <(echo "DPM,Y,ODD,EVEN,ODD") --x-names -m /dev/null --pipe -x \"{{EVEN}}5<umi1[60-70]>1:120,{{EVEN}}5<umi1[55-70]>1:120\" $test_dir/A_1.fastq.gz $test_dir/A_2.fastq.gz|head -16" 2687f12d1eb72da8c2999ddbf45da38f
 
+# Advanced UMI extraction testing 4
+
+checkcmdoutput "$splitcode -t 1 -N 2 -c $test_dir/splitcode_example_config.txt -y <(echo "DPM,Y,ODD,EVEN,ODD") --x-names -m /dev/null --pipe -x \"1:41<umi1>{{ODD}},1:18<umi2>{{ODD}},1:17<umi3>{{ODD}},1:16<umi4>{{ODD}}\" $test_dir/A_1.fastq.gz $test_dir/A_2.fastq.gz|head -28" e612346ccb3010380dfc93c9b02975ca
+checkcmdoutput "$splitcode -t 1 -N 2 -c $test_dir/splitcode_example_config.txt -y <(echo "DPM,Y,ODD,EVEN,ODD") --x-names -m /dev/null --pipe -x \"1:15<umi1>{Odd2Bo10},1:15<umi2>{Odd2Bo50}\" $test_dir/A_1.fastq.gz $test_dir/A_2.fastq.gz|head -20" 07ae6220ccbd7099533d2b787d93ad1a
+checkcmdoutput "$splitcode -t 1 -N 2 -c $test_dir/splitcode_example_config.txt -y <(echo "DPM,Y,ODD,EVEN,ODD") --x-names -m /dev/null --pipe -x \"1:15<umi1>1{Odd2Bo10},1:15<umi2>4{Odd2Bo50},1:15<umi3>4{Odd2Bo10}\" $test_dir/A_1.fastq.gz $test_dir/A_2.fastq.gz|head -24" 54e8f3ed651c4eeea9265010bfc58e31
+checkcmdoutput "$splitcode -t 1 -N 2 -c $test_dir/splitcode_example_config.txt -y <(echo "DPM,Y,ODD,EVEN,ODD") --x-names -m /dev/null --pipe -x \"1:30<umi1>1{{ODD}},1:30<umi2>1{Odd2Bo10},1:1000<umi3>4{Odd2Bo50},0:30<umi4>{{ODD}}\" $test_dir/A_1.fastq.gz $test_dir/A_2.fastq.gz|head -28" 941b4e3bca1d84f61e19be27065c7094
+
+# Advanced UMI extraction testing 5
+
+checkcmdoutput "$splitcode -t 1 -N 2 -c $test_dir/splitcode_example_config.txt -y <(echo "DPM,Y,ODD,EVEN,ODD") --x-names -m /dev/null --pipe -x \"1:10<umi1>1:20,1:10<umi2[8-12]>1:20\" $test_dir/A_1.fastq.gz $test_dir/A_2.fastq.gz|head -20" 534996586a95f64431f6e9987e28307c
+checkcmdoutput "$splitcode -t 1 -N 2 -c $test_dir/splitcode_example_config.txt -y <(echo "DPM,Y,ODD,EVEN,ODD") --x-names -m /dev/null --pipe -x \"1:10<umi1[5]>1:20,1:10<umi2[3-8]>1:20,1:10<umi3[12-16]>1:20\" $test_dir/A_1.fastq.gz $test_dir/A_2.fastq.gz|head -24" 6c5146a762f06f264c4a7e43bc87cc2e
+checkcmdoutput "$splitcode -t 1 -N 2 -c $test_dir/splitcode_example_config.txt -y <(echo "DPM,Y,ODD,EVEN,ODD") --x-names -m /dev/null --pipe -x \"1:10<umi1[8-12]>1:20,1:15<umi2[8-12]>1:25,1:15<umi3[12-20]>1:25,1:15<umi4[8-12]>1:25,1:15<umi4[8-12]>1:25\" $test_dir/A_1.fastq.gz $test_dir/A_2.fastq.gz|head -28" 3e6d524540806d03bcaa09ea3991406e
+
+
+
 
 
