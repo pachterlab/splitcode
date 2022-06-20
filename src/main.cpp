@@ -77,6 +77,12 @@ void usage() {
        << "-5, --trim-5     Number of base pairs to trim from the 5′-end of reads (comma-separated; one number per each FASTQ file in a run)" << endl
        << "-3, --trim-3     Number of base pairs to trim from the 3′-end of reads (comma-separated; one number per each FASTQ file in a run)" << endl
        << "-w, --filter-len Filter reads based on length (min_length:max_length)" << endl
+       << "-q, --qtrim      Quality trimming threshold" << endl
+       << "    --qtrim-5    Perform quality trimming from the 5′-end of reads of each FASTQ file" << endl
+       << "    --qtrim-3    Perform quality trimming from the 3′-end of reads of each FASTQ file" << endl
+       << "    --qtrim-pre  Perform quality trimming before sequence identification operations" << endl
+       << "    --qtrim-naive Perform quality trimming using a naive algorithm (i.e. trim until a base that meets the quality threshold is encountered)" << endl
+       << "    --phred64    Use phred+64 encoded quality scores" << endl
        << "-P, --prefix     Bases that will prefix each final barcode sequence (useful for merging separate experiments)" << endl
        << "Options (configurations supplied in a file):" << endl
        << "-c, --config     Configuration file" << endl
@@ -129,8 +135,13 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   int x_only_flag = 0;
   int disable_n_flag = 0;
   int interleaved_flag = 0;
+  int qtrim_5_flag = 0;
+  int qtrim_3_flag = 0;
+  int qtrim_pre_flag = 0;
+  int qtrim_naive_flag = 0;
+  int phred64_flag = 0;
 
-  const char *opt_string = "t:N:n:b:d:i:l:f:F:e:c:o:O:u:m:k:r:A:L:R:E:g:y:Y:j:J:a:v:5:3:w:x:P:Tph";
+  const char *opt_string = "t:N:n:b:d:i:l:f:F:e:c:o:O:u:m:k:r:A:L:R:E:g:y:Y:j:J:a:v:5:3:w:x:P:q:Tph";
   static struct option long_options[] = {
     // long args
     {"version", no_argument, &version_flag, 1},
@@ -145,6 +156,11 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"x-only", no_argument, &x_only_flag, 1},
     {"disable-n", no_argument, &disable_n_flag, 1},
     {"inleaved", no_argument, &interleaved_flag, 1},
+    {"qtrim-5", no_argument, &qtrim_5_flag, 1},
+    {"qtrim-3", no_argument, &qtrim_3_flag, 1},
+    {"qtrim-pre", no_argument, &qtrim_pre_flag, 1},
+    {"qtrim-naive", no_argument, &qtrim_naive_flag, 1},
+    {"phred64", no_argument, &phred64_flag, 1},
     // short args
     {"help", no_argument, 0, 'h'},
     {"pipe", no_argument, 0, 'p'},
@@ -366,6 +382,10 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
       stringstream(optarg) >> opt.barcode_prefix;
       break;
     }
+    case 'q': {
+      stringstream(optarg) >> opt.quality_trimming_threshold;
+      break;
+    }
     default: break;
     }
   }
@@ -411,6 +431,21 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   }
   if (no_output_extracted_flag) {
     opt.no_x_out = true;
+  }
+  if (qtrim_5_flag) {
+    opt.quality_trimming_5 = true;
+  }
+  if (qtrim_3_flag) {
+    opt.quality_trimming_3 = true;
+  }
+  if (qtrim_pre_flag) {
+    opt.quality_trimming_pre = true;
+  }
+  if (qtrim_naive_flag) {
+    opt.quality_trimming_naive = true;
+  }
+  if (phred64_flag) {
+    opt.phred64 = true;
   }
   
   for (int i = optind; i < argc; i++) {
@@ -920,7 +955,8 @@ int main(int argc, char *argv[]) {
   setvbuf(stdout, NULL, _IOFBF, 1048576);
   ProgramOptions opt;
   ParseOptions(argc,argv,opt);
-  SplitCode sc(opt.nfiles, opt.trim_only, opt.disable_n, opt.trim_5_str, opt.trim_3_str, opt.extract_str, opt.barcode_prefix, opt.filter_length_str);
+  SplitCode sc(opt.nfiles, opt.trim_only, opt.disable_n, opt.trim_5_str, opt.trim_3_str, opt.extract_str, opt.barcode_prefix, opt.filter_length_str,
+               opt.quality_trimming_5, opt.quality_trimming_3, opt.quality_trimming_pre, opt.quality_trimming_naive, opt.quality_trimming_threshold, opt.phred64);
   if (!CheckOptions(opt, sc)) {
     usage();
     exit(1);

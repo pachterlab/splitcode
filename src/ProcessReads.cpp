@@ -293,6 +293,10 @@ ReadProcessor::ReadProcessor(const ProgramOptions& opt, MasterProcessor& mp) :
    bufsize = mp.bufsize;
    buffer = new char[bufsize];
    seqs.reserve(bufsize/50);
+   full = !mp.opt.no_output;
+   if (full) {
+     quals.reserve(bufsize/50);
+   }
    rv.reserve(1000);
    clear();
 }
@@ -304,7 +308,8 @@ ReadProcessor::ReadProcessor(ReadProcessor && o) :
   seqs(std::move(o.seqs)),
   names(std::move(o.names)),
   quals(std::move(o.quals)),
-  flags(std::move(o.flags)) {
+  flags(std::move(o.flags)),
+  full(o.full) {
     buffer = o.buffer;
     o.buffer = nullptr;
     o.bufsize = 0;
@@ -337,7 +342,7 @@ void ReadProcessor::operator()() {
         parallel_read_empty.emplace(i);
         continue;
       }
-      mp.FSRs[i].fetchSequences(buffer, bufsize, seqs, names, quals, flags, readbatch_id, !mp.opt.no_output);
+      mp.FSRs[i].fetchSequences(buffer, bufsize, seqs, names, quals, flags, readbatch_id, full);
     } else {
       std::lock_guard<std::mutex> lock(mp.reader_lock);
       if (mp.SR->empty()) {
@@ -345,7 +350,7 @@ void ReadProcessor::operator()() {
         return;
       } else {
         // get new sequences
-        mp.SR->fetchSequences(buffer, bufsize, seqs, names, quals, flags, readbatch_id, !mp.opt.no_output);
+        mp.SR->fetchSequences(buffer, bufsize, seqs, names, quals, flags, readbatch_id, full);
       }
       // release the reader lock
     }
@@ -373,18 +378,22 @@ void ReadProcessor::processBuffer() {
 
   std::vector<const char*> s(jmax, nullptr);
   std::vector<int> l(jmax,0);
+  std::vector<const char*> q(full ? jmax : 0, nullptr);
 
 
   for (int i = 0; i + incf < seqs.size(); i++) {
     for (int j = 0; j < jmax; j++) {
       s[j] = seqs[i+j].first;
       l[j] = seqs[i+j].second;      
+      if (full) {
+        q[j] = quals[i+j].first;
+      }
     }
     i += incf;
     numreads++;
     
     SplitCode::Results results;
-    mp.sc.processRead(s, l, jmax, results);
+    mp.sc.processRead(s, l, jmax, results, q);
     rv.push_back(results);
     
     if (mp.sc.isAssigned(results)) { // Only modify/trim the reads stored in seq if assigned

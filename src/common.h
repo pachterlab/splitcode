@@ -13,6 +13,7 @@ struct ProgramOptions {
   int threads;
   int nfiles;
   int input_interleaved_nfiles;
+  int quality_trimming_threshold;
   int64_t max_num_reads;
   bool no_output;
   bool no_output_barcodes;
@@ -29,6 +30,11 @@ struct ProgramOptions {
   bool trim_only;
   bool discard_group;
   bool disable_n;
+  bool quality_trimming_5;
+  bool quality_trimming_3;
+  bool quality_trimming_pre;
+  bool quality_trimming_naive;
+  bool phred64;
   std::vector<std::string> files;
   std::vector<std::string> output_files;
   std::string outputb_file;
@@ -63,6 +69,7 @@ struct ProgramOptions {
     threads(1),
     nfiles(1),
     input_interleaved_nfiles(0),
+    quality_trimming_threshold(-1),
     max_num_reads(0),
     no_output(false),
     no_output_barcodes(false),
@@ -78,7 +85,12 @@ struct ProgramOptions {
     discard(false),
     trim_only(false),
     discard_group(false),
-    disable_n(true)
+    disable_n(true),
+    quality_trimming_5(false),
+    quality_trimming_3(false),
+    quality_trimming_pre(false),
+    quality_trimming_naive(false),
+    phred64(false)
   {}
 };
 

@@ -34,12 +34,19 @@ struct SplitCode {
     n_tag_entries = 0;
     curr_barcode_mapping_i = 0;
     curr_umi_id_i = 0;
+    quality_trimming_5 = false;
+    quality_trimming_3 = false;
+    quality_trimming_pre = false;
+    quality_trimming_naive = false;
+    quality_trimming_threshold = -1;
+    phred64 = false;
     setNFiles(0);
   }
   
   SplitCode(int nFiles, bool trim_only = false, bool disable_n = true,
             std::string trim_5_str = "", std::string trim_3_str = "", std::string extract_str = "", std::string barcode_prefix = "",
-            std::string filter_length_str = "") {
+            std::string filter_length_str = "", bool quality_trimming_5 = false, bool quality_trimming_3 = false,
+            bool quality_trimming_pre = false, bool quality_trimming_naive = false, int quality_trimming_threshold = -1, bool phred64 = false) {
     init = false;
     discard_check = false;
     keep_check = false;
@@ -55,6 +62,12 @@ struct SplitCode {
     this->extract_str = extract_str;
     this->barcode_prefix = barcode_prefix;
     this->filter_length_str = filter_length_str;
+    this->quality_trimming_5 = quality_trimming_5;
+    this->quality_trimming_3 = quality_trimming_3;
+    this->quality_trimming_pre = quality_trimming_pre;
+    this->quality_trimming_naive = quality_trimming_naive;
+    this->quality_trimming_threshold = quality_trimming_threshold;
+    this->phred64 = phred64;
     setNFiles(nFiles);
     setTrimOnly(trim_only);
     setRandomReplacement(!disable_n);
@@ -978,6 +991,31 @@ struct SplitCode {
             return false;
           }
           this->filter_length_str = value;
+        } else if (field == "@qtrim") {
+          if (this->quality_trimming_threshold >= 0) {
+            std::cerr << "Error: The file \"" << config_file << "\" specifies @qtrim which was already previously set" << std::endl;
+            return false;
+          }
+          try {
+            this->quality_trimming_threshold = std::stoi(value);
+          } catch (std::exception &e) {
+            std::cerr << "Error: The file \"" << config_file << "\" specifies an invalid value for @qtrim" << std::endl;
+            return false;
+          }
+          if (this->quality_trimming_threshold < 0) {
+            std::cerr << "Error: The file \"" << config_file << "\" specifies an invalid value for @qtrim" << std::endl;
+            return false;
+          }
+        } else if (field == "@qtrim-5") {
+          this->quality_trimming_5 = true;
+        } else if (field == "@qtrim-3") {
+          this->quality_trimming_3 = true;
+        } else if (field == "@qtrim-pre") {
+          this->quality_trimming_pre = true;
+        } else if (field == "@qtrim-naive") {
+          this->quality_trimming_naive = true;
+        } else if (field == "@phred64") {
+          this->phred64 = true;
         }
         continue;
       }
@@ -2123,7 +2161,77 @@ struct SplitCode {
     }
   }
   
+  std::pair<int,int> trimQuality(const char*& s, int& l, const char*& q) {
+    // Same "partial sum" algorithm used by cutadapt
+    int phred_offset = phred64 ? -64 : -33;
+    int trim_5 = 0, trim_3 = 0;
+    if (quality_trimming_5) { // Trim from left
+      int running_sum = 0;
+      int min = 1000;
+      int min_pos = -1;
+      for (int i = 0; i < l; i++) {
+        int x = (q[i] + phred_offset) - quality_trimming_threshold;
+        if (quality_trimming_naive) { // Naive algorithm
+          char s_ = s[i] & 0xDF; // Upper case base
+          if (x <= 0 || !(s_ == 'A' || s_ == 'T' || s_ == 'C' || s_ == 'G')) { // Poor quality or non-ATCG base
+            min_pos = i;
+            continue;
+          } else {
+            break;
+          }
+        }
+        running_sum += x;
+        if (running_sum > 0) {
+          break;
+        }
+        if (min < running_sum) {
+          min_pos = i;
+          min = running_sum;
+        }
+      }
+      trim_5 = min_pos+1;
+    }
+    if (quality_trimming_3) { // Trim from right
+      int running_sum = 0;
+      int min = 1000;
+      int min_pos = l;
+      for (int i = l-1; i >= 0; i--) {
+        int x = (q[i] + phred_offset) - quality_trimming_threshold;
+        if (quality_trimming_naive) { // Naive algorithm
+          char s_ = s[i] & 0xDF; // Upper case base
+          if (x <= 0 || !(s_ == 'A' || s_ == 'T' || s_ == 'C' || s_ == 'G')) { // Poor quality or non-ATCG base
+            min_pos = i;
+            continue;
+          } else {
+            break;
+          }
+        }
+        running_sum += x;
+        if (running_sum > 0) {
+          break;
+        }
+        if (min < running_sum) {
+          min_pos = i;
+          min = running_sum;
+        }
+      }
+      trim_3 = l-min_pos;
+    }
+    trim_5 = std::min(trim_5, l);
+    s += trim_5;
+    q += trim_5;
+    l -= trim_5;
+    trim_3 = std::min(trim_3, l);
+    l = l - trim_3 <= 0 ? 0 : l - trim_3;
+    return std::make_pair(trim_5,trim_3);
+  }
+  
   void processRead(std::vector<const char*>& s, std::vector<int>& l, int jmax, Results& results) {
+    std::vector<const char*> q(0);
+    processRead(s, l, jmax, results, q);
+  }
+  
+  void processRead(std::vector<const char*>& s, std::vector<int>& l, int jmax, Results& results, std::vector<const char*>& q) {
     // Note: s and l may end up being trimmed/modified (even if the read ends up becoming unassigned)
     results.id = -1;
     results.discard = false;
@@ -2152,6 +2260,14 @@ struct SplitCode {
       l[file] -= trim_5;
       int trim_3 = std::min(trim_5_3_vec[file].second, l[file]);
       l[file] = l[file] - trim_3 <= 0 ? 0 : l[file] - trim_3;
+      if (!q.empty()) { // Do some quality trimming
+        q[file] += trim_5;
+        if (quality_trimming_pre) {
+          auto trimqual = trimQuality(s[file], l[file], q[file]);
+          trim_5 += trimqual.first;
+          trim_3 += trimqual.second;
+        }
+      }
       if (l[file] != readLength) {
         results.modtrim.push_back(std::make_pair(file, std::make_pair(trim_5, l[file])));
       }
@@ -2318,6 +2434,14 @@ struct SplitCode {
           l[file] = 0;
         } else {
           l[file] -= right_trim;
+        }
+      }
+      if (!q.empty()) { // Do some quality trimming
+        q[file] += left_trim;
+        if (!quality_trimming_pre) {
+          auto trimqual = trimQuality(s[file], l[file], q[file]);
+          left_trim += trimqual.first;
+          right_trim += trimqual.second;
         }
       }
       if (l[file] != readLength) {
@@ -2627,6 +2751,12 @@ struct SplitCode {
   bool random_replacement;
   bool do_extract;
   bool use_16;
+  bool quality_trimming_5;
+  bool quality_trimming_3;
+  bool quality_trimming_pre;
+  bool quality_trimming_naive;
+  bool phred64;
+  int quality_trimming_threshold;
   int nFiles;
   int n_tag_entries;
   int curr_barcode_mapping_i;

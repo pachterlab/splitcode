@@ -292,6 +292,7 @@ public:
   std::vector<uint32_t> flags;
   
   std::vector<SplitCode::Results> rv;
+  bool full;
   
   /*std::vector<std::vector<int>> newIDs;
   std::vector<std::vector<int>> IDs;*/
