@@ -119,4 +119,9 @@ checkcmdoutput "$splitcode --trim-only --pipe $test_dir/test.fq" cb52b79ed7469ca
 checkcmdoutput "$splitcode --trim-only --pipe -q 10 --qtrim-3 $test_dir/test.fq" 0284bb3b6fa601d6f85d8d051f7e6431
 checkcmdoutput "$splitcode --trim-only --pipe -q 10 --qtrim-5 --qtrim-3 $test_dir/test.fq" 0284bb3b6fa601d6f85d8d051f7e6431
 checkcmdoutput "$splitcode --trim-only --pipe -q 10 --qtrim-5 $test_dir/test.fq" cb52b79ed7469ca2ffe5739ec544b157
+checkcmdoutput "$splitcode --trim-only --pipe -q 10 --qtrim-3 --qtrim-naive $test_dir/test.fq" 3b25d6c8a52ad921c4f6565ac7b1b299
+checkcmdoutput "$splitcode --trim-only --pipe -q 11 --qtrim-3 --qtrim-naive $test_dir/test.fq" 3b25d6c8a52ad921c4f6565ac7b1b299
+checkcmdoutput "$splitcode --trim-only --pipe -q 12 --qtrim-3 --qtrim-naive $test_dir/test.fq" 903366847aa3aa415250f57d83f5517d
+checkcmdoutput "$splitcode --trim-only --pipe -q 10 --qtrim-5 --qtrim-naive $test_dir/test.fq" cb52b79ed7469ca2ffe5739ec544b157
+checkcmdoutput "$splitcode --trim-only --pipe -q 8 --qtrim-3 --qtrim-naive --phred64 $test_dir/test.fq" f03fb0cee9154be006dfccd5f67797f6
 
