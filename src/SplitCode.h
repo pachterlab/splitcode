@@ -2173,7 +2173,7 @@ struct SplitCode {
         int x = (q[i] + phred_offset) - quality_trimming_threshold;
         if (quality_trimming_naive) { // Naive algorithm
           char s_ = s[i] & 0xDF; // Upper case base
-          if (x <= 0 || !(s_ == 'A' || s_ == 'T' || s_ == 'C' || s_ == 'G')) { // Poor quality or non-ATCG base
+          if (x < 0 || !(s_ == 'A' || s_ == 'T' || s_ == 'C' || s_ == 'G')) { // Poor quality or non-ATCG base
             min_pos = i;
             continue;
           } else {
@@ -2184,7 +2184,7 @@ struct SplitCode {
         if (running_sum > 0) {
           break;
         }
-        if (min < running_sum) {
+        if (running_sum < min) {
           min_pos = i;
           min = running_sum;
         }
@@ -2199,7 +2199,7 @@ struct SplitCode {
         int x = (q[i] + phred_offset) - quality_trimming_threshold;
         if (quality_trimming_naive) { // Naive algorithm
           char s_ = s[i] & 0xDF; // Upper case base
-          if (x <= 0 || !(s_ == 'A' || s_ == 'T' || s_ == 'C' || s_ == 'G')) { // Poor quality or non-ATCG base
+          if (x < 0 || !(s_ == 'A' || s_ == 'T' || s_ == 'C' || s_ == 'G')) { // Poor quality or non-ATCG base
             min_pos = i;
             continue;
           } else {
@@ -2210,7 +2210,7 @@ struct SplitCode {
         if (running_sum > 0) {
           break;
         }
-        if (min < running_sum) {
+        if (running_sum < min) {
           min_pos = i;
           min = running_sum;
         }
