@@ -321,7 +321,7 @@ struct SplitCode {
       }
     }
     // Transfer kmer_map_vec into kmer_size_locations (which facilitates iteration while processing fastq reads in k-mers)
-    kmer_size_locations.resize(kmer_map_vec.size());
+    kmer_size_locations.resize(nFiles);
     for (int i = 0; i < kmer_map_vec.size(); i++) {
       auto kmer_map = kmer_map_vec[i];
       for (auto x : kmer_map) {

@@ -103,7 +103,20 @@ checkcmdoutput "$splitcode -t 1 -N 2 -c $test_dir/splitcode_example_config.txt -
 checkcmdoutput "$splitcode -t 1 -N 2 -c $test_dir/splitcode_example_config.txt -y <(echo "DPM,Y,ODD,EVEN,ODD") --x-names -m /dev/null --pipe -x \"1:10<umi1[5]>1:20,1:10<umi2[3-8]>1:20,1:10<umi3[12-16]>1:20\" $test_dir/A_1.fastq.gz $test_dir/A_2.fastq.gz|head -24" 6c5146a762f06f264c4a7e43bc87cc2e
 checkcmdoutput "$splitcode -t 1 -N 2 -c $test_dir/splitcode_example_config.txt -y <(echo "DPM,Y,ODD,EVEN,ODD") --x-names -m /dev/null --pipe -x \"1:10<umi1[8-12]>1:20,1:15<umi2[8-12]>1:25,1:15<umi3[12-20]>1:25,1:15<umi4[8-12]>1:25,1:15<umi4[8-12]>1:25\" $test_dir/A_1.fastq.gz $test_dir/A_2.fastq.gz|head -28" 3e6d524540806d03bcaa09ea3991406e
 
+# Quality trimming tests
+
+echo "@read0
+AAGCTTCCGG
++
+KI;<)(,%#$
+@read1
+AAGCTTCCGG
++
+I;<*,(,%#$" > $test_dir/test.fq
 
 
-
+checkcmdoutput "$splitcode --trim-only --pipe $test_dir/test.fq" cb52b79ed7469ca2ffe5739ec544b157
+checkcmdoutput "$splitcode --trim-only --pipe -q 10 --qtrim-3 $test_dir/test.fq" 0284bb3b6fa601d6f85d8d051f7e6431
+checkcmdoutput "$splitcode --trim-only --pipe -q 10 --qtrim-5 --qtrim-3 $test_dir/test.fq" 0284bb3b6fa601d6f85d8d051f7e6431
+checkcmdoutput "$splitcode --trim-only --pipe -q 10 --qtrim-5 $test_dir/test.fq" cb52b79ed7469ca2ffe5739ec544b157
 

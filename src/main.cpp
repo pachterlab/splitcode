@@ -942,8 +942,9 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
   }
   
   if (ret && (sc.getNumTags() == 0 || sc.getMapSize() == 0)) {
-    std::cerr << ERROR_STR << " No barcodes found" << std::endl;
-    ret = false;
+    /*std::cerr << ERROR_STR << " No barcodes found" << std::endl;
+    ret = false;*/
+    sc.checkInit();
   }
   
   return ret;
