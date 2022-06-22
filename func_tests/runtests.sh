@@ -125,3 +125,23 @@ checkcmdoutput "$splitcode --trim-only --pipe -q 12 --qtrim-3 --qtrim-naive $tes
 checkcmdoutput "$splitcode --trim-only --pipe -q 10 --qtrim-5 --qtrim-naive $test_dir/test.fq" cb52b79ed7469ca2ffe5739ec544b157
 checkcmdoutput "$splitcode --trim-only --pipe -q 8 --qtrim-3 --qtrim-naive --phred64 $test_dir/test.fq" f03fb0cee9154be006dfccd5f67797f6
 
+# Quality trimming tests - Advanced
+
+checkcmdoutput "$splitcode --trim-only --pipe -q 10 --qtrim-3 --qtrim-naive -x \"0:2<umi1>0:-1\" $test_dir/test.fq" 507cd03e7a97e95afc1ea1018976a623
+checkcmdoutput "$splitcode --trim-only --pipe -q 10 --qtrim-3 --qtrim-naive --qtrim-pre -x \"0:2<umi1>0:-1\" $test_dir/test.fq" 021a446d088d3dfe37028873f223bc0a
+checkcmdoutput "$splitcode --trim-only --pipe -q 10 --qtrim-3 --qtrim-pre -x \"0:2<umi1>0:-1\" $test_dir/test.fq" 9f8a7ebcbb903f5828f60a8c5d142bf3
+checkcmdoutput "$splitcode --trim-only --pipe -q 10 --qtrim-3 --qtrim-naive -x \"0:2<umi1[6]>\" $test_dir/test.fq" e33034842bc6d691e4b84cb7943e76a2
+checkcmdoutput "$splitcode --trim-only --pipe -q 10 --qtrim-3 --qtrim-naive --qtrim-pre -x \"0:2<umi1[6]>\" $test_dir/test.fq" cdf3d28488e3b6feb23efbe104281684
+checkcmdoutput "$splitcode --trim-only --pipe -q 10 --qtrim-3 --qtrim-pre -x \"0:2<umi1[6]>\" $test_dir/test.fq" c883d391b1d4c20deac071f7f7af1905
+checkcmdoutput "$splitcode --trim-only --pipe -q 10 --qtrim-3 --qtrim-pre -x \"0:2<umi1[3]>" $test_dir/test.fq\" 6b769e9893bd3e7f5a7cde91cf6420ed
+checkcmdoutput "$splitcode --trim-only --pipe -q 10 --qtrim-3 --qtrim-pre -x \"0:2<umi1>0:-1\" -5 1 $test_dir/test.fq" 8626fc01d5b7db07ae63e3183b6d21e4
+checkcmdoutput "$splitcode --trim-only --pipe -q 10 --qtrim-3 --qtrim-pre -5 4 -E ATCG $test_dir/test.fq" 4cdf8aa6f1767a22ad8c09e38fe2118b
+checkcmdoutput "$splitcode --trim-only --pipe -q 10 --qtrim-3 --qtrim-pre -5 5 -E ATCG $test_dir/test.fq" 1b5a09bd343382ee78c9aa51245557c2
+checkcmdoutput "$splitcode --trim-only --pipe -q 10 --qtrim-3 -w 5 $test_dir/test.fq" b0e38a846bb762767fcfa6ca002a7cab
+checkcmdoutput "$splitcode --trim-only --pipe -q 10 --qtrim-3 -w 0:4 $test_dir/test.fq" ba907ffe8c0e14a57043a926f3ebce6b
+checkcmdoutput "$splitcode --trim-only --pipe -q 10 --qtrim-3 --qtrim-pre -x \"0:2<umi1>0:-1\" -5 1 -3 3 $test_dir/test.fq" d90efb54e48c2c1c261cd4eb5e86cfdc
+checkcmdoutput "$splitcode --trim-only --pipe -q 10 --qtrim-3 --qtrim-pre -x \"0:2<umi1>0:-1\" -5 1 -3 2 $test_dir/test.fq" 8626fc01d5b7db07ae63e3183b6d21e4
+checkcmdoutput "$splitcode --trim-only --pipe -q 10 --qtrim-3 -x \"0:2<umi1>0:-1\" -5 1 -3 2 $test_dir/test.fq" 0d99695915b46e66e0dace6ce33fed44
+checkcmdoutput "$splitcode --trim-only --pipe -q 10 --qtrim-3 --qtrim-pre -5 5 -E ATCG $test_dir/test.fq" 1b5a09bd343382ee78c9aa51245557c2
+
+
