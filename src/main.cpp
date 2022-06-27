@@ -52,7 +52,7 @@ void PrintVersion() {
 void usage() {
   cout << "splitcode " << SPLITCODE_VERSION << endl << endl
        << "Usage: splitcode [arguments] fastq-files" << endl << endl
-       << "Options (for configuring on the command-line):" << endl
+       << "Sequence identification options (for configuring on the command-line):" << endl
        << "-b, --barcodes   List of barcode sequences (comma-separated)" << endl
        << "-d, --distances  List of error distance (mismatch:indel:total) thresholds (comma-separated)" << endl
        << "-l, --locations  List of locations (file:pos1:pos2) (comma-separated)" << endl
@@ -72,6 +72,9 @@ void usage() {
        << "                 (Note: for --next/--previous, specify barcode names as {name} and specify barcode group names as {{group}}" << endl
        << "                 Can also specify the number of base pairs that must appear between the current barcode and the next/previous barcode." << endl
        << "                 E.g. {bc}4-12 means the next/previous barcode is 4-12 bases away and has name 'bc')" << endl
+       << "-z, --partial5   Specifies barcode may be truncated at the 5′ end (comma-separated min_match:mismatch_freq)" << endl
+       << "-Z, --partial3   Specifies barcode may be truncated at the 3′ end (comma-separated min_match:mismatch_freq)" << endl
+       << "Read modification and extraction options (for configuring on the command-line):" << endl
        << "-x, --extract    Pattern(s) describing how to extract UMI and UMI-like sequences from reads" << endl
        << "                 (E.g. {bc}2<umi_1[5]> means extract a 5-bp UMI sequence, called umi_1, 2 base pairs following the barcode named 'bc')" << endl
        << "-5, --trim-5     Number of base pairs to trim from the 5′-end of reads (comma-separated; one number per each FASTQ file in a run)" << endl
@@ -141,7 +144,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   int qtrim_naive_flag = 0;
   int phred64_flag = 0;
 
-  const char *opt_string = "t:N:n:b:d:i:l:f:F:e:c:o:O:u:m:k:r:A:L:R:E:g:y:Y:j:J:a:v:5:3:w:x:P:q:Tph";
+  const char *opt_string = "t:N:n:b:d:i:l:f:F:e:c:o:O:u:m:k:r:A:L:R:E:g:y:Y:j:J:a:v:z:Z:5:3:w:x:P:q:Tph";
   static struct option long_options[] = {
     // long args
     {"version", no_argument, &version_flag, 1},
@@ -181,6 +184,8 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"next", required_argument, 0, 'a'},
     {"after", required_argument, 0, 'a'},
     {"previous", required_argument, 0, 'v'},
+    {"partial5", required_argument, 0, 'z'},
+    {"partial3", required_argument, 0, 'Z'},
     {"before", required_argument, 0, 'v'},
     {"config", required_argument, 0, 'c'},
     {"output", required_argument, 0, 'o'},
@@ -299,6 +304,14 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     }
     case 'v': {
       stringstream(optarg) >> opt.before_str;
+      break;
+    }
+    case 'z': {
+      stringstream(optarg) >> opt.partial5_str;
+      break;
+    }
+    case 'Z': {
+      stringstream(optarg) >> opt.partial3_str;
       break;
     }
     case 'c': {
@@ -591,6 +604,8 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
     stringstream ss10(opt.group_identifiers_str);
     stringstream ss11(opt.after_str);
     stringstream ss12(opt.before_str);
+    stringstream ss13(opt.partial5_str);
+    stringstream ss14(opt.partial3_str);
     while (ss1.good()) {
       uint16_t max_finds = 0;
       uint16_t min_finds = 0;
@@ -603,6 +618,10 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
       string right_str = "";
       string after_str = "";
       string before_str = "";
+      string partial5_str = "";
+      string partial3_str = "";
+      int partial5_min_match, partial3_min_match;
+      double partial5_mismatch_freq, partial3_mismatch_freq;
       bool trim_left, trim_right;
       int trim_left_offset, trim_right_offset;
       int16_t file;
@@ -775,7 +794,33 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
         std::cerr << ERROR_STR << " --previous is invalid" << std::endl;
         ret = false;
       }
-      if (!sc.addTag(bc, name.empty() ? bc : name, group, mismatch, indel, total_dist, file, pos_start, pos_end, max_finds, min_finds, exclude, trim_dir, trim_offset, after_str, before_str)) {
+      if (!opt.partial5_str.empty()) {
+        if (!ss13.good()) {
+          std::cerr << ERROR_STR << " Number of values in --partial5 is less than that in --barcodes" << std::endl;
+          ret = false;
+          break;
+        }
+        getline(ss13, partial5_str, ',');
+      }
+      if (!SplitCode::parsePartialStr(partial5_str, partial5_min_match, partial5_mismatch_freq)) {
+        std::cerr << ERROR_STR << " --partial5 is invalid" << std::endl;
+        ret = false;
+        break;
+      }
+      if (!opt.partial3_str.empty()) {
+        if (!ss14.good()) {
+          std::cerr << ERROR_STR << " Number of values in --partial3 is less than that in --barcodes" << std::endl;
+          ret = false;
+          break;
+        }
+        getline(ss14, partial3_str, ',');
+      }
+      if (!SplitCode::parsePartialStr(partial3_str, partial3_min_match, partial3_mismatch_freq)) {
+        std::cerr << ERROR_STR << " --partial3 is invalid" << std::endl;
+        ret = false;
+        break;
+      }
+      if (!sc.addTag(bc, name.empty() ? bc : name, group, mismatch, indel, total_dist, file, pos_start, pos_end, max_finds, min_finds, exclude, trim_dir, trim_offset, after_str, before_str, partial5_min_match, partial5_mismatch_freq, partial3_min_match, partial3_mismatch_freq)) {
         std::cerr << ERROR_STR << " Could not finish processing supplied barcode list" << std::endl;
         ret = false;
         break;

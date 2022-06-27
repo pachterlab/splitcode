@@ -51,6 +51,8 @@ struct ProgramOptions {
   std::string exclude_str;
   std::string after_str;
   std::string before_str;
+  std::string partial5_str;
+  std::string partial3_str;
   std::string config_file;
   std::string mapping_file;
   std::string keep_file;

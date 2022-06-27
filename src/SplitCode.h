@@ -15,6 +15,7 @@
 #include <sys/stat.h>
 #include <limits>
 #include <stack>
+#include <cmath>
 #include "robin_hood.h"
 
 struct SplitCode {
@@ -566,6 +567,8 @@ struct SplitCode {
     uint16_t extra_after;
     uint16_t extra_before2;
     uint16_t extra_after2;
+    bool partial5;
+    bool partial3;
   };
 
   struct Results {
@@ -701,6 +704,59 @@ struct SplitCode {
     }
   }
   
+  void generate_partial_matches(std::string seq, int partial5_min_match, double partial5_mismatch_freq, int partial3_min_match, double partial3_mismatch_freq, uint32_t& new_tag_index, SplitCodeTag tag) {
+    bool use_N = !random_replacement;
+    if (partial5_min_match != 0 && tag.pos_start <= 0) {
+      auto new_tag = tag;
+      new_tag.pos_end = (tag.pos_end == 0 ? seq.length() : std::min((int)seq.length(), tag.pos_end)); // We re-adjust this so we only search where absolutely necessary
+      new_tag.partial5 = true;
+      ++new_tag_index;
+      tags_vec.push_back(new_tag);
+      for (int i = 0; i < seq.length(); i++) {
+        std::string s = seq.substr(i);
+        size_t l = s.length();
+        int mismatch_dist = floor(partial5_mismatch_freq*l);
+        if (l >= partial5_min_match) {
+          addToMap(s, new_tag_index);
+          std::unordered_map<std::string,int> mismatches;
+          generate_hamming_mismatches(s, mismatch_dist, mismatches, use_N, mismatch_dist+i);
+          mismatches.erase(s); // Remove s in case it was generated
+          for (auto mm : mismatches) {
+            std::string mismatch_seq = mm.first;
+            int error = mm.second;
+            addToMap(mismatch_seq, new_tag_index, error);
+            // DEBUG:
+            // std::cout << s << ": " << mismatch_seq << " " << error << " | " << mm.second << " [partial5]" << std::endl;
+          }
+        }
+      }
+    }
+    if (partial3_min_match != 0) {
+      auto new_tag = tag;
+      new_tag.partial3 = true;
+      ++new_tag_index;
+      tags_vec.push_back(new_tag);
+      for (int i = 0; i < seq.length(); i++) {
+        std::string s = seq.substr(0, i+1);
+        size_t l = s.length();
+        int mismatch_dist = floor(partial3_mismatch_freq*l);
+        if (l >= partial3_min_match) {
+          addToMap(s, new_tag_index);
+          std::unordered_map<std::string,int> mismatches;
+          generate_hamming_mismatches(s, mismatch_dist, mismatches, use_N, mismatch_dist+(seq.length()-(i+1)));
+          mismatches.erase(s); // Remove s in case it was generated
+          for (auto mm : mismatches) {
+            std::string mismatch_seq = mm.first;
+            int error = mm.second;
+            addToMap(mismatch_seq, new_tag_index, error);
+            // DEBUG:
+            // std::cout << s << ": " << mismatch_seq << " " << error << " | " << mm.second << " [partial3]" << std::endl;
+          }
+        }
+      }
+    }
+  }
+  
   bool matchSequences(const SplitCodeTag& tag, const std::string& match_seq) {
     // Returns true if one of the sequences in tag is equal to seq
     // (Remember: tag.seq can have multiple sequences separated by '/')
@@ -718,7 +774,8 @@ struct SplitCode {
   bool addTag(std::string seq, std::string name, std::string group_name, int mismatch_dist, int indel_dist, int total_dist,
               int16_t file, int32_t pos_start, int32_t pos_end,
               uint16_t max_finds, uint16_t min_finds, bool not_include_in_barcode,
-              dir trim, int trim_offset, std::string after_str, std::string before_str) {
+              dir trim, int trim_offset, std::string after_str, std::string before_str,
+              int partial5_min_match, double partial5_mismatch_freq, int partial3_min_match, double partial3_mismatch_freq) {
     if (init) {
       std::cerr << "Error: Already initialized" << std::endl;
       return false;
@@ -791,6 +848,8 @@ struct SplitCode {
     new_tag.trim_offset = trim_offset;
     new_tag.has_after = false;
     new_tag.has_before = false;
+    new_tag.partial5 = false;
+    new_tag.partial3 = false;
     
     // Now deal with adding the actual sequence:
     if (nFiles <= 0 && new_tag.file == -1) { // Make sure we have nFiles set if tag can belong to any file
@@ -806,6 +865,7 @@ struct SplitCode {
       std::stringstream ss(new_tag.seq);
       int num_seqs = 0;
       tags_vec.push_back(new_tag);
+      auto new_tag_index_original = new_tag_index;
       while (std::getline(ss, seq, delimeter)) {
         if (seq.empty()) {
           continue;
@@ -832,16 +892,21 @@ struct SplitCode {
           // std::cout << seq << ": " << mismatch_seq << " " << error << " | " << total_dist << " " << mm.second << std::endl;
         }
         addToMap(seq, new_tag_index);
+        generate_partial_matches(seq, partial5_min_match, partial5_mismatch_freq, partial3_min_match, partial3_mismatch_freq, new_tag_index, new_tag);
       }
       if (num_seqs == 0) {
         std::cerr << "Error: Sequence #" << n_tag_entries << ": \"" << name << "\" is empty" << std::endl;
         return false;
       }
       if (!after_str.empty()) {
-        before_after_vec.push_back(std::make_pair(new_tag_index, std::make_pair(true, after_str)));
+        for (int i = new_tag_index_original; i <= new_tag_index; i++) {
+          before_after_vec.push_back(std::make_pair(i, std::make_pair(true, after_str)));
+        }
       }
       if (!before_str.empty()) {
-        before_after_vec.push_back(std::make_pair(new_tag_index, std::make_pair(false, before_str)));
+        for (int i = new_tag_index_original; i <= new_tag_index; i++) {
+          before_after_vec.push_back(std::make_pair(i, std::make_pair(false, before_str)));
+        }
       }
     }
     
@@ -1056,6 +1121,10 @@ struct SplitCode {
       int trim_left_offset, trim_right_offset;
       parseTrimStr("", trim_left, trim_left_offset); // Set up default values
       parseTrimStr("", trim_right, trim_right_offset); // Set up default values
+      int partial5_min_match, partial3_min_match;
+      double partial5_mismatch_freq, partial3_mismatch_freq;
+      parsePartialStr("", partial5_min_match, partial5_mismatch_freq); // Set up default values
+      parsePartialStr("", partial3_min_match, partial3_mismatch_freq); // Set up default values
       bool exclude = false;
       bool ret = true;
       for (int i = 0; ss >> field; i++) {
@@ -1089,6 +1158,10 @@ struct SplitCode {
           ret = ret && parseTrimStr(field, trim_left, trim_left_offset);
         } else if (h[i] == "RIGHT") {
           ret = ret && parseTrimStr(field, trim_right, trim_right_offset);
+        } else if (h[i] == "PARTIAL5") {
+          ret = ret && parsePartialStr(field, partial5_min_match, partial5_mismatch_freq);
+        } else if (h[i] == "PARTIAL3") {
+          ret = ret && parsePartialStr(field, partial3_min_match, partial3_mismatch_freq);
         } else {
           std::cerr << "Error: The file \"" << config_file << "\" contains the invalid column header: " << h[i] << std::endl;
           return false;
@@ -1100,7 +1173,7 @@ struct SplitCode {
       }
       auto trim_dir = trim_left ? left : (trim_right ? right : nodir);
       auto trim_offset = trim_left ? trim_left_offset : (trim_right ? trim_right_offset : 0);
-      if (!ret || !addTag(bc, name.empty() ? bc : name, group, mismatch, indel, total_dist, file, pos_start, pos_end, max_finds, min_finds, exclude, trim_dir, trim_offset, after_str, before_str)) {
+      if (!ret || !addTag(bc, name.empty() ? bc : name, group, mismatch, indel, total_dist, file, pos_start, pos_end, max_finds, min_finds, exclude, trim_dir, trim_offset, after_str, before_str, partial5_min_match, partial5_mismatch_freq, partial3_min_match, partial3_mismatch_freq)) {
         std::cerr << "Error: The file \"" << config_file << "\" contains an error" << std::endl;
         return false;
       }
@@ -1165,6 +1238,12 @@ struct SplitCode {
               continue;
             }
           }
+        }
+        if (tag.partial5 && pos != 0) {
+          continue;
+        }
+        if (tag.partial3 && pos+curr_k != l) {
+          continue;
         }
         if (containsRegion(tag.file, tag.pos_start, tag.pos_end, file, pos, pos+curr_k, l)) {
           if (!look_for_initiator || (look_for_initiator && tags_vec[tag_id_].initiator)) {
@@ -1348,6 +1427,38 @@ struct SplitCode {
       }
     } catch (std::exception &e) {
       std::cerr << "Error: Could not convert \"" << dist_attribute << "\" to int in distance string" << std::endl;
+      return false;
+    }
+    return true;
+  }
+  
+  static bool parsePartialStr(const std::string& s, int& min_match, double& mismatch_freq) {
+    mismatch_freq = 0;
+    min_match = 0;
+    if (s.empty()) {
+      return true;
+    }
+    char delimeter = ':';
+    std::stringstream ss(s);
+    std::string s_attribute;
+    int i = 0;
+    try {
+      while (std::getline(ss, s_attribute, delimeter)) {
+        if (!s_attribute.empty()) {
+          if (i == 0) {
+            min_match = std::stoi(s_attribute);
+          } else if (i == 1) {
+            mismatch_freq = std::stod(s_attribute);
+          }
+        }
+        i++;
+      }
+      if (i > 2 || min_match < 2 || mismatch_freq < 0 || mismatch_freq >= 1) {
+        std::cerr << "Error: Partial option is invalid: \"" << s << "\"" << std::endl;
+        return false;
+      }
+    } catch (std::exception &e) {
+      std::cerr << "Error: Partial option is invalid: \"" << s << "\"" << std::endl;
       return false;
     }
     return true;
