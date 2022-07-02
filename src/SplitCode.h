@@ -1435,7 +1435,7 @@ struct SplitCode {
   static bool parsePartialStr(const std::string& s, int& min_match, double& mismatch_freq) {
     mismatch_freq = 0;
     min_match = 0;
-    if (s.empty()) {
+    if (s.empty() || s == " " || s == "0") {
       return true;
     }
     char delimeter = ':';

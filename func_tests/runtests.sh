@@ -151,5 +151,7 @@ checkcmdoutput "$splitcode --trim-only --barcodes=CCAAA --partial5=3:0.34 --left
 checkcmdoutput "$splitcode --trim-only --barcodes=CCAAA --partial5=4:0.34 --left=1 --pipe $test_dir/test.fq" cb52b79ed7469ca2ffe5739ec544b157
 checkcmdoutput "$splitcode --trim-only --barcodes=CCAAA --partial5=2:0.34 --left=1 --pipe $test_dir/test.fq" c6eba12c36e53301f23a9823c2901f24
 checkcmdoutput "$splitcode --trim-only --barcodes=CCAAA,CCGGAA --partial5=2:0.34, --partial3=,4 --left=1,0 --right=0,1 --pipe $test_dir/test.fq" 5d4541fb96da328d07ab9189216cf4a5
+checkcmdoutput "$splitcode --trim-only --barcodes=CCGC -l 0:-4:0 --partial3=4:0.25 --right=1 --pipe $test_dir/test.fq" 11b55a195b5976331305569416db5bd4
+checkcmdoutput "$splitcode --trim-only --barcodes=CCGG,CCGG -i a,b -l 0:-4:9,1:-4:10 --partial3=2,2 --right=1,1 -N 2 --pipe $test_dir/test.fq $test_dir/test.fq" 6807e3ba911fde8fb437f693d055c11f
 
 
