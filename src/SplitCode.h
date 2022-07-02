@@ -1190,7 +1190,7 @@ struct SplitCode {
   
   bool getTag(std::string& seq, uint32_t& tag_id, int file, int pos, int& k, int l, bool look_for_initiator = false,
               bool search_tag_name_after = false, bool search_group_after = false, uint32_t search_id_after = -1,
-              bool search_tag_before = false, uint32_t group_curr = -1, uint32_t name_id_curr = -1, int end_pos_curr = 0) {
+              bool search_tag_before = false, uint32_t group_curr_ = -1, uint32_t name_id_curr_ = -1, int end_pos_curr = 0) {
     checkInit();
     int k_expanded = k;
     uint32_t updated_tag_id;
@@ -1226,9 +1226,9 @@ struct SplitCode {
           if (!search_tag_before) {
             continue;
           }
-          if (tag.has_before && tag.id_before != name_id_curr) {
+          if (tag.has_before && tag.id_before != name_id_curr_) {
             continue;
-          } else if (tag.has_before_group && tag.id_before != group_curr) {
+          } else if (tag.has_before_group && tag.id_before != group_curr_) {
             continue;
           } else {
             if (pos-end_pos_curr < tag.extra_before) {
@@ -2412,8 +2412,8 @@ struct SplitCode {
       bool right_trim_found = false;
       auto& kmers = kmer_size_locations[file];
       bool search_tag_before = false;
-      uint32_t group_curr;
-      uint32_t name_id_curr;
+      uint32_t group_curr = std::numeric_limits<uint32_t>::max();
+      uint32_t name_id_curr = std::numeric_limits<uint32_t>::max();
       bool search_tag_name_after = false;
       bool search_group_after = false;
       uint32_t search_id_after;
