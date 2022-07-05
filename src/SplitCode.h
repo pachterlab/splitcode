@@ -41,10 +41,11 @@ struct SplitCode {
     quality_trimming_naive = false;
     quality_trimming_threshold = -1;
     phred64 = false;
+    num_reads_set = false;
     setNFiles(0);
   }
   
-  SplitCode(int nFiles, bool trim_only = false, bool disable_n = true,
+  SplitCode(int nFiles, std::string summary_file = "", bool trim_only = false, bool disable_n = true,
             std::string trim_5_str = "", std::string trim_3_str = "", std::string extract_str = "", std::string barcode_prefix = "",
             std::string filter_length_str = "", bool quality_trimming_5 = false, bool quality_trimming_3 = false,
             bool quality_trimming_pre = false, bool quality_trimming_naive = false, int quality_trimming_threshold = -1, bool phred64 = false) {
@@ -58,6 +59,8 @@ struct SplitCode {
     n_tag_entries = 0;
     curr_barcode_mapping_i = 0;
     curr_umi_id_i = 0;
+    num_reads_set = false;
+    this->summary_file = summary_file;
     this->trim_5_str = trim_5_str;
     this->trim_3_str = trim_3_str;
     this->extract_str = extract_str;
@@ -72,6 +75,39 @@ struct SplitCode {
     setNFiles(nFiles);
     setTrimOnly(trim_only);
     setRandomReplacement(!disable_n);
+  }
+  
+  void writeSummary(std::string fname = "") {
+    fname = fname.empty() ? this->summary_file : fname;
+    if (fname.empty()) {
+      return;
+    }
+    std::ofstream of;
+    of.open(fname);
+    if (!of.is_open()) {
+      std::cerr << "Error: Couldn't open file: " << fname << std::endl;
+      exit(1);
+    }
+    of << "{" << "\n";
+    of << "\t" << "\"splitcode_version\": " << SPLITCODE_VERSION << ",\n";
+    of << "\t" << "\"n_fastqs\": " << nFiles << ",\n";
+    if (num_reads_set)
+      of << "\t" << "\"n_processed\": " << num_reads << ",\n";
+    if (!always_assign || num_reads_set)
+      of << "\t" << "\"n_assigned\": " << (always_assign ? num_reads : getNumMapped()) << ",\n";
+    of << "\t" << "\"tags_info\": " << "{" << "\n";
+      of << "\t\t" << "\"n_tags\": " << getNumTagsOriginallyAdded() << ",\n";
+      of << "\t\t" << "\"n_tag_ids\": " << names.size() << ",\n";
+      of << "\t\t" << "\"n_tag_groups\": " << group_names.size() << "\n";
+    of << "\t" << "}," << "\n";
+    of << "\t" << "\"developer_use_info\": " << "{" << "\n";
+      of << "\t\t" << "\"tags_vector_size\": " << getNumTags() << ",\n";
+      of << "\t\t" << "\"tags_map_size\": " << getMapSize() << ",\n";
+      of << "\t\t" << "\"num_elements_in_tags_map\": " << getMapSize(false) << ",\n";
+      of << "\t\t" << "\"always_assign\": " << always_assign << "\n";
+    of << "\t" << "}" << "\n";
+    of << "}" << std::endl;
+    of.close();
   }
   
   void setNFiles(int nFiles) {
@@ -1091,8 +1127,8 @@ struct SplitCode {
           std::transform(field.begin(), field.end(), field.begin(), ::toupper);
           h.push_back(field);
         }
-        if (std::find(h.begin(), h.end(), "BARCODES") == h.end()) {
-          std::cerr << "Error: The file \"" << config_file << "\" must contain a header with, minimally, a column header named barcodes" << std::endl;
+        if (std::find(h.begin(), h.end(), "BARCODES") == h.end() && std::find(h.begin(), h.end(), "TAGS") == h.end()) {
+          std::cerr << "Error: The file \"" << config_file << "\" must contain a header with, minimally, a column header named tags" << std::endl;
           return false;
         }
         if (std::set<std::string>(h.begin(), h.end()).size() != h.size()) {
@@ -1128,7 +1164,7 @@ struct SplitCode {
       bool exclude = false;
       bool ret = true;
       for (int i = 0; ss >> field; i++) {
-        if (h[i] == "BARCODES") {
+        if (h[i] == "BARCODES" || h[i] == "TAGS") {
           bc = field;
         } else if (h[i] == "DISTANCES") {
           ret = ret && parseDistance(field, mismatch, indel, total_dist);
@@ -1168,7 +1204,7 @@ struct SplitCode {
         }
       }
       if (trim_left && trim_right) {
-        std::cerr << "Error: One of the barcodes has both left and right trimming specified" << std::endl;
+        std::cerr << "Error: One of the tags has both left and right trimming specified" << std::endl;
         ret = false;
       }
       auto trim_dir = trim_left ? left : (trim_right ? right : nodir);
@@ -2752,6 +2788,11 @@ struct SplitCode {
     return FAKE_BARCODE_LEN+barcode_prefix.length();
   }
   
+  void setNumReads(size_t num_reads) {
+    this->num_reads = num_reads;
+    this->num_reads_set = true;
+  }
+  
   static std::string binaryToString(uint64_t x, size_t len) {
     std::string s(len, 'N');
     size_t sh = len-1;
@@ -2852,6 +2893,11 @@ struct SplitCode {
   std::string filter_length_str;
   std::vector<std::pair<int,int>> trim_5_3_vec;
   std::vector<std::pair<int,int>> filter_length_vec;
+  
+  std::string summary_file;
+  
+  size_t num_reads;
+  bool num_reads_set;
   
   bool init;
   bool discard_check;

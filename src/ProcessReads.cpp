@@ -70,10 +70,12 @@ int64_t ProcessReads(MasterProcessor& MP, const  ProgramOptions& opt) {
   if (MP.verbose) {
     std::cerr << "* processed " << pretty_num(numreads) << " reads";
     if (!MP.sc.always_assign) {
-      std::cerr << ", " << pretty_num(nummapped) << " reads had identifiable barcodes";
+      std::cerr << ", " << pretty_num(nummapped) << " reads were assigned";
     }
     std::cerr << std::endl;
   }
+  
+  MP.sc.setNumReads(numreads);
   
   return numreads;
 }
@@ -408,7 +410,7 @@ void ReadProcessor::processBuffer() {
         if (!mp.sc.always_assign) {
           std::cerr << " (" 
             << std::fixed << std::setw( 3 ) << std::setprecision( 1 ) << ((100.0*nummapped)/double(mp.numreads))
-            << "% identified)";
+            << "% assigned)";
         } else {
           std::cerr << " (running in --trim-only mode)";
         }

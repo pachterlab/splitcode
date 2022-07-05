@@ -53,30 +53,30 @@ void usage() {
   cout << "splitcode " << SPLITCODE_VERSION << endl << endl
        << "Usage: splitcode [arguments] fastq-files" << endl << endl
        << "Sequence identification options (for configuring on the command-line):" << endl
-       << "-b, --barcodes   List of barcode sequences (comma-separated)" << endl
+       << "-b, --tags       List of tag sequences (comma-separated)" << endl
        << "-d, --distances  List of error distance (mismatch:indel:total) thresholds (comma-separated)" << endl
        << "-l, --locations  List of locations (file:pos1:pos2) (comma-separated)" << endl
-       << "-i, --ids        List of barcode names/identifiers (comma-separated)" << endl
-       << "-g, --groups     List of barcode group names (comma-separated)" << endl
-       << "-f, --minFinds   List of minimum times a barcode must be found in a read (comma-separated)" << endl
-       << "-F, --maxFinds   List of maximum times a barcode can be found in a read (comma-separated)" << endl
-       << "-j, --minFindsG  List of minimum times barcodes in a group must be found in a read (comma-separated group_name:min_times)" << endl
-       << "-J, --maxFindsG  List of maximum times barcodes in a group can be found in a read (comma-separated group_name:max_times)" << endl
+       << "-i, --ids        List of tag names/identifiers (comma-separated)" << endl
+       << "-g, --groups     List of tag group names (comma-separated)" << endl
+       << "-f, --minFinds   List of minimum times a tag must be found in a read (comma-separated)" << endl
+       << "-F, --maxFinds   List of maximum times a tag can be found in a read (comma-separated)" << endl
+       << "-j, --minFindsG  List of minimum times tags in a group must be found in a read (comma-separated group_name:min_times)" << endl
+       << "-J, --maxFindsG  List of maximum times tags in a group can be found in a read (comma-separated group_name:max_times)" << endl
        << "-e, --exclude    List of what to exclude from final barcode (comma-separated; 1 = exclude, 0 = include)" << endl
-       << "-L, --left       List of what barcodes to include when trimming from the left (comma-separated; 1 = include, 0 = exclude)" << endl
-       << "-R, --right      List of what barcodes to include when trimming from the right (comma-separated; 1 = include, 0 = exclude)" << endl
-       << "                 (Note: for --left/--right, can specify an included barcode as 1:x where x = number of extra bp's to trim" << endl
-       << "                 from left/right side if the that included barcode is at the leftmost/rightmost position)" << endl
-       << "-a, --next       List of what barcode names must come immediately after each barcode (comma-separated)" << endl
-       << "-v, --previous   List of what barcode names must come immediately before each barcode (comma-separated)" << endl
-       << "                 (Note: for --next/--previous, specify barcode names as {name} and specify barcode group names as {{group}}" << endl
-       << "                 Can also specify the number of base pairs that must appear between the current barcode and the next/previous barcode." << endl
-       << "                 E.g. {bc}4-12 means the next/previous barcode is 4-12 bases away and has name 'bc')" << endl
-       << "-z, --partial5   Specifies barcode may be truncated at the 5′ end (comma-separated min_match:mismatch_freq)" << endl
-       << "-Z, --partial3   Specifies barcode may be truncated at the 3′ end (comma-separated min_match:mismatch_freq)" << endl
+       << "-L, --left       List of what tags to include when trimming from the left (comma-separated; 1 = include, 0 = exclude)" << endl
+       << "-R, --right      List of what tags to include when trimming from the right (comma-separated; 1 = include, 0 = exclude)" << endl
+       << "                 (Note: for --left/--right, can specify an included tag as 1:x where x = number of extra bp's to trim" << endl
+       << "                 from left/right side if that included tag is at the leftmost/rightmost position)" << endl
+       << "-a, --next       List of what tag names must come immediately after each tag (comma-separated)" << endl
+       << "-v, --previous   List of what tag names must come immediately before each tag (comma-separated)" << endl
+       << "                 (Note: for --next/--previous, specify tag names as {name} and specify tag group names as {{group}}" << endl
+       << "                 Can also specify the number of base pairs that must appear between the current tag and the next/previous tag." << endl
+       << "                 E.g. {bc}4-12 means the next/previous tag is 4-12 bases away and has name 'bc')" << endl
+       << "-z, --partial5   Specifies tag may be truncated at the 5′ end (comma-separated min_match:mismatch_freq)" << endl
+       << "-Z, --partial3   Specifies tag may be truncated at the 3′ end (comma-separated min_match:mismatch_freq)" << endl
        << "Read modification and extraction options (for configuring on the command-line):" << endl
        << "-x, --extract    Pattern(s) describing how to extract UMI and UMI-like sequences from reads" << endl
-       << "                 (E.g. {bc}2<umi_1[5]> means extract a 5-bp UMI sequence, called umi_1, 2 base pairs following the barcode named 'bc')" << endl
+       << "                 (E.g. {bc}2<umi_1[5]> means extract a 5-bp UMI sequence, called umi_1, 2 base pairs following the tag named 'bc')" << endl
        << "-5, --trim-5     Number of base pairs to trim from the 5′-end of reads (comma-separated; one number per each FASTQ file in a run)" << endl
        << "-3, --trim-3     Number of base pairs to trim from the 3′-end of reads (comma-separated; one number per each FASTQ file in a run)" << endl
        << "-w, --filter-len Filter reads based on length (min_length:max_length)" << endl
@@ -101,7 +101,7 @@ void usage() {
        << "-p, --pipe       Write to standard output (instead of output FASTQ files)" << endl
        << "    --gzip       Output compressed gzip'ed FASTQ files" << endl
        << "    --no-output  Don't output any sequences (output statistics only)" << endl
-       << "    --no-outb    Don't output barcode sequences" << endl
+       << "    --no-outb    Don't output final barcode sequences" << endl
        << "    --no-x-out   Don't output extracted UMI-like sequences (should be used with --x-names)" << endl
        << "    --mod-names  Modify names of outputted sequences to include identified barcodes" << endl
        << "    --com-names  Modify names of outputted sequences to include final barcode sequence ID" << endl
@@ -112,12 +112,13 @@ void usage() {
        << "                 (default: 1) (specify 2 for paired-end)" << endl
        << "-n, --numReads   Maximum number of reads to process from supplied input" << endl
        << "-A, --append     An existing mapping file that will be added on to" << endl
-       << "-k, --keep       File containing a list of final barcodes to keep" << endl
-       << "-r, --remove     File containing a list of final barcodes to remove/discard" << endl
-       << "-y, --keep-grp   File containing a list of final barcode groups to keep" << endl
-       << "-Y, --remove-grp File containing a list of final barcode groups to remove/discard" << endl
+       << "-k, --keep       File containing a list of arrangements of tag names to keep" << endl
+       << "-r, --remove     File containing a list of arrangements of tag names to remove/discard" << endl
+       << "-y, --keep-grp   File containing a list of arrangements of tag groups to keep" << endl
+       << "-Y, --remove-grp File containing a list of arrangements of tag groups to remove/discard" << endl
        << "-t, --threads    Number of threads to use" << endl
-       << "-T, --trim-only  All reads are assigned and trimmed regardless of barcode identification" << endl
+       << "-T, --trim-only  All reads are assigned and trimmed regardless of what tags are present" << endl
+       << "-s, --summary    File where summary statistics will be written to" << endl
        << "-h, --help       Displays usage information" << endl
        << "    --inleaved   Specifies that input is an interleaved FASTQ file" << endl
        << "    --version    Prints version number" << endl
@@ -144,7 +145,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   int qtrim_naive_flag = 0;
   int phred64_flag = 0;
 
-  const char *opt_string = "t:N:n:b:d:i:l:f:F:e:c:o:O:u:m:k:r:A:L:R:E:g:y:Y:j:J:a:v:z:Z:5:3:w:x:P:q:Tph";
+  const char *opt_string = "t:N:n:b:d:i:l:f:F:e:c:o:O:u:m:k:r:A:L:R:E:g:y:Y:j:J:a:v:z:Z:5:3:w:x:P:q:s:Tph";
   static struct option long_options[] = {
     // long args
     {"version", no_argument, &version_flag, 1},
@@ -171,7 +172,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"threads", required_argument, 0, 't'},
     {"nFastqs", required_argument, 0, 'N'},
     {"numReads", required_argument, 0, 'n'},
-    {"barcodes", required_argument, 0, 'b'},
+    {"tags", required_argument, 0, 'b'},
     {"distances", required_argument, 0, 'd'},
     {"locations", required_argument, 0, 'l'},
     {"ids", required_argument, 0, 'i'},
@@ -205,6 +206,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"filter-len", required_argument, 0, 'w'},
     {"extract", required_argument, 0, 'x'},
     {"prefix", required_argument, 0, 'P'},
+    {"summary", required_argument, 0, 's'},
     {0,0,0,0}
   };
   
@@ -399,6 +401,10 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
       stringstream(optarg) >> opt.quality_trimming_threshold;
       break;
     }
+    case 's': {
+      stringstream(optarg) >> opt.summary_file;
+      break;
+    }
     default: break;
     }
   }
@@ -589,7 +595,7 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
   
   int num_groups = 0;
   if (!opt.barcode_str.empty() && !opt.config_file.empty()) {
-    std::cerr << ERROR_STR << " Cannot specify both --barcodes and --config" << std::endl;
+    std::cerr << ERROR_STR << " Cannot specify both --tags and --config" << std::endl;
     ret = false;
   } else if (!opt.barcode_str.empty()) {
     stringstream ss1(opt.barcode_str);
@@ -633,7 +639,7 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
       if (!opt.distance_str.empty()) {
         auto currpos = ss2.tellg();
         if (!ss2.good()) {
-          std::cerr << ERROR_STR << " Number of values in --distances is less than that in --barcodes" << std::endl;
+          std::cerr << ERROR_STR << " Number of values in --distances is less than that in --tags" << std::endl;
           ret = false;
           break;
         }
@@ -650,7 +656,7 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
       }
       if (!opt.barcode_identifiers_str.empty()) {
         if (!ss3.good()) {
-          std::cerr << ERROR_STR << " Number of values in --ids is less than that in --barcodes" << std::endl;
+          std::cerr << ERROR_STR << " Number of values in --ids is less than that in --tags" << std::endl;
           ret = false;
           break;
         }
@@ -659,7 +665,7 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
       if (!opt.location_str.empty()) {
         auto currpos = ss4.tellg();
         if (!ss4.good()) {
-          std::cerr << ERROR_STR << " Number of values in --locations is less than that in --barcodes" << std::endl;
+          std::cerr << ERROR_STR << " Number of values in --locations is less than that in --tags" << std::endl;
           ret = false;
           break;
         }
@@ -677,7 +683,7 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
       if (!opt.max_finds_str.empty()) {
         auto currpos = ss5.tellg();
         if (!ss5.good()) {
-          std::cerr << ERROR_STR << " Number of values in --maxFinds is less than that in --barcodes" << std::endl;
+          std::cerr << ERROR_STR << " Number of values in --maxFinds is less than that in --tags" << std::endl;
           ret = false;
           break;
         }
@@ -692,7 +698,7 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
       if (!opt.min_finds_str.empty()) {
         auto currpos = ss6.tellg();
         if (!ss6.good()) {
-          std::cerr << ERROR_STR << " Number of values in --minFinds is less than that in --barcodes" << std::endl;
+          std::cerr << ERROR_STR << " Number of values in --minFinds is less than that in --tags" << std::endl;
           ret = false;
           break;
         }
@@ -706,7 +712,7 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
       }
       if (!opt.exclude_str.empty()) {
         if (!ss7.good()) {
-          std::cerr << ERROR_STR << " Number of values in --exclude is less than that in --barcodes" << std::endl;
+          std::cerr << ERROR_STR << " Number of values in --exclude is less than that in --tags" << std::endl;
           ret = false;
           break;
         }
@@ -717,7 +723,7 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
       if (!opt.left_str.empty()) {
         auto currpos = ss8.tellg();
         if (!ss8.good()) {
-          std::cerr << ERROR_STR << " Number of values in --left is less than that in --barcodes" << std::endl;
+          std::cerr << ERROR_STR << " Number of values in --left is less than that in --tags" << std::endl;
           ret = false;
           break;
         }
@@ -737,7 +743,7 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
       if (!opt.right_str.empty()) {
         auto currpos = ss9.tellg();
         if (!ss9.good()) {
-          std::cerr << ERROR_STR << " Number of values in --right is less than that in --barcodes" << std::endl;
+          std::cerr << ERROR_STR << " Number of values in --right is less than that in --tags" << std::endl;
           ret = false;
           break;
         }
@@ -755,7 +761,7 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
         break;
       }
       if (trim_left && trim_right) {
-        std::cerr << ERROR_STR << " One of the barcodes has both --left and --right trimming specified" << std::endl;
+        std::cerr << ERROR_STR << " One of the tags has both --left and --right trimming specified" << std::endl;
         ret = false;
         break;
       }
@@ -763,7 +769,7 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
       auto trim_offset = trim_left ? trim_left_offset : (trim_right ? trim_right_offset : 0);
       if (!opt.group_identifiers_str.empty()) {
         if (!ss10.good()) {
-          std::cerr << ERROR_STR << " Number of values in --groups is less than that in --barcodes" << std::endl;
+          std::cerr << ERROR_STR << " Number of values in --groups is less than that in --tags" << std::endl;
           ret = false;
           break;
         }
@@ -772,7 +778,7 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
       }
       if (!opt.after_str.empty()) {
         if (!ss11.good()) {
-          std::cerr << ERROR_STR << " Number of values in --next is less than that in --barcodes" << std::endl;
+          std::cerr << ERROR_STR << " Number of values in --next is less than that in --tags" << std::endl;
           ret = false;
           break;
         }
@@ -784,7 +790,7 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
       }
       if (!opt.before_str.empty()) {
         if (!ss12.good()) {
-          std::cerr << ERROR_STR << " Number of values in --previous is less than that in --barcodes" << std::endl;
+          std::cerr << ERROR_STR << " Number of values in --previous is less than that in --tags" << std::endl;
           ret = false;
           break;
         }
@@ -796,7 +802,7 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
       }
       if (!opt.partial5_str.empty()) {
         if (!ss13.good()) {
-          std::cerr << ERROR_STR << " Number of values in --partial5 is less than that in --barcodes" << std::endl;
+          std::cerr << ERROR_STR << " Number of values in --partial5 is less than that in --tags" << std::endl;
           ret = false;
           break;
         }
@@ -809,7 +815,7 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
       }
       if (!opt.partial3_str.empty()) {
         if (!ss14.good()) {
-          std::cerr << ERROR_STR << " Number of values in --partial3 is less than that in --barcodes" << std::endl;
+          std::cerr << ERROR_STR << " Number of values in --partial3 is less than that in --tags" << std::endl;
           ret = false;
           break;
         }
@@ -821,87 +827,87 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
         break;
       }
       if (!sc.addTag(bc, name.empty() ? bc : name, group, mismatch, indel, total_dist, file, pos_start, pos_end, max_finds, min_finds, exclude, trim_dir, trim_offset, after_str, before_str, partial5_min_match, partial5_mismatch_freq, partial3_min_match, partial3_mismatch_freq)) {
-        std::cerr << ERROR_STR << " Could not finish processing supplied barcode list" << std::endl;
+        std::cerr << ERROR_STR << " Could not finish processing supplied tags list" << std::endl;
         ret = false;
         break;
       }
     }
     if (ret && !opt.distance_str.empty() && ss2.good()) {
-      std::cerr << ERROR_STR << " Number of values in --distances is greater than that in --barcodes" << std::endl;
+      std::cerr << ERROR_STR << " Number of values in --distances is greater than that in --tags" << std::endl;
       ret = false;
     }
     if (ret && !opt.barcode_identifiers_str.empty() && ss3.good()) {
-      std::cerr << ERROR_STR << " Number of values in --ids is greater than that in --barcodes" << std::endl;
+      std::cerr << ERROR_STR << " Number of values in --ids is greater than that in --tags" << std::endl;
       ret = false;
     }
     if (ret && !opt.location_str.empty() && ss4.good()) {
-      std::cerr << ERROR_STR << " Number of values in --locations is greater than that in --barcodes" << std::endl;
+      std::cerr << ERROR_STR << " Number of values in --locations is greater than that in --tags" << std::endl;
       ret = false;
     }
     if (ret && !opt.max_finds_str.empty() && ss5.good()) {
-      std::cerr << ERROR_STR << " Number of values in --maxFinds is greater than that in --barcodes" << std::endl;
+      std::cerr << ERROR_STR << " Number of values in --maxFinds is greater than that in --tags" << std::endl;
       ret = false;
     }
     if (ret && !opt.min_finds_str.empty() && ss6.good()) {
-      std::cerr << ERROR_STR << " Number of values in --minFinds is greater than that in --barcodes" << std::endl;
+      std::cerr << ERROR_STR << " Number of values in --minFinds is greater than that in --tags" << std::endl;
       ret = false;
     }
     if (ret && !opt.exclude_str.empty() && ss7.good()) {
-      std::cerr << ERROR_STR << " Number of values in --exclude is greater than that in --barcodes" << std::endl;
+      std::cerr << ERROR_STR << " Number of values in --exclude is greater than that in --tags" << std::endl;
       ret = false;
     }
     if (ret && !opt.left_str.empty() && ss8.good()) {
-      std::cerr << ERROR_STR << " Number of values in --left is greater than that in --barcodes" << std::endl;
+      std::cerr << ERROR_STR << " Number of values in --left is greater than that in --tags" << std::endl;
       ret = false;
     }
     if (ret && !opt.right_str.empty() && ss9.good()) {
-      std::cerr << ERROR_STR << " Number of values in --right is greater than that in --barcodes" << std::endl;
+      std::cerr << ERROR_STR << " Number of values in --right is greater than that in --tags" << std::endl;
       ret = false;
     }
     if (ret && !opt.group_identifiers_str.empty() && ss10.good()) {
-      std::cerr << ERROR_STR << " Number of values in --groups is greater than that in --barcodes" << std::endl;
+      std::cerr << ERROR_STR << " Number of values in --groups is greater than that in --tags" << std::endl;
       ret = false;
     }
     if (ret && !opt.after_str.empty() && ss11.good()) {
-      std::cerr << ERROR_STR << " Number of values in --next is greater than that in --barcodes" << std::endl;
+      std::cerr << ERROR_STR << " Number of values in --next is greater than that in --tags" << std::endl;
       ret = false;
     }
     if (ret && !opt.before_str.empty() && ss12.good()) {
-      std::cerr << ERROR_STR << " Number of values in --previous is greater than that in --barcodes" << std::endl;
+      std::cerr << ERROR_STR << " Number of values in --previous is greater than that in --tags" << std::endl;
       ret = false;
     }
   } else if (!opt.distance_str.empty()) {
-    std::cerr << ERROR_STR << " --distances cannot be supplied unless --barcodes is" << std::endl;
+    std::cerr << ERROR_STR << " --distances cannot be supplied unless --tags is" << std::endl;
     ret = false;
   } else if (!opt.barcode_identifiers_str.empty()) {
-    std::cerr << ERROR_STR << " --ids cannot be supplied unless --barcodes is" << std::endl;
+    std::cerr << ERROR_STR << " --ids cannot be supplied unless --tags is" << std::endl;
     ret = false;
   } else if (!opt.location_str.empty()) {
-    std::cerr << ERROR_STR << " --locations cannot be supplied unless --barcodes is" << std::endl;
+    std::cerr << ERROR_STR << " --locations cannot be supplied unless --tags is" << std::endl;
     ret = false;
   } else if (!opt.max_finds_str.empty()) {
-    std::cerr << ERROR_STR << " --maxFinds cannot be supplied unless --barcodes is" << std::endl;
+    std::cerr << ERROR_STR << " --maxFinds cannot be supplied unless --tags is" << std::endl;
     ret = false;
   } else if (!opt.min_finds_str.empty()) {
-    std::cerr << ERROR_STR << " --minFinds cannot be supplied unless --barcodes is" << std::endl;
+    std::cerr << ERROR_STR << " --minFinds cannot be supplied unless --tags is" << std::endl;
     ret = false;
   } else if (!opt.exclude_str.empty()) {
-    std::cerr << ERROR_STR << " --exclude cannot be supplied unless --barcodes is" << std::endl;
+    std::cerr << ERROR_STR << " --exclude cannot be supplied unless --tags is" << std::endl;
     ret = false;
   } else if (!opt.left_str.empty()) {
-    std::cerr << ERROR_STR << " --left cannot be supplied unless --barcodes is" << std::endl;
+    std::cerr << ERROR_STR << " --left cannot be supplied unless --tags is" << std::endl;
     ret = false;
   } else if (!opt.right_str.empty()) {
-    std::cerr << ERROR_STR << " --right cannot be supplied unless --barcodes is" << std::endl;
+    std::cerr << ERROR_STR << " --right cannot be supplied unless --tags is" << std::endl;
     ret = false;
   } else if (!opt.group_identifiers_str.empty()) {
-    std::cerr << ERROR_STR << " --groups cannot be supplied unless --barcodes is" << std::endl;
+    std::cerr << ERROR_STR << " --groups cannot be supplied unless --tags is" << std::endl;
     ret = false;
   } else if (!opt.after_str.empty()) {
-    std::cerr << ERROR_STR << " --next cannot be supplied unless --barcodes is" << std::endl;
+    std::cerr << ERROR_STR << " --next cannot be supplied unless --tags is" << std::endl;
     ret = false;
   } else if (!opt.before_str.empty()) {
-    std::cerr << ERROR_STR << " --previous cannot be supplied unless --barcodes is" << std::endl;
+    std::cerr << ERROR_STR << " --previous cannot be supplied unless --tags is" << std::endl;
     ret = false;
   } else if (!opt.config_file.empty()) {
     ret = ret && sc.addTags(opt.config_file);
@@ -987,7 +993,7 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
   }
   
   if (ret && (sc.getNumTags() == 0 || sc.getMapSize() == 0)) {
-    /*std::cerr << ERROR_STR << " No barcodes found" << std::endl;
+    /*std::cerr << ERROR_STR << " No tags found" << std::endl;
     ret = false;*/
     sc.checkInit();
   }
@@ -1001,7 +1007,7 @@ int main(int argc, char *argv[]) {
   setvbuf(stdout, NULL, _IOFBF, 1048576);
   ProgramOptions opt;
   ParseOptions(argc,argv,opt);
-  SplitCode sc(opt.nfiles, opt.trim_only, opt.disable_n, opt.trim_5_str, opt.trim_3_str, opt.extract_str, opt.barcode_prefix, opt.filter_length_str,
+  SplitCode sc(opt.nfiles, opt.summary_file, opt.trim_only, opt.disable_n, opt.trim_5_str, opt.trim_3_str, opt.extract_str, opt.barcode_prefix, opt.filter_length_str,
                opt.quality_trimming_5, opt.quality_trimming_3, opt.quality_trimming_pre, opt.quality_trimming_naive, opt.quality_trimming_threshold, opt.phred64);
   if (!CheckOptions(opt, sc)) {
     usage();
@@ -1039,7 +1045,7 @@ int main(int argc, char *argv[]) {
   
   if (opt.verbose) {
     std::cerr << "* Using a list of " << sc.getNumTagsOriginallyAdded() << 
-      " barcodes (vector size: " << sc.getNumTags() << 
+      " tags (vector size: " << sc.getNumTags() << 
       "; map size: " << pretty_num(sc.getMapSize()) << 
       "; num elements in map: " << pretty_num(sc.getMapSize(false)) << ")" << std::endl;
   }
@@ -1058,6 +1064,8 @@ int main(int argc, char *argv[]) {
       gzclose(out_gz);
     }
   }
+  
+  sc.writeSummary();
   
   if (opt.max_num_reads != 0 && numreads < opt.max_num_reads) {
     std::cerr << "Note: Number of reads processed is less than --numReads: " << opt.max_num_reads << ", returning 1" << std::endl;

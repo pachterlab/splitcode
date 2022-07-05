@@ -66,6 +66,7 @@ struct ProgramOptions {
   std::string filter_length_str;
   std::string extract_str;
   std::string barcode_prefix;
+  std::string summary_file;
   
   ProgramOptions() :
     threads(1),
