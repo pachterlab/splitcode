@@ -42,6 +42,7 @@ struct SplitCode {
     quality_trimming_threshold = -1;
     phred64 = false;
     num_reads_set = false;
+    summary_n_reads_filtered = 0;
     setNFiles(0);
   }
   
@@ -60,6 +61,7 @@ struct SplitCode {
     curr_barcode_mapping_i = 0;
     curr_umi_id_i = 0;
     num_reads_set = false;
+    summary_n_reads_filtered = 0;
     this->summary_file = summary_file;
     this->trim_5_str = trim_5_str;
     this->trim_3_str = trim_3_str;
@@ -90,15 +92,25 @@ struct SplitCode {
     }
     of << "{" << "\n";
     of << "\t" << "\"splitcode_version\": " << SPLITCODE_VERSION << ",\n";
+    of << "\t" << "\"barcode_prefix\": \"" << barcode_prefix << "\",\n";
     of << "\t" << "\"n_fastqs\": " << nFiles << ",\n";
-    if (num_reads_set)
+    if (num_reads_set) {
       of << "\t" << "\"n_processed\": " << num_reads << ",\n";
-    if (!always_assign || num_reads_set)
+      of << "\t" << "\"n_reads_max\": " << (max_num_reads == 0 ? num_reads : max_num_reads) << ",\n";
+    }
+    if (!always_assign || num_reads_set) {
       of << "\t" << "\"n_assigned\": " << (always_assign ? num_reads : getNumMapped()) << ",\n";
+    }
     of << "\t" << "\"tags_info\": " << "{" << "\n";
       of << "\t\t" << "\"n_tags\": " << getNumTagsOriginallyAdded() << ",\n";
       of << "\t\t" << "\"n_tag_ids\": " << names.size() << ",\n";
       of << "\t\t" << "\"n_tag_groups\": " << group_names.size() << "\n";
+    of << "\t" << "}," << "\n";
+    of << "\t" << "\"trimming_info\": " << "{" << "\n";
+      of << "\t\t" << "\"trim_5_bases\": " << "\"" << trim_5_str << "\"" << ",\n";
+      of << "\t\t" << "\"trim_3_bases\": " << "\"" << trim_3_str << "\"" << ",\n";
+      of << "\t\t" << "\"filter_len\": " << "\"" << filter_length_str << "\"" << ",\n";
+      of << "\t\t" << "\"n_reads_filtered_out\": " << summary_n_reads_filtered << "\n";
     of << "\t" << "}," << "\n";
     of << "\t" << "\"developer_use_info\": " << "{" << "\n";
       of << "\t\t" << "\"tags_vector_size\": " << getNumTags() << ",\n";
@@ -2665,7 +2677,13 @@ struct SplitCode {
   
   void update(std::vector<Results>& rv) {
     // Should only be called under a lock (can't have multiple threads accessing a common container)
+    bool update_summary = !summary_file.empty();
     for (auto& r : rv) {
+      if (update_summary) {
+        if (!r.passes_filter) {
+          summary_n_reads_filtered++;
+        }
+      }
       auto& u = r.name_ids;
       if (u.empty() || !isAssigned(r)) {
         continue;
@@ -2788,9 +2806,10 @@ struct SplitCode {
     return FAKE_BARCODE_LEN+barcode_prefix.length();
   }
   
-  void setNumReads(size_t num_reads) {
+  void setNumReads(size_t num_reads, size_t max_num_reads = 0) {
     this->num_reads = num_reads;
     this->num_reads_set = true;
+    this->max_num_reads = max_num_reads;
   }
   
   static std::string binaryToString(uint64_t x, size_t len) {
@@ -2896,8 +2915,10 @@ struct SplitCode {
   
   std::string summary_file;
   
-  size_t num_reads;
+  size_t num_reads, max_num_reads;
   bool num_reads_set;
+  
+  size_t summary_n_reads_filtered;
   
   bool init;
   bool discard_check;
