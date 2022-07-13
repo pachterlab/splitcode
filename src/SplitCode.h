@@ -90,6 +90,16 @@ struct SplitCode {
       std::cerr << "Error: Couldn't open file: " << fname << std::endl;
       exit(1);
     }
+    auto v_to_csv = [](std::vector<size_t> v)  { 
+      std::stringstream ss;
+      for (int i = 0; i < v.size(); i++) {
+        if (i != 0) {
+          ss << ", ";
+        }
+        ss << v[i];
+      }
+      return ss.str();
+    };
     of << "{" << "\n";
     of << "\t" << "\"splitcode_version\": " << SPLITCODE_VERSION << ",\n";
     of << "\t" << "\"barcode_prefix\": \"" << barcode_prefix << "\",\n";
@@ -110,7 +120,11 @@ struct SplitCode {
       of << "\t\t" << "\"trim_5_bases\": " << "\"" << trim_5_str << "\"" << ",\n";
       of << "\t\t" << "\"trim_3_bases\": " << "\"" << trim_3_str << "\"" << ",\n";
       of << "\t\t" << "\"filter_len\": " << "\"" << filter_length_str << "\"" << ",\n";
-      of << "\t\t" << "\"n_reads_filtered_out\": " << summary_n_reads_filtered << "\n";
+      of << "\t\t" << "\"n_reads_filtered_out\": " << summary_n_reads_filtered << ",\n";
+      of << "\t\t" << "\"n_reads_total_trimmed_5\": [" << v_to_csv(summary_n_reads_total_trimmed_5) << "],\n";
+      of << "\t\t" << "\"n_reads_total_trimmed_3\": [" << v_to_csv(summary_n_reads_total_trimmed_3) << "],\n";
+      of << "\t\t" << "\"n_bases_total_trimmed_5\": [" << v_to_csv(summary_n_bases_total_trimmed_5) << "],\n";
+      of << "\t\t" << "\"n_bases_total_trimmed_3\": [" << v_to_csv(summary_n_bases_total_trimmed_3) << "]\n";
     of << "\t" << "}," << "\n";
     of << "\t" << "\"developer_use_info\": " << "{" << "\n";
       of << "\t\t" << "\"tags_vector_size\": " << getNumTags() << ",\n";
@@ -127,6 +141,12 @@ struct SplitCode {
       return;
     }
     this->nFiles = nFiles;
+    if (nFiles > 0) {
+      summary_n_bases_total_trimmed_5.resize(nFiles, 0);
+      summary_n_bases_total_trimmed_3.resize(nFiles, 0);
+      summary_n_reads_total_trimmed_5.resize(nFiles, 0);
+      summary_n_reads_total_trimmed_3.resize(nFiles, 0);
+    }
   }
   
   void setTrimOnly(bool trim_only) {
@@ -623,6 +643,7 @@ struct SplitCode {
     std::vector<uint32_t> name_ids;
     std::vector<std::string> umi_data;
     std::vector<std::pair<int,std::pair<int,int>>> modtrim;
+    std::vector<int> og_len;
     int id;
     bool discard;
     bool passes_filter;
@@ -2410,6 +2431,8 @@ struct SplitCode {
       umi_data.resize(umi_names.size());
     }
     int n = std::min(jmax, (int)kmer_size_locations.size());
+    results.og_len.reserve(jmax);
+    results.og_len.assign(l.begin(), l.begin()+jmax); 
     for (int j = 0; j < jmax; j++) {
       int file = j;
       int readLength = l[file];
@@ -2683,6 +2706,21 @@ struct SplitCode {
         if (!r.passes_filter) {
           summary_n_reads_filtered++;
         }
+        for (auto& mt : r.modtrim) {
+          int j = mt.first;
+          int leftOffset = mt.second.first;
+          int readLength = mt.second.second;
+          int og_readLength = r.og_len[j];
+          int rightOffset = og_readLength - (readLength+leftOffset);
+          if (leftOffset > 0) {
+            summary_n_reads_total_trimmed_5[j]++;
+            summary_n_bases_total_trimmed_5[j] += leftOffset;
+          }
+          if (rightOffset > 0) {
+            summary_n_reads_total_trimmed_3[j]++;
+            summary_n_bases_total_trimmed_3[j] += rightOffset;
+          }
+        }
       }
       auto& u = r.name_ids;
       if (u.empty() || !isAssigned(r)) {
@@ -2919,6 +2957,7 @@ struct SplitCode {
   bool num_reads_set;
   
   size_t summary_n_reads_filtered;
+  std::vector<size_t> summary_n_bases_total_trimmed_5, summary_n_bases_total_trimmed_3, summary_n_reads_total_trimmed_5, summary_n_reads_total_trimmed_3;
   
   bool init;
   bool discard_check;
