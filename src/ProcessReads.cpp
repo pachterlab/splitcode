@@ -396,11 +396,10 @@ void ReadProcessor::processBuffer() {
     
     SplitCode::Results results;
     mp.sc.processRead(s, l, jmax, results, q);
-    rv.push_back(results);
-    
     if (mp.sc.isAssigned(results)) { // Only modify/trim the reads stored in seq if assigned
       mp.sc.modifyRead(seqs, quals, i-incf, results);
     }
+    rv.push_back(results);
 
     if (numreads > 0 && numreads % 1000000 == 0 && mp.verbose) { 
         numreads = 0; // reset counter
