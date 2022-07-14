@@ -193,8 +193,12 @@ struct SplitCode {
     of << "\t" << "}," << "\n";
     of << "\t" << "\"extraction_info\": " << "[" << "\n";
     for (int umi_index = 0; umi_index < umi_names.size(); umi_index++) { // Iterate through vector of all UMI names
-      of << "\t\t" << "{ " << "\"name\": \"" << umi_names[umi_index] << "\""
-         << " }" << ((umi_index == umi_names.size()-1) ? "\n" : ",\n");
+      of << "\t\t" << "{ " << "\"name\": \"" << umi_names[umi_index] << "\", "
+         << "\"n_reads\": " << summary_n_umis[umi_index] << ", "
+         << "\"length_mean\": " << std::fixed << std::setprecision(1) << (summary_n_umis[umi_index] == 0 ? 0 : (summary_umi_length[umi_index] / static_cast<double>(summary_n_umis[umi_index]))) << ", "
+         << "\"length_min\": " << summary_umi_length_min[umi_index] << ", "
+         << "\"length_max\": " << summary_umi_length_max[umi_index] << " "
+         << "}" << ((umi_index == umi_names.size()-1) ? "\n" : ",\n");
     }
     of << "\t" << "]," << "\n";
     of << "\t" << "\"developer_use_info\": " << "{" << "\n";
@@ -2095,6 +2099,11 @@ struct SplitCode {
         umi.name_id = name_it - umi_names.begin();
       }
       bool ret = process_umi(name1, true, false) && process_umi(name2, false, false) && process_umi(name1, true, true) && process_umi(name2, false, true);
+      // Resize summary vectors to be size of umi_names
+      summary_n_umis.resize(umi_names.size(), 0);
+      summary_umi_length.resize(umi_names.size(), 0);
+      summary_umi_length_min.resize(umi_names.size(), -1);
+      summary_umi_length_max.resize(umi_names.size(), -1);
       if (!ret) {
         return false;
       }
@@ -2843,7 +2852,7 @@ struct SplitCode {
         }
         for (int j = 0; j < nFiles; j++) {
           // Update read lengths summary
-          auto og_len = r.og_len[j];
+          int og_len = r.og_len[j];
           summary_read_length_pre[j] += og_len;
           summary_read_length_min_pre[j] = og_len < summary_read_length_min_pre[j] || summary_read_length_min_pre[j] == -1 ? og_len : summary_read_length_min_pre[j];
           summary_read_length_max_pre[j] = og_len > summary_read_length_max_pre[j] ? og_len : summary_read_length_max_pre[j];
@@ -2865,6 +2874,19 @@ struct SplitCode {
             summary_n_bases_qual_trimmed_3_assigned[j] += q3;
             summary_n_reads_qual_trimmed_5_assigned[j] += (q5 != 0);
             summary_n_reads_qual_trimmed_3_assigned[j] += (q3 != 0);
+          }
+        }
+        if (do_extract) {
+          auto& umi_vec = r.umi_data;
+          for (int umi_index = 0; umi_index < umi_names.size(); umi_index++) { // Iterate through vector of all UMI names
+            std::string curr_umi = umi_vec[umi_index];
+            if (!curr_umi.empty()) {
+              int curr_umi_len = curr_umi.length();
+              summary_n_umis[umi_index]++;
+              summary_umi_length[umi_index] += curr_umi_len;
+              summary_umi_length_min[umi_index] = curr_umi_len < summary_umi_length_min[umi_index] || summary_umi_length_min[umi_index] == -1 ? curr_umi_len : summary_umi_length_min[umi_index];
+              summary_umi_length_max[umi_index] = curr_umi_len > summary_umi_length_max[umi_index] ? curr_umi_len : summary_umi_length_max[umi_index];
+            }
           }
         }
       }
@@ -3110,6 +3132,8 @@ struct SplitCode {
   std::vector<size_t> summary_n_bases_qual_trimmed_5_assigned, summary_n_bases_qual_trimmed_3_assigned, summary_n_reads_qual_trimmed_5_assigned, summary_n_reads_qual_trimmed_3_assigned;
   std::vector<size_t> summary_read_length_pre, summary_read_length_post;
   std::vector<int> summary_read_length_min_pre, summary_read_length_min_post, summary_read_length_max_pre, summary_read_length_max_post;
+  std::vector<size_t> summary_umi_length, summary_n_umis;
+  std::vector<int> summary_umi_length_min, summary_umi_length_max;
   
   bool init;
   bool discard_check;
