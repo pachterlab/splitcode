@@ -191,6 +191,12 @@ struct SplitCode {
     of << "\t\t" << "\"n_bases_quality_trimmed_5_assigned\": [" << v_to_csv(summary_n_bases_qual_trimmed_5_assigned) << "],\n";
     of << "\t\t" << "\"n_bases_quality_trimmed_3_assigned\": [" << v_to_csv(summary_n_bases_qual_trimmed_3_assigned) << "]\n";
     of << "\t" << "}," << "\n";
+    of << "\t" << "\"extraction_info\": " << "[" << "\n";
+    for (int umi_index = 0; umi_index < umi_names.size(); umi_index++) { // Iterate through vector of all UMI names
+      of << "\t\t" << "{ " << "\"name\": \"" << umi_names[umi_index] << "\""
+         << " }" << ((umi_index == umi_names.size()-1) ? "\n" : ",\n");
+    }
+    of << "\t" << "]," << "\n";
     of << "\t" << "\"developer_use_info\": " << "{" << "\n";
       of << "\t\t" << "\"tags_vector_size\": " << getNumTags() << ",\n";
       of << "\t\t" << "\"tags_map_size\": " << getMapSize() << ",\n";
