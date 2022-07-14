@@ -118,7 +118,7 @@ struct SplitCode {
       of << "\t\t" << "\"n_tag_ids\": " << names.size() << ",\n";
       of << "\t\t" << "\"n_tag_groups\": " << group_names.size() << "\n";
     of << "\t" << "}," << "\n";
-    of << "\t" << "\"trimming_info\": " << "{" << "\n";
+    of << "\t" << "\"general_trimming_info\": " << "{" << "\n";
       of << "\t\t" << "\"trim_5_bases\": " << "\"" << trim_5_str << "\"" << ",\n";
       of << "\t\t" << "\"trim_3_bases\": " << "\"" << trim_3_str << "\"" << ",\n";
       of << "\t\t" << "\"filter_len\": " << "\"" << filter_length_str << "\"" << ",\n";
@@ -128,18 +128,26 @@ struct SplitCode {
       of << "\t\t" << "\"n_reads_total_trimmed_3\": [" << v_to_csv(summary_n_reads_total_trimmed_3) << "],\n";
       of << "\t\t" << "\"n_bases_total_trimmed_5\": [" << v_to_csv(summary_n_bases_total_trimmed_5) << "],\n";
       of << "\t\t" << "\"n_bases_total_trimmed_3\": [" << v_to_csv(summary_n_bases_total_trimmed_3) << "],\n";
-      of << "\t\t" << "\"n_reads_quality_trimmed_5\": [" << v_to_csv(summary_n_reads_qual_trimmed_5) << "],\n";
-      of << "\t\t" << "\"n_reads_quality_trimmed_3\": [" << v_to_csv(summary_n_reads_qual_trimmed_3) << "],\n";
-      of << "\t\t" << "\"n_bases_quality_trimmed_5\": [" << v_to_csv(summary_n_bases_qual_trimmed_5) << "],\n";
-      of << "\t\t" << "\"n_bases_quality_trimmed_3\": [" << v_to_csv(summary_n_bases_qual_trimmed_3) << "],\n";
       of << "\t\t" << "\"n_reads_total_trimmed_5_assigned\": [" << v_to_csv(summary_n_reads_total_trimmed_5_assigned) << "],\n";
       of << "\t\t" << "\"n_reads_total_trimmed_3_assigned\": [" << v_to_csv(summary_n_reads_total_trimmed_3_assigned) << "],\n";
       of << "\t\t" << "\"n_bases_total_trimmed_5_assigned\": [" << v_to_csv(summary_n_bases_total_trimmed_5_assigned) << "],\n";
-      of << "\t\t" << "\"n_bases_total_trimmed_3_assigned\": [" << v_to_csv(summary_n_bases_total_trimmed_3_assigned) << "],\n";
-      of << "\t\t" << "\"n_reads_quality_trimmed_5_assigned\": [" << v_to_csv(summary_n_reads_qual_trimmed_5_assigned) << "],\n";
-      of << "\t\t" << "\"n_reads_quality_trimmed_3_assigned\": [" << v_to_csv(summary_n_reads_qual_trimmed_3_assigned) << "],\n";
-      of << "\t\t" << "\"n_bases_quality_trimmed_5_assigned\": [" << v_to_csv(summary_n_bases_qual_trimmed_5_assigned) << "],\n";
-      of << "\t\t" << "\"n_bases_quality_trimmed_3_assigned\": [" << v_to_csv(summary_n_bases_qual_trimmed_3_assigned) << "]\n";
+      of << "\t\t" << "\"n_bases_total_trimmed_3_assigned\": [" << v_to_csv(summary_n_bases_total_trimmed_3_assigned) << "]\n";
+    of << "\t" << "}," << "\n";
+    of << "\t" << "\"quality_trimming_info\": " << "{" << "\n";
+    of << "\t\t" << "\"quality_trim_5\": " << quality_trimming_5 << ",\n";
+    of << "\t\t" << "\"quality_trim_3\": " << quality_trimming_3 << ",\n";
+    of << "\t\t" << "\"quality_trim_pre\": " << quality_trimming_pre << ",\n";
+    of << "\t\t" << "\"quality_trim_naive\": " << quality_trimming_naive << ",\n";
+    of << "\t\t" << "\"quality_trim_threshold\": " << quality_trimming_threshold << ",\n";
+    of << "\t\t" << "\"quality_phred64\": " << phred64 << ",\n";
+    of << "\t\t" << "\"n_reads_quality_trimmed_5\": [" << v_to_csv(summary_n_reads_qual_trimmed_5) << "],\n";
+    of << "\t\t" << "\"n_reads_quality_trimmed_3\": [" << v_to_csv(summary_n_reads_qual_trimmed_3) << "],\n";
+    of << "\t\t" << "\"n_bases_quality_trimmed_5\": [" << v_to_csv(summary_n_bases_qual_trimmed_5) << "],\n";
+    of << "\t\t" << "\"n_bases_quality_trimmed_3\": [" << v_to_csv(summary_n_bases_qual_trimmed_3) << "],\n";
+    of << "\t\t" << "\"n_reads_quality_trimmed_5_assigned\": [" << v_to_csv(summary_n_reads_qual_trimmed_5_assigned) << "],\n";
+    of << "\t\t" << "\"n_reads_quality_trimmed_3_assigned\": [" << v_to_csv(summary_n_reads_qual_trimmed_3_assigned) << "],\n";
+    of << "\t\t" << "\"n_bases_quality_trimmed_5_assigned\": [" << v_to_csv(summary_n_bases_qual_trimmed_5_assigned) << "],\n";
+    of << "\t\t" << "\"n_bases_quality_trimmed_3_assigned\": [" << v_to_csv(summary_n_bases_qual_trimmed_3_assigned) << "]\n";
     of << "\t" << "}," << "\n";
     of << "\t" << "\"developer_use_info\": " << "{" << "\n";
       of << "\t\t" << "\"tags_vector_size\": " << getNumTags() << ",\n";
@@ -149,6 +157,30 @@ struct SplitCode {
     of << "\t" << "}" << "\n";
     of << "}" << std::endl;
     of.close();
+    /*
+     *     quality_trimming_5 = false;
+     quality_trimming_3 = false;
+    quality_trimming_pre = false;
+    quality_trimming_naive = false;
+    quality_trimming_threshold = -1;
+    
+     */
+    // TODO: modtrim: extract, tag trimming, tags added, dpm/rpm split [no]; look at cutadapt profile
+    // TODO: ^do those (n_reads_filtered_out, summary_n_bases/reads_total, etc.) based on assigned only (or can report both assigned/unassigned -- only do for n_reads_filtered_out_unassigned -- don't show everything [adapter-trimming/qual-trimming] for unassigned b/c unassigned is never modified even when trimmed; might change this: line 158 of ProcessReads.cpp so unassigned is never removed [or maybe remove unassigned and change 401], or have option --unassigned-filter) [trimmed out vs. unassigned]
+    // TODO: ideas: unassigned still subject to filter; can have assigned-specific AND total metrics (DO NOT bring in the modtrim for unassigned... do not have unassigned metrics; only have metrics for assigned and do not discard/filter-out unassigned)
+    // TODO: [test n_reads_filtered_out_assigned and n_reads_quality...]final idea: make metrics for everything and trim+filter unassigned (have assign-specific metrics though [just for passes_filter; not necessary for others]; have option to output unmodified+unfiltered unassigned --unassigned-unmodified [which don't factor into the "metrics for everything"; or maybe better just keep as is: filter out but still output unmodified reads])!!!!
+    /*
+    * Sequence: AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC; Type: regular 3'; Length: 34; Trimmed: 866710 times.
+    
+    Overview of removed sequences
+    length  count   expect  max.err error counts
+    3   697484  491116.3    0   697484
+    4   129061  122779.1    0   129061
+    5   33700   30694.8 0   33700
+    6   2812    7673.7  0   2812
+    7   982 1918.4  0   982
+    8   144 479.6   0   144
+    */
   }
   
   void setNFiles(int nFiles) {
