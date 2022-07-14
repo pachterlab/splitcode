@@ -43,6 +43,7 @@ struct SplitCode {
     phred64 = false;
     num_reads_set = false;
     summary_n_reads_filtered = 0;
+    summary_n_reads_filtered_assigned = 0;
     setNFiles(0);
   }
   
@@ -62,6 +63,7 @@ struct SplitCode {
     curr_umi_id_i = 0;
     num_reads_set = false;
     summary_n_reads_filtered = 0;
+    summary_n_reads_filtered_assigned = 0;
     this->summary_file = summary_file;
     this->trim_5_str = trim_5_str;
     this->trim_3_str = trim_3_str;
@@ -121,10 +123,23 @@ struct SplitCode {
       of << "\t\t" << "\"trim_3_bases\": " << "\"" << trim_3_str << "\"" << ",\n";
       of << "\t\t" << "\"filter_len\": " << "\"" << filter_length_str << "\"" << ",\n";
       of << "\t\t" << "\"n_reads_filtered_out\": " << summary_n_reads_filtered << ",\n";
+      of << "\t\t" << "\"n_reads_filtered_out_assigned\": " << summary_n_reads_filtered_assigned << ",\n";
       of << "\t\t" << "\"n_reads_total_trimmed_5\": [" << v_to_csv(summary_n_reads_total_trimmed_5) << "],\n";
       of << "\t\t" << "\"n_reads_total_trimmed_3\": [" << v_to_csv(summary_n_reads_total_trimmed_3) << "],\n";
       of << "\t\t" << "\"n_bases_total_trimmed_5\": [" << v_to_csv(summary_n_bases_total_trimmed_5) << "],\n";
-      of << "\t\t" << "\"n_bases_total_trimmed_3\": [" << v_to_csv(summary_n_bases_total_trimmed_3) << "]\n";
+      of << "\t\t" << "\"n_bases_total_trimmed_3\": [" << v_to_csv(summary_n_bases_total_trimmed_3) << "],\n";
+      of << "\t\t" << "\"n_reads_quality_trimmed_5\": [" << v_to_csv(summary_n_reads_qual_trimmed_5) << "],\n";
+      of << "\t\t" << "\"n_reads_quality_trimmed_3\": [" << v_to_csv(summary_n_reads_qual_trimmed_3) << "],\n";
+      of << "\t\t" << "\"n_bases_quality_trimmed_5\": [" << v_to_csv(summary_n_bases_qual_trimmed_5) << "],\n";
+      of << "\t\t" << "\"n_bases_quality_trimmed_3\": [" << v_to_csv(summary_n_bases_qual_trimmed_3) << "],\n";
+      of << "\t\t" << "\"n_reads_total_trimmed_5_assigned\": [" << v_to_csv(summary_n_reads_total_trimmed_5_assigned) << "],\n";
+      of << "\t\t" << "\"n_reads_total_trimmed_3_assigned\": [" << v_to_csv(summary_n_reads_total_trimmed_3_assigned) << "],\n";
+      of << "\t\t" << "\"n_bases_total_trimmed_5_assigned\": [" << v_to_csv(summary_n_bases_total_trimmed_5_assigned) << "],\n";
+      of << "\t\t" << "\"n_bases_total_trimmed_3_assigned\": [" << v_to_csv(summary_n_bases_total_trimmed_3_assigned) << "],\n";
+      of << "\t\t" << "\"n_reads_quality_trimmed_5_assigned\": [" << v_to_csv(summary_n_reads_qual_trimmed_5_assigned) << "],\n";
+      of << "\t\t" << "\"n_reads_quality_trimmed_3_assigned\": [" << v_to_csv(summary_n_reads_qual_trimmed_3_assigned) << "],\n";
+      of << "\t\t" << "\"n_bases_quality_trimmed_5_assigned\": [" << v_to_csv(summary_n_bases_qual_trimmed_5_assigned) << "],\n";
+      of << "\t\t" << "\"n_bases_quality_trimmed_3_assigned\": [" << v_to_csv(summary_n_bases_qual_trimmed_3_assigned) << "]\n";
     of << "\t" << "}," << "\n";
     of << "\t" << "\"developer_use_info\": " << "{" << "\n";
       of << "\t\t" << "\"tags_vector_size\": " << getNumTags() << ",\n";
@@ -146,6 +161,18 @@ struct SplitCode {
       summary_n_bases_total_trimmed_3.resize(nFiles, 0);
       summary_n_reads_total_trimmed_5.resize(nFiles, 0);
       summary_n_reads_total_trimmed_3.resize(nFiles, 0);
+      summary_n_bases_qual_trimmed_5.resize(nFiles, 0);
+      summary_n_bases_qual_trimmed_3.resize(nFiles, 0);
+      summary_n_reads_qual_trimmed_5.resize(nFiles, 0);
+      summary_n_reads_qual_trimmed_3.resize(nFiles, 0);
+      summary_n_bases_total_trimmed_5_assigned.resize(nFiles, 0);
+      summary_n_bases_total_trimmed_3_assigned.resize(nFiles, 0);
+      summary_n_reads_total_trimmed_5_assigned.resize(nFiles, 0);
+      summary_n_reads_total_trimmed_3_assigned.resize(nFiles, 0);
+      summary_n_bases_qual_trimmed_5_assigned.resize(nFiles, 0);
+      summary_n_bases_qual_trimmed_3_assigned.resize(nFiles, 0);
+      summary_n_reads_qual_trimmed_5_assigned.resize(nFiles, 0);
+      summary_n_reads_qual_trimmed_3_assigned.resize(nFiles, 0);
     }
   }
   
@@ -643,7 +670,9 @@ struct SplitCode {
     std::vector<uint32_t> name_ids;
     std::vector<std::string> umi_data;
     std::vector<std::pair<int,std::pair<int,int>>> modtrim;
-    std::vector<int> og_len;
+    std::vector<int32_t> og_len;
+    std::vector<int32_t> n_bases_qual_trimmed_5;
+    std::vector<int32_t> n_bases_qual_trimmed_3;
     int id;
     bool discard;
     bool passes_filter;
@@ -2448,6 +2477,12 @@ struct SplitCode {
           auto trimqual = trimQuality(s[file], l[file], q[file]);
           trim_5 += trimqual.first;
           trim_3 += trimqual.second;
+          if (trimqual.first != 0 || trimqual.second != 0) {
+            results.n_bases_qual_trimmed_5.resize(jmax, 0);
+            results.n_bases_qual_trimmed_5[j] = trimqual.first;
+            results.n_bases_qual_trimmed_3.resize(jmax, 0);
+            results.n_bases_qual_trimmed_3[j] = trimqual.second;
+          }
         }
       }
       if (l[file] != readLength) {
@@ -2624,6 +2659,12 @@ struct SplitCode {
           auto trimqual = trimQuality(s[file], l[file], q[file]);
           left_trim += trimqual.first;
           right_trim += trimqual.second;
+          if (trimqual.first != 0 || trimqual.second != 0) {
+            results.n_bases_qual_trimmed_5.resize(jmax, 0);
+            results.n_bases_qual_trimmed_5[j] = trimqual.first;
+            results.n_bases_qual_trimmed_3.resize(jmax, 0);
+            results.n_bases_qual_trimmed_3[j] = trimqual.second;
+          }
         }
       }
       if (l[file] != readLength) {
@@ -2702,11 +2743,14 @@ struct SplitCode {
     // Should only be called under a lock (can't have multiple threads accessing a common container)
     bool update_summary = !summary_file.empty();
     for (auto& r : rv) {
-      if (update_summary) {
+      if (update_summary) { // Update summary statistics
         if (!r.passes_filter) {
           summary_n_reads_filtered++;
+          if (isAssigned(r)) {
+            summary_n_reads_filtered_assigned++;
+          }
         }
-        for (auto& mt : r.modtrim) {
+        for (auto& mt : r.modtrim) { // Update overall trimming summary
           int j = mt.first;
           int leftOffset = mt.second.first;
           int readLength = mt.second.second;
@@ -2715,10 +2759,34 @@ struct SplitCode {
           if (leftOffset > 0) {
             summary_n_reads_total_trimmed_5[j]++;
             summary_n_bases_total_trimmed_5[j] += leftOffset;
+            if (isAssigned(r)) {
+              summary_n_reads_total_trimmed_5_assigned[j]++;
+              summary_n_bases_total_trimmed_5_assigned[j] += leftOffset;
+            }
           }
           if (rightOffset > 0) {
             summary_n_reads_total_trimmed_3[j]++;
             summary_n_bases_total_trimmed_3[j] += rightOffset;
+            if (isAssigned(r)) {
+              summary_n_reads_total_trimmed_3_assigned[j]++;
+              summary_n_bases_total_trimmed_3_assigned[j] += rightOffset;
+            }
+          }
+        }
+        if (!r.n_bases_qual_trimmed_5.empty()) { // Update quality trimming summary
+          for (int j = 0; j < r.n_bases_qual_trimmed_5.size(); j++) {
+            auto q5 = r.n_bases_qual_trimmed_5[j];
+            auto q3 = r.n_bases_qual_trimmed_3[j];
+            summary_n_bases_qual_trimmed_5[j] += q5;
+            summary_n_bases_qual_trimmed_3[j] += q3;
+            summary_n_reads_qual_trimmed_5[j] += (q5 != 0);
+            summary_n_reads_qual_trimmed_3[j] += (q3 != 0);
+            if (isAssigned(r)) {
+              summary_n_bases_qual_trimmed_5_assigned[j] += q5;
+              summary_n_bases_qual_trimmed_3_assigned[j] += q3;
+              summary_n_reads_qual_trimmed_5_assigned[j] += (q5 != 0);
+              summary_n_reads_qual_trimmed_3_assigned[j] += (q3 != 0);
+            }
           }
         }
       }
@@ -2957,7 +3025,11 @@ struct SplitCode {
   bool num_reads_set;
   
   size_t summary_n_reads_filtered;
+  size_t summary_n_reads_filtered_assigned;
   std::vector<size_t> summary_n_bases_total_trimmed_5, summary_n_bases_total_trimmed_3, summary_n_reads_total_trimmed_5, summary_n_reads_total_trimmed_3;
+  std::vector<size_t> summary_n_bases_qual_trimmed_5, summary_n_bases_qual_trimmed_3, summary_n_reads_qual_trimmed_5, summary_n_reads_qual_trimmed_3;
+  std::vector<size_t> summary_n_bases_total_trimmed_5_assigned, summary_n_bases_total_trimmed_3_assigned, summary_n_reads_total_trimmed_5_assigned, summary_n_reads_total_trimmed_3_assigned;
+  std::vector<size_t> summary_n_bases_qual_trimmed_5_assigned, summary_n_bases_qual_trimmed_3_assigned, summary_n_reads_qual_trimmed_5_assigned, summary_n_reads_qual_trimmed_3_assigned;
   
   bool init;
   bool discard_check;
