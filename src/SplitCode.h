@@ -32,6 +32,7 @@ struct SplitCode {
     always_assign = false;
     random_replacement = false;
     do_extract = false;
+    extract_no_chain = false;
     use_16 = false;
     n_tag_entries = 0;
     curr_barcode_mapping_i = 0;
@@ -49,7 +50,7 @@ struct SplitCode {
   }
   
   SplitCode(int nFiles, std::string summary_file = "", bool trim_only = false, bool disable_n = true,
-            std::string trim_5_str = "", std::string trim_3_str = "", std::string extract_str = "", std::string barcode_prefix = "",
+            std::string trim_5_str = "", std::string trim_3_str = "", std::string extract_str = "", bool extract_no_chain = false, std::string barcode_prefix = "",
             std::string filter_length_str = "", bool quality_trimming_5 = false, bool quality_trimming_3 = false,
             bool quality_trimming_pre = false, bool quality_trimming_naive = false, int quality_trimming_threshold = -1, bool phred64 = false) {
     init = false;
@@ -69,6 +70,7 @@ struct SplitCode {
     this->trim_5_str = trim_5_str;
     this->trim_3_str = trim_3_str;
     this->extract_str = extract_str;
+    this->extract_no_chain = extract_no_chain;
     this->barcode_prefix = barcode_prefix;
     this->filter_length_str = filter_length_str;
     this->quality_trimming_5 = quality_trimming_5;
@@ -1246,6 +1248,8 @@ struct SplitCode {
           this->quality_trimming_naive = true;
         } else if (field == "@phred64") {
           this->phred64 = true;
+        } else if (field == "@no-chain") {
+          this->extract_no_chain = true;
         }
         continue;
       }
@@ -2235,7 +2239,7 @@ struct SplitCode {
             }
             if (extract_len != 0) {
               std::string extracted_umi = seq.substr(extract_start, extract_len);
-              umi_data[u.name_id] += extracted_umi;
+              umi_data[u.name_id] += extract_no_chain && !umi_data[u.name_id].empty() ? "" : extracted_umi;
             }
           } else { // Second location present; push_back the UMI onto the "seen" list to mark that the first barcode was read
             if (u.location2.first == file) { // Make sure correct file
@@ -2262,7 +2266,7 @@ struct SplitCode {
             }
             if (extract_len != 0) {
               std::string extracted_umi = seq.substr(extract_start-extract_len, extract_len);
-              umi_data[u.name_id] += extracted_umi;
+              umi_data[u.name_id] += extract_no_chain && !umi_data[u.name_id].empty() ? "" : extracted_umi;
             }
           } else {
             // [location]<umi[length_range_start-length_range_end]>[padding]{bc}: extract the UMI between location and barcode
@@ -2289,7 +2293,7 @@ struct SplitCode {
             }
             if (extract_len != 0) {
               std::string extracted_umi = seq.substr(extract_start_left, extract_len);
-              umi_data[u.name_id] += extracted_umi;
+              umi_data[u.name_id] += extract_no_chain && !umi_data[u.name_id].empty() ? "" : extracted_umi;
             }
           }
         } else { // UMI is sandwiched between two barcodes
@@ -2314,7 +2318,7 @@ struct SplitCode {
             }
             if (extract_len != 0) {
               std::string extracted_umi = seq.substr(extract_start_left, extract_len);
-              umi_data[u.name_id] += extracted_umi;
+              umi_data[u.name_id] += extract_no_chain && !umi_data[u.name_id].empty() ? "" : extracted_umi;
               // Remove UMI from seen list:
               auto& mm = umi_seen[u.id];
               auto it = std::find(mm.begin(), mm.end(), p);
@@ -2343,7 +2347,7 @@ struct SplitCode {
               }
               if (extract_len != 0) {
                 std::string extracted_umi = seq.substr(extract_start, extract_len);
-                umi_data[u.name_id] += extracted_umi;
+                umi_data[u.name_id] += extract_no_chain && !umi_data[u.name_id].empty() ? "" : extracted_umi;
               }
             } else {
               // Do nothing
@@ -2371,7 +2375,7 @@ struct SplitCode {
               }
               if (extract_len != 0) {
                 std::string extracted_umi = seq.substr(extract_start-extract_len, extract_len);
-                umi_data[u.name_id] += extracted_umi;
+                umi_data[u.name_id] += extract_no_chain && !umi_data[u.name_id].empty() ? "" : extracted_umi;
               }
             } else { // UMI is sandwiched between two locations
               auto p = u.location1.second;
@@ -2397,7 +2401,7 @@ struct SplitCode {
               }
               if (extract_len != 0) {
                 std::string extracted_umi = seq.substr(extract_start_left, extract_len);
-                umi_data[u.name_id] += extracted_umi;
+                umi_data[u.name_id] += extract_no_chain && !umi_data[u.name_id].empty() ? "" : extracted_umi;
               }
             }
           } else { // UMI is sandwiched between a barcode (1st) and location (2nd)
@@ -2424,7 +2428,7 @@ struct SplitCode {
               }
               if (extract_len != 0) {
                 std::string extracted_umi = seq.substr(extract_start_left, extract_len);
-                umi_data[u.name_id] += extracted_umi;
+                umi_data[u.name_id] += extract_no_chain && !umi_data[u.name_id].empty() ? "" : extracted_umi;
                 // Remove UMI from seen list:
                 auto& mm = umi_seen[u.id];
                 auto it = std::find(mm.begin(), mm.end(), p);
@@ -3143,6 +3147,7 @@ struct SplitCode {
   bool always_assign;
   bool random_replacement;
   bool do_extract;
+  bool extract_no_chain;
   bool use_16;
   bool quality_trimming_5;
   bool quality_trimming_3;

@@ -15,6 +15,7 @@ struct ProgramOptions {
   int input_interleaved_nfiles;
   int quality_trimming_threshold;
   int64_t max_num_reads;
+  bool extract_no_chain;
   bool output_fasta;
   bool no_output;
   bool no_output_barcodes;
@@ -76,6 +77,7 @@ struct ProgramOptions {
     input_interleaved_nfiles(0),
     quality_trimming_threshold(-1),
     max_num_reads(0),
+    extract_no_chain(false),
     output_fasta(false),
     no_output(false),
     no_output_barcodes(false),

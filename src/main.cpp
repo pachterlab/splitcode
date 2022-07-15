@@ -77,6 +77,7 @@ void usage() {
        << "Read modification and extraction options (for configuring on the command-line):" << endl
        << "-x, --extract    Pattern(s) describing how to extract UMI and UMI-like sequences from reads" << endl
        << "                 (E.g. {bc}2<umi_1[5]> means extract a 5-bp UMI sequence, called umi_1, 2 base pairs following the tag named 'bc')" << endl
+       << "    --no-chain   If an extraction pattern for a UMI/UMI-like sequence is matched multiple times, only extract based on the first match" << endl
        << "-5, --trim-5     Number of base pairs to trim from the 5′-end of reads (comma-separated; one number per each FASTQ file in a run)" << endl
        << "-3, --trim-3     Number of base pairs to trim from the 3′-end of reads (comma-separated; one number per each FASTQ file in a run)" << endl
        << "-w, --filter-len Filter reads based on length (min_length:max_length)" << endl
@@ -131,6 +132,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   int help_flag = 0;
   int version_flag = 0;
   int cite_flag = 0;
+  int no_chain_flag = 0;
   int output_fasta_flag = 0;
   int no_output_flag = 0;
   int no_output_barcodes_flag = 0;
@@ -154,6 +156,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     // long args
     {"version", no_argument, &version_flag, 1},
     {"cite", no_argument, &cite_flag, 1},
+    {"no-chain", no_argument, &no_chain_flag, 1},
     {"out-fasta", no_argument, &output_fasta_flag, 1},
     {"no-output", no_argument, &no_output_flag, 1},
     {"no-outb", no_argument, &no_output_barcodes_flag, 1},
@@ -426,6 +429,9 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   if (cite_flag) {
     PrintCite();
     exit(0);
+  }
+  if (no_chain_flag) {
+    opt.extract_no_chain = true;
   }
   if (output_fasta_flag) {
     opt.output_fasta = true;
@@ -1027,7 +1033,7 @@ int main(int argc, char *argv[]) {
   setvbuf(stdout, NULL, _IOFBF, 1048576);
   ProgramOptions opt;
   ParseOptions(argc,argv,opt);
-  SplitCode sc(opt.nfiles, opt.summary_file, opt.trim_only, opt.disable_n, opt.trim_5_str, opt.trim_3_str, opt.extract_str, opt.barcode_prefix, opt.filter_length_str,
+  SplitCode sc(opt.nfiles, opt.summary_file, opt.trim_only, opt.disable_n, opt.trim_5_str, opt.trim_3_str, opt.extract_str, opt.extract_no_chain, opt.barcode_prefix, opt.filter_length_str,
                opt.quality_trimming_5, opt.quality_trimming_3, opt.quality_trimming_pre, opt.quality_trimming_naive, opt.quality_trimming_threshold, opt.phred64);
   if (!CheckOptions(opt, sc)) {
     usage();
