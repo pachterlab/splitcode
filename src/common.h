@@ -18,6 +18,7 @@ struct ProgramOptions {
   bool no_output;
   bool no_output_barcodes;
   bool no_x_out;
+  bool empty_remove;
   bool pipe;
   bool output_fastq_specified;
   bool verbose;
@@ -77,6 +78,7 @@ struct ProgramOptions {
     no_output(false),
     no_output_barcodes(false),
     no_x_out(false),
+    empty_remove(false),
     pipe(false),
     output_fastq_specified(false),
     verbose(false),

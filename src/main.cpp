@@ -98,6 +98,7 @@ void usage() {
        << "-u, --unassigned FASTQ file(s) where output of unassigned reads will be written (comma-separated)" << endl
        << "                 Number of FASTQ files should equal --nFastqs" << endl
        << "-E, --empty      Sequence to fill in empty reads in output FASTQ files (default: no sequence is used to fill in those reads)" << endl
+       << "    --empty-remove Empty reads are stripped in output FASTQ files (don't even output an empty sequence)" << endl
        << "-p, --pipe       Write to standard output (instead of output FASTQ files)" << endl
        << "    --gzip       Output compressed gzip'ed FASTQ files" << endl
        << "    --no-output  Don't output any sequences (output statistics only)" << endl
@@ -137,6 +138,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   int com_names_flag = 0;
   int x_names_flag = 0;
   int x_only_flag = 0;
+  int empty_remove_flag = 0;
   int disable_n_flag = 0;
   int interleaved_flag = 0;
   int qtrim_5_flag = 0;
@@ -158,6 +160,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"com-names", no_argument, &com_names_flag, 1},
     {"x-names", no_argument, &x_names_flag, 1},
     {"x-only", no_argument, &x_only_flag, 1},
+    {"empty-remove", no_argument, &empty_remove_flag, 1},
     {"disable-n", no_argument, &disable_n_flag, 1},
     {"inleaved", no_argument, &interleaved_flag, 1},
     {"qtrim-5", no_argument, &qtrim_5_flag, 1},
@@ -436,6 +439,9 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   if (x_only_flag) {
     opt.x_only = true;
   }
+  if (empty_remove_flag) {
+    opt.empty_remove = true;
+  }
   if (gzip_flag) {
     opt.gzip = true;
   }
@@ -525,6 +531,10 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
   }
   if (opt.x_only && opt.no_x_out) {
     std::cerr << ERROR_STR << " --x-only cannot be specified with --no-x-out" << std::endl;
+    ret = false;
+  }
+  if (!opt.empty_read_sequence.empty() && opt.empty_remove) {
+    std::cerr << ERROR_STR << " --empty cannot be specified with --empty-remove" << std::endl;
     ret = false;
   }
   

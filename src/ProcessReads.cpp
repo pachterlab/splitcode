@@ -181,10 +181,10 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
       mod_name2 += "RX:Z:";
       bool umi_empty = true;
       for (int umi_index = 0; umi_index < sc.umi_names.size(); umi_index++) { // Iterate through vector of all UMI names
-        if (umi_index != 0) {
+        std::string curr_umi = umi_vec[umi_index];
+        if (umi_index != 0 && !(opt.empty_remove && curr_umi.empty())) {
           mod_name2 += "-";
         }
-        std::string curr_umi = umi_vec[umi_index];
         mod_name2 += curr_umi.empty() ? opt.empty_read_sequence : curr_umi;
         if (!curr_umi.empty()) {
           umi_empty = false;
@@ -215,6 +215,9 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
       for (int umi_index = 0; umi_index < sc.umi_names.size(); umi_index++) { // Iterate through vector of all UMI names
         std::string curr_umi = umi_vec[umi_index];
         if (curr_umi.empty()) {
+          if (opt.empty_remove) {
+            continue; // Don't write anything
+          }
           curr_umi = opt.empty_read_sequence;
         }
         std::stringstream o;
@@ -254,6 +257,8 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
         o << sc.binaryToString(sc.getID(r.id), sc.getBarcodeLength());
       } else if (l == 0 && !opt.empty_read_sequence.empty()) {
         o << opt.empty_read_sequence;
+      } else if (l == 0 && opt.empty_remove) {
+        continue; // Don't write anything
       }
       o << std::string(s,l) << "\n";
       o << "+" << "\n";
