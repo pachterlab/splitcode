@@ -101,6 +101,7 @@ void usage() {
        << "    --empty-remove Empty reads are stripped in output FASTQ files (don't even output an empty sequence)" << endl
        << "-p, --pipe       Write to standard output (instead of output FASTQ files)" << endl
        << "    --gzip       Output compressed gzip'ed FASTQ files" << endl
+       << "    --out-fasta  Output in FASTA format rather than FASTQ format" << endl
        << "    --no-output  Don't output any sequences (output statistics only)" << endl
        << "    --no-outb    Don't output final barcode sequences" << endl
        << "    --no-x-out   Don't output extracted UMI-like sequences (should be used with --x-names)" << endl
@@ -130,6 +131,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   int help_flag = 0;
   int version_flag = 0;
   int cite_flag = 0;
+  int output_fasta_flag = 0;
   int no_output_flag = 0;
   int no_output_barcodes_flag = 0;
   int no_output_extracted_flag = 0;
@@ -152,6 +154,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     // long args
     {"version", no_argument, &version_flag, 1},
     {"cite", no_argument, &cite_flag, 1},
+    {"out-fasta", no_argument, &output_fasta_flag, 1},
     {"no-output", no_argument, &no_output_flag, 1},
     {"no-outb", no_argument, &no_output_barcodes_flag, 1},
     {"no-x-out", no_argument, &no_output_extracted_flag, 1},
@@ -424,6 +427,9 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     PrintCite();
     exit(0);
   }
+  if (output_fasta_flag) {
+    opt.output_fasta = true;
+  }
   if (no_output_flag) {
     opt.no_output = true;
   }
@@ -558,6 +564,10 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
     }
     if (opt.x_only) {
       std::cerr << ERROR_STR << " Cannot use --x-only when --no-output is specified" << std::endl;
+      ret = false;
+    }
+    if (opt.output_fasta) {
+      std::cerr << ERROR_STR << " Cannot use --out-fasta when --no-output is specified" << std::endl;
       ret = false;
     }
   } else {
