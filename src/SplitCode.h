@@ -775,7 +775,7 @@ struct SplitCode {
     std::pair<int16_t,int32_t> location1;
     std::pair<int16_t,int32_t> location2;
     uint16_t name_id;
-    bool group1, group2, id1_present, id2_present;
+    bool group1, group2, id1_present, id2_present, rev_comp;
   };
   
   
@@ -1892,12 +1892,14 @@ struct SplitCode {
     auto& length_range_end = umi.length_range_end;
     auto& padding_left = umi.padding_left;
     auto& padding_right = umi.padding_right;
+    auto& rev_comp = umi.rev_comp;
     length_range_start = 0;
     length_range_end = 0;
     padding_left = 0;
     padding_right = 0;
     int16_t file1 = -1, file2 = -1;
     int32_t pos1 = -1, pos2 = -1;
+    rev_comp = false;
     try {
       // Find the UMI name and position:
       auto umi_open = s.find_first_of('<');
@@ -1907,6 +1909,11 @@ struct SplitCode {
         return false; // malformed
       }
       std::string umi_name = s.substr(umi_open+1,umi_close-umi_open-1);
+      // Find tilde at beginning (denoting reverse complement)
+      if (umi_name.length() > 1 && umi_name[0] == '~') {
+        umi_name = umi_name.substr(1);
+        rev_comp = true;
+      }
       // Find the UMI length range (e.g. <umi[number]> or <umi[start-end]>):
       auto length_range_open = umi_name.find_first_of('[');
       auto length_range_close = umi_name.find_first_of(']');
@@ -2208,6 +2215,25 @@ struct SplitCode {
   
   void doUMIExtraction(std::string& seq, int pos, int k, int file, int readLength, std::map<int16_t, std::vector<int32_t>>& umi_seen, std::map<int16_t, std::vector<int32_t>>& umi_seen_copy,
                        std::vector<std::string>& umi_data, uint32_t tag_name_id, uint32_t tag_group_id, std::pair<int16_t,int32_t> location = std::make_pair(-1,-1)) {
+    auto extract_no_chain = this->extract_no_chain;
+    auto revcomp = [](const std::string s) {
+      std::string r(s);
+      std::transform(s.rbegin(), s.rend(), r.begin(), [](char c) {
+        switch(c) {
+        case 'A': return 'T';
+        case 'C': return 'G';
+        case 'G': return 'C';
+        case 'T': return 'A';
+        default: return 'N';
+        }
+        return 'N';
+      });
+      return r;
+    };
+    auto addToUmiData = [extract_no_chain, &umi_data, &revcomp](const UMI& u, const std::string& extracted_umi) {
+      umi_data[u.name_id] += extract_no_chain && !umi_data[u.name_id].empty() ? "" : (!u.rev_comp ? extracted_umi : revcomp(extracted_umi));
+    };
+
     const auto& umi_vec_name = umi_name_map.find(tag_name_id) != umi_name_map.end() ? umi_name_map[tag_name_id] : std::vector<UMI>(0);
     auto umi_vec_name_size = umi_vec_name.size();
     const auto& umi_vec_group = umi_group_map.find(tag_group_id) != umi_group_map.end() ? umi_group_map[tag_group_id] : std::vector<UMI>(0);
@@ -2239,7 +2265,7 @@ struct SplitCode {
             }
             if (extract_len != 0) {
               std::string extracted_umi = seq.substr(extract_start, extract_len);
-              umi_data[u.name_id] += extract_no_chain && !umi_data[u.name_id].empty() ? "" : extracted_umi;
+              addToUmiData(u, extracted_umi);
             }
           } else { // Second location present; push_back the UMI onto the "seen" list to mark that the first barcode was read
             if (u.location2.first == file) { // Make sure correct file
@@ -2266,7 +2292,7 @@ struct SplitCode {
             }
             if (extract_len != 0) {
               std::string extracted_umi = seq.substr(extract_start-extract_len, extract_len);
-              umi_data[u.name_id] += extract_no_chain && !umi_data[u.name_id].empty() ? "" : extracted_umi;
+              addToUmiData(u, extracted_umi);
             }
           } else {
             // [location]<umi[length_range_start-length_range_end]>[padding]{bc}: extract the UMI between location and barcode
@@ -2293,7 +2319,7 @@ struct SplitCode {
             }
             if (extract_len != 0) {
               std::string extracted_umi = seq.substr(extract_start_left, extract_len);
-              umi_data[u.name_id] += extract_no_chain && !umi_data[u.name_id].empty() ? "" : extracted_umi;
+              addToUmiData(u, extracted_umi);
             }
           }
         } else { // UMI is sandwiched between two barcodes
@@ -2318,7 +2344,7 @@ struct SplitCode {
             }
             if (extract_len != 0) {
               std::string extracted_umi = seq.substr(extract_start_left, extract_len);
-              umi_data[u.name_id] += extract_no_chain && !umi_data[u.name_id].empty() ? "" : extracted_umi;
+              addToUmiData(u, extracted_umi);
               // Remove UMI from seen list:
               auto& mm = umi_seen[u.id];
               auto it = std::find(mm.begin(), mm.end(), p);
@@ -2347,7 +2373,7 @@ struct SplitCode {
               }
               if (extract_len != 0) {
                 std::string extracted_umi = seq.substr(extract_start, extract_len);
-                umi_data[u.name_id] += extract_no_chain && !umi_data[u.name_id].empty() ? "" : extracted_umi;
+                addToUmiData(u, extracted_umi);
               }
             } else {
               // Do nothing
@@ -2375,7 +2401,7 @@ struct SplitCode {
               }
               if (extract_len != 0) {
                 std::string extracted_umi = seq.substr(extract_start-extract_len, extract_len);
-                umi_data[u.name_id] += extract_no_chain && !umi_data[u.name_id].empty() ? "" : extracted_umi;
+                addToUmiData(u, extracted_umi);
               }
             } else { // UMI is sandwiched between two locations
               auto p = u.location1.second;
@@ -2401,7 +2427,7 @@ struct SplitCode {
               }
               if (extract_len != 0) {
                 std::string extracted_umi = seq.substr(extract_start_left, extract_len);
-                umi_data[u.name_id] += extract_no_chain && !umi_data[u.name_id].empty() ? "" : extracted_umi;
+                addToUmiData(u, extracted_umi);
               }
             }
           } else { // UMI is sandwiched between a barcode (1st) and location (2nd)
@@ -2428,7 +2454,7 @@ struct SplitCode {
               }
               if (extract_len != 0) {
                 std::string extracted_umi = seq.substr(extract_start_left, extract_len);
-                umi_data[u.name_id] += extract_no_chain && !umi_data[u.name_id].empty() ? "" : extracted_umi;
+                addToUmiData(u, extracted_umi);
                 // Remove UMI from seen list:
                 auto& mm = umi_seen[u.id];
                 auto it = std::find(mm.begin(), mm.end(), p);
