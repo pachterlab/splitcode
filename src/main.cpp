@@ -505,7 +505,7 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
   if (opt.files.size() == 0) {
     cerr << ERROR_STR << " Missing read files" << endl;
     ret = false;
-  } else {
+  } else if (!(opt.files.size() == 1 && opt.files[0] == "-")) { // If not reading from stdin via -
     struct stat stFileInfo;
     for (auto& fn : opt.files) {
       auto intStat = stat(fn.c_str(), &stFileInfo);
