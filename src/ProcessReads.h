@@ -98,8 +98,8 @@ public:
     SR = new FastqSequenceReader(opt);
     verbose = opt.verbose;
     nfiles = opt.input_interleaved_nfiles == 0 ? opt.nfiles : opt.input_interleaved_nfiles;
-    const std::string suffix = ".fastq";
-    const std::string suffix_gz = ".fastq.gz";
+    const std::string suffix = opt.output_fasta ? ".fasta" : ".fastq";
+    const std::string suffix_gz = opt.output_fasta ? ".fasta.gz" : ".fastq.gz";
     for (auto f : opt.output_files) {
       if (opt.gzip) {
         out_gz.push_back(gzopen(f.c_str(), "wb1"));
