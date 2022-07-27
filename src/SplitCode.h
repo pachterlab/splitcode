@@ -97,7 +97,7 @@ struct SplitCode {
     }
     auto v_to_csv = [](std::vector<size_t> v)  { 
       std::stringstream ss;
-      for (int i = 0; i < v.size(); i++) {
+      for (size_t i = 0; i < v.size(); i++) {
         if (i != 0) {
           ss << ", ";
         }
@@ -107,7 +107,7 @@ struct SplitCode {
     };
     auto v_to_csv_int = [](std::vector<int> v)  { 
       std::stringstream ss;
-      for (int i = 0; i < v.size(); i++) {
+      for (size_t i = 0; i < v.size(); i++) {
         if (i != 0) {
           ss << ", ";
         }
@@ -117,7 +117,7 @@ struct SplitCode {
     };
     auto v_to_csv_double = [](std::vector<double> v)  { 
       std::stringstream ss;
-      for (int i = 0; i < v.size(); i++) {
+      for (size_t i = 0; i < v.size(); i++) {
         if (i != 0) {
           ss << ", ";
         }
@@ -137,7 +137,7 @@ struct SplitCode {
       }
     }
     of << "{" << "\n";
-    of << "\t" << "\"splitcode_version\": " << SPLITCODE_VERSION << ",\n";
+    of << "\t" << "\"splitcode_version\": \"" << SPLITCODE_VERSION << "\",\n";
     of << "\t" << "\"barcode_prefix\": \"" << barcode_prefix << "\",\n";
     of << "\t" << "\"n_fastqs\": " << nFiles << ",\n";
     if (num_reads_set) {
@@ -193,6 +193,59 @@ struct SplitCode {
     of << "\t\t" << "\"n_bases_quality_trimmed_5_assigned\": [" << v_to_csv(summary_n_bases_qual_trimmed_5_assigned) << "],\n";
     of << "\t\t" << "\"n_bases_quality_trimmed_3_assigned\": [" << v_to_csv(summary_n_bases_qual_trimmed_3_assigned) << "]\n";
     of << "\t" << "}," << "\n";
+    of << "\t" << "\"tag_trimming_info\": " << "[" << "\n";
+    bool summary_tag_trim = false;
+    for (size_t i = 0; i < summary_tags_trimmed.size(); i++) {
+      if (summary_tags_trimmed[i].size() == 0) {
+        continue;
+      }
+      if (summary_tag_trim) {
+        of << "\t\t" << "},\n";
+      }
+      summary_tag_trim = true;
+      of << "\t\t" << "{\n";
+      of << "\t\t\t" << "\"tag\": \"" << names[i] << "\",\n";
+      of << "\t\t\t" << "\"n_reads_trimmed\": " << summary_tags_trimmed[i][0].count << ",\n";
+      of << "\t\t\t" << "\"n_reads_trimmed_assigned\": " << summary_tags_trimmed_assigned[i][0].count << ",\n";
+      of << "\t\t\t" << "\"trimming_info\": " << "[\n";
+      bool summary_tag_trim2 = false;
+      for (size_t j = 1; j < summary_tags_trimmed[i].size(); j++) {
+        if (summary_tags_trimmed[i][j].count == 0) {
+          continue;
+        }
+        if (summary_tag_trim2) {
+          of << " },\n";
+        }
+        summary_tag_trim2 = true;
+        of << "\t\t\t\t" << "{ ";
+        of << "\"length\": " << j << ", \"count\": " << summary_tags_trimmed[i][j].count << ", \"error\": " << summary_tags_trimmed[i][j].error << ", \"n_bases_left_trimmed\": " << summary_tags_trimmed[i][j].trim_left << ", \"n_bases_right_trimmed\": " << summary_tags_trimmed[i][j].trim_right;
+      }
+      if (summary_tag_trim2) {
+        of << " }\n";
+      }
+      of << "\t\t\t" << "],\n";
+      of << "\t\t\t" << "\"trimming_info_assigned\": " << "[\n";
+      summary_tag_trim2 = false;
+      for (size_t j = 1; j < summary_tags_trimmed[i].size(); j++) {
+        if (summary_tags_trimmed[i][j].count == 0) {
+          continue;
+        }
+        if (summary_tag_trim2) {
+          of << " },\n";
+        }
+        summary_tag_trim2 = true;
+        of << "\t\t\t\t" << "{ ";
+        of << "\"length\": " << j << ", \"count\": " << summary_tags_trimmed_assigned[i][j].count << ", \"error\": " << summary_tags_trimmed_assigned[i][j].error << ", \"n_bases_left_trimmed\": " << summary_tags_trimmed_assigned[i][j].trim_left << ", \"n_bases_right_trimmed\": " << summary_tags_trimmed_assigned[i][j].trim_right;
+      }
+      if (summary_tag_trim2) {
+        of << " }\n";
+      }
+      of << "\t\t\t" << "]\n";
+    }
+    if (summary_tag_trim) {
+      of << "\t\t" << "}\n";
+    }
+    of << "\t" << "]," << "\n";
     of << "\t" << "\"extraction_info\": " << "[" << "\n";
     for (int umi_index = 0; umi_index < umi_names.size(); umi_index++) { // Iterate through vector of all UMI names
       of << "\t\t" << "{ " << "\"name\": \"" << umi_names[umi_index] << "\", "
@@ -535,6 +588,9 @@ struct SplitCode {
     if (names.size() < std::numeric_limits<std::uint16_t>::max() && idmap_getsize() == 0) {
       use_16 = true;
     }
+    // Resize certain data structures to be the size of names
+    summary_tags_trimmed.resize(names.size());
+    summary_tags_trimmed_assigned.resize(names.size());
     // Set up expansions vectors (in a map with keys being k-mer sizes):
     struct Expansion {
       int kmer_size, kmer_size_2, start_pos, start_pos_2, file;
@@ -742,6 +798,8 @@ struct SplitCode {
     std::vector<int32_t> modified_len;
     std::vector<int32_t> n_bases_qual_trimmed_5;
     std::vector<int32_t> n_bases_qual_trimmed_3;
+    std::vector<std::pair<std::pair<uint32_t,int32_t>,std::pair<int32_t,int32_t>>> tag_trimmed_left; // tag name id, bases trimmed, match length, error
+    std::vector<std::pair<std::pair<uint32_t,int32_t>,std::pair<int32_t,int32_t>>> tag_trimmed_right;
     int id;
     bool discard;
     bool passes_filter;
@@ -776,6 +834,19 @@ struct SplitCode {
     std::pair<int16_t,int32_t> location2;
     uint16_t name_id;
     bool group1, group2, id1_present, id2_present, rev_comp;
+  };
+  
+  struct TrimTagSummary {
+    TrimTagSummary() {
+      count = 0;
+      error = 0;
+      trim_left = 0;
+      trim_right = 0;
+    }
+    size_t count;
+    int error;
+    int32_t trim_left;
+    int32_t trim_right;
   };
   
   
@@ -1357,7 +1428,7 @@ struct SplitCode {
     return true;
   }
   
-  bool getTag(std::string& seq, uint32_t& tag_id, int file, int pos, int& k, int l, bool look_for_initiator = false,
+  bool getTag(std::string& seq, uint32_t& tag_id, int file, int pos, int& k, int& error, int l, bool look_for_initiator = false,
               bool search_tag_name_after = false, bool search_group_after = false, uint32_t search_id_after = -1,
               bool search_tag_before = false, uint32_t group_curr_ = -1, uint32_t name_id_curr_ = -1, int end_pos_curr = 0) {
     checkInit();
@@ -1456,6 +1527,7 @@ struct SplitCode {
     if (found) {
       tag_id = updated_tag_id;
       k = updated_k;
+      error = updated_error;
       return true;
     }
     return false;
@@ -2659,7 +2731,8 @@ struct SplitCode {
           }
         }
         uint32_t tag_id;
-        if (getTag(seq, tag_id, file, pos, k, readLength, look_for_initiator, 
+        int error;
+        if (getTag(seq, tag_id, file, pos, k, error, readLength, look_for_initiator, 
                    search_tag_name_after, search_group_after, search_id_after,
                    search_tag_before, group_curr, name_id_curr, search_after_start)) {
           look_for_initiator = false;
@@ -2712,9 +2785,17 @@ struct SplitCode {
           }
           if (tag.trim == left) {
             left_trim = pos+k+tag.trim_offset;
+            left_trim = std::min(left_trim, readLength);
+            results.tag_trimmed_left.resize(jmax, {{0,0}, {0,0}});
+            results.tag_trimmed_left[file].first = std::make_pair(tag.name_id, left_trim);
+            results.tag_trimmed_left[file].second = std::make_pair(k, error);
           } else if (tag.trim == right && !right_trim_found) {
             right_trim = (readLength-pos)+tag.trim_offset;
+            right_trim = std::min(right_trim, readLength);
             right_trim_found = true;
+            results.tag_trimmed_right.resize(jmax, {{0,0}, {0,0}});
+            results.tag_trimmed_right[file].first = std::make_pair(tag.name_id, right_trim);
+            results.tag_trimmed_right[file].second = std::make_pair(k, error);
           }
           
           if (tag.terminator) {
@@ -2855,6 +2936,47 @@ struct SplitCode {
           summary_n_reads_filtered++;
           if (isAssigned(r)) {
             summary_n_reads_filtered_assigned++;
+          }
+        }
+        if (!(r.tag_trimmed_left.empty() && r.tag_trimmed_right.empty())) { // Update tag left/right trimming summary
+          std::set<uint32_t> set_tag_ids, set_tag_ids_assigned;
+          for (int i = 0; i < r.tag_trimmed_left.size() + r.tag_trimmed_right.size(); i++) {
+            bool t_right = (i >= r.tag_trimmed_left.size());
+            auto& t = t_right ? r.tag_trimmed_right[i-r.tag_trimmed_left.size()] : r.tag_trimmed_left[i];
+            auto tag_name_id = t.first.first;
+            auto trim_len = t.first.second;
+            auto match_len = t.second.first;
+            auto error = t.second.second;
+            if (trim_len != 0) {
+              summary_tags_trimmed[tag_name_id].resize(std::max(match_len+1, (int)summary_tags_trimmed[tag_name_id].size()), TrimTagSummary());
+              auto& tts = summary_tags_trimmed[tag_name_id][match_len];
+              set_tag_ids.insert(tag_name_id);
+              tts.count++;
+              tts.error += error;
+              if (!t_right) {
+                tts.trim_left += trim_len;
+              } else {
+                tts.trim_right += trim_len;
+              }
+              summary_tags_trimmed_assigned[tag_name_id].resize(std::max(match_len+1, (int)summary_tags_trimmed_assigned[tag_name_id].size()), TrimTagSummary());
+              if (isAssigned(r)) {
+                auto& tts2 = summary_tags_trimmed_assigned[tag_name_id][match_len];
+                set_tag_ids_assigned.insert(tag_name_id);
+                tts2.count++;
+                tts2.error += error;
+                if (!t_right) {
+                  tts2.trim_left += trim_len;
+                } else {
+                  tts2.trim_right += trim_len;
+                }
+              }
+            }
+          }
+          for (auto tag_name_id : set_tag_ids) {
+            summary_tags_trimmed[tag_name_id][0].count++; // Index 0: Record number of reads where trimming occurred for that tag name
+          }
+          for (auto tag_name_id : set_tag_ids_assigned) {
+            summary_tags_trimmed_assigned[tag_name_id][0].count++;
           }
         }
         for (auto& mt : r.modtrim) { // Update overall trimming summary
@@ -3164,6 +3286,7 @@ struct SplitCode {
   std::vector<int> summary_read_length_min_pre, summary_read_length_min_post, summary_read_length_max_pre, summary_read_length_max_post;
   std::vector<size_t> summary_umi_length, summary_n_umis;
   std::vector<int> summary_umi_length_min, summary_umi_length_max;
+  std::vector<std::vector<TrimTagSummary>> summary_tags_trimmed, summary_tags_trimmed_assigned; // Each index of outer vector = tag name id; each index of inner vector = match length
   
   bool init;
   bool discard_check;
