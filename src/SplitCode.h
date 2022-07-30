@@ -3238,7 +3238,10 @@ struct SplitCode {
       uint16_t x = (*(const uint16_t*)(s));
       r = r << 5;
       int xn = (x & 2056);
-      if (xn == 2056) { // NN
+      if (xn == 0) { // Process A/T/C/G dinucleotide
+        x = (x ^ (x >> 1)) & 1542;
+        r |= (((x<<1) | (x>>9) | 16) & 31); // 1****
+      } else if (xn == 2056) { // NN
         r |= 2; // 00010
       } else if (xn == 2048) { // N_
         x = ((x ^ (x >> 1)) >> 1) & 3;
@@ -3247,9 +3250,6 @@ struct SplitCode {
         x = (x >> 8);
         x = ((x ^ (x >> 1)) >> 1) & 3;
         r |= (12 | x); // 011**
-      } else { // Process A/T/C/G dinucleotide
-        x = (x ^ (x >> 1)) & 1542;
-        r |= (((x<<1) | (x>>9) | 16) & 31); // 1****
       }
     }
     for (size_t i = 0; i < k2; ++i, ++s) { // Mononucleotide
