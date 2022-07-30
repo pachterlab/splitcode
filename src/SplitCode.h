@@ -3260,7 +3260,6 @@ struct SplitCode {
       }
     }
     // Most significant 4 bits are the "round"
-    round = round % 16;
     r |= (round << 60);
     // MurmurHash3 finalizer:
     r ^= (r >> 33);
