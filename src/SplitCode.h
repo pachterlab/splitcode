@@ -3227,10 +3227,70 @@ struct SplitCode {
     return hash;
   }
   
+  static uint64_t hashKmer2(const char* s, size_t k, uint64_t round = 0) { // Handles N's and takes length into account (unique up through 24 nucleotides); use this for hashmaps
+    uint64_t r = 0;
+    if (k > 24) {
+      k = 24;
+    }
+    size_t k1 = k/2;
+    size_t k2 = k%2;
+    for (size_t i = 0; i < k1; s += 2, ++i) {
+      uint16_t x = (*(const uint16_t*)(s));
+      r = r << 5;
+      int xn = (x & 2056);
+      if (xn == 2056) { // NN
+        r |= 2; // 00010
+      } else if (xn == 2048) { // N_
+        x = ((x ^ (x >> 1)) >> 1) & 3;
+        r |= (4 | x); // 001**
+      } else if (xn == 8) { // _N
+        x = (x >> 8);
+        x = ((x ^ (x >> 1)) >> 1) & 3;
+        r |= (12 | x); // 011**
+      } else { // Process A/T/C/G dinucleotide
+        x = (x ^ (x >> 1)) & 1542;
+        r |= (((x<<1) | (x>>9) | 16) & 31); // 1****
+      }
+    }
+    for (size_t i = 0; i < k2; ++i, ++s) { // Mononucleotide
+      if (((*s) & 8) != 0) { // N
+        r |= 1; // 00001
+      } else {
+        r |= (((((*s) ^ ((*s) >> 1))) >> 1) & 3) | 8; // 010**
+      }
+    }
+    // Most significant 4 bits are the "round"
+    round = round % 16;
+    r |= (round << 60);
+    // MurmurHash3 finalizer:
+    r ^= (r >> 33);
+    r *= 0xff51afd7ed558ccd;
+    r ^= (r >> 33);
+    r *= 0xc4ceb9fe1a85ec53;
+    r ^= (r >> 33);
+    return r;
+  }
+  
+  static uint64_t hashSequence2(const char* s, size_t l) {
+    uint64_t hash = l;
+    size_t max_size = 24;
+    size_t n = l / max_size;
+    size_t i = 0;
+    while (i < n) {
+      auto x = hashKmer2(s + i*max_size, max_size, i);
+      hash ^= x + 0x9e3779b9 + (hash<<6) + (hash>>2); // boost hash_combine method
+      i++;
+    }
+    size_t remaining_size = l % max_size;
+    auto x = hashKmer2(s + i*max_size, remaining_size, i);
+    hash ^= x + 0x9e3779b9 + (hash<<6) + (hash>>2); // boost hash_combine method
+    return hash;
+  }
+  
   class SeqStringHasher {
   public:
     size_t operator()(const SeqString& key) const {
-      return key.p_ ? hashKmer(key.p_, key.l_) : hashKmer(key.s_.c_str(), key.l_);
+      return hashSequence2(key.p_ ? key.p_ : key.s_.c_str(), key.l_);
     }
   };
   
