@@ -1037,6 +1037,34 @@ struct SplitCode {
       std::cerr << "Error: Sequence #" << n_tag_entries << ": \"" << name << "\" is empty" << std::endl;
       return false;
     }
+    std::string polymer_str = seq.substr(seq.find(":") + 1);
+    if (!polymer_str.empty()) { // sequence:range_begin-range_end
+      std::string s1 = polymer_str.substr(0, polymer_str.find("-"));
+      std::string s2 = polymer_str.substr(polymer_str.find("-") + 1);
+      if (s2.empty()) {
+        s2 = s1;
+      }
+      std::string original_seq = seq.substr(0, seq.find(":"));
+      int range_begin, range_end;
+      try {
+        range_begin = std::stoi(s1);
+        range_end = std::stoi(s2);
+      } catch (std::exception &e) {
+        std::cerr << "Error: Sequence #" << n_tag_entries << ": \"" << name << "\" is not properly formatted" << std::endl;
+        return false;
+      }
+      if (!(range_begin > 0 && range_end > 0 && range_begin <= range_end) || seq.find('/') != std::string::npos) {
+        std::cerr << "Error: Sequence #" << n_tag_entries << ": \"" << name << "\" is not properly formatted" << std::endl;
+        return false;
+      }
+      std::string new_seq = "";
+      for (int i = range_begin; i <= range_end; i++) {
+        std::string s = "";
+        for (int j = 0; j < i; j++) { s += original_seq; }
+        new_seq += s + (i != range_end ? "/" : "");
+      }
+      seq = new_seq;
+    }
     if (max_finds < min_finds && max_finds != 0) {
       std::cerr << "Error: Sequence #" << n_tag_entries << ": \"" << name << "\" -- max finds cannot be less than min finds" << std::endl;
       return false;
