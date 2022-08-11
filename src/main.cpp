@@ -106,8 +106,9 @@ void usage() {
        << "    --no-output  Don't output any sequences (output statistics only)" << endl
        << "    --no-outb    Don't output final barcode sequences" << endl
        << "    --no-x-out   Don't output extracted UMI-like sequences (should be used with --x-names)" << endl
-       << "    --mod-names  Modify names of outputted sequences to include identified barcodes" << endl
+       << "    --mod-names  Modify names of outputted sequences to include identified tag names" << endl
        << "    --com-names  Modify names of outputted sequences to include final barcode sequence ID" << endl
+       << "    --seq-names  Modify names of outputted sequences to include the sequences of identified tags" << endl
        << "    --x-names    Modify names of outputted sequences to include extracted UMI-like sequences" << endl
        << "    --x-only     Only output extracted UMI-like sequences" << endl
        << "Other Options:" << endl
@@ -140,6 +141,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   int gzip_flag = 0;
   int mod_names_flag = 0;
   int com_names_flag = 0;
+  int seq_names_flag = 0;
   int x_names_flag = 0;
   int x_only_flag = 0;
   int empty_remove_flag = 0;
@@ -164,6 +166,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"gzip", no_argument, &gzip_flag, 1},
     {"mod-names", no_argument, &mod_names_flag, 1},
     {"com-names", no_argument, &com_names_flag, 1},
+    {"seq-names", no_argument, &seq_names_flag, 1},
     {"x-names", no_argument, &x_names_flag, 1},
     {"x-only", no_argument, &x_only_flag, 1},
     {"empty-remove", no_argument, &empty_remove_flag, 1},
@@ -445,6 +448,9 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   if (com_names_flag) {
     opt.com_names = true;
   }
+  if (seq_names_flag) {
+    opt.seq_names = true;
+  }
   if (x_names_flag) {
     opt.x_names = true;
   }
@@ -560,8 +566,8 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
       std::cerr << ERROR_STR << " Cannot specify an output option when --no-output is specified" << std::endl;
       ret = false;
     }
-    if (opt.mod_names || opt.com_names || opt.x_names) {
-      std::cerr << ERROR_STR << " Cannot use --mod-names/--com-names/--x-names when --no-output is specified" << std::endl;
+    if (opt.mod_names || opt.com_names || opt.x_names || opt.seq_names) {
+      std::cerr << ERROR_STR << " Cannot use --mod-names/--com-names/--seq-names/--x-names when --no-output is specified" << std::endl;
       ret = false;
     }
     if (opt.gzip) {

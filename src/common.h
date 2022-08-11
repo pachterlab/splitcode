@@ -26,6 +26,7 @@ struct ProgramOptions {
   bool verbose;
   bool mod_names;
   bool com_names;
+  bool seq_names;
   bool x_names;
   bool x_only;
   bool gzip;
@@ -88,6 +89,7 @@ struct ProgramOptions {
     verbose(false),
     mod_names(false),
     com_names(false),
+    seq_names(false),
     x_names(false),
     x_only(false),
     gzip(false),

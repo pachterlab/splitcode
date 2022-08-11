@@ -174,12 +174,19 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
     if ((assigned || r.discard) && opt.mod_names) {
       mod_name = "::" + sc.getNameString(r); // Barcode names
     }
+    bool name_modded = false;
+    if ((assigned || r.discard) && opt.seq_names && !r.identified_tags_seqs.empty()) {
+      mod_name += " CB:Z:" + r.identified_tags_seqs; // Sequences of identified tags stitched together
+      name_modded = true;
+    }
     if (assigned && opt.com_names && !sc.always_assign) {
-      mod_name += " BI:i:" + std::to_string(sc.getID(r.id));
+      mod_name += (name_modded ? "\t" : " ");
+      mod_name += "BI:i:" + std::to_string(sc.getID(r.id));
       //mod_name += "\t" + "CB:Z:" + sc.binaryToString(sc.getID(r.id), sc.getBarcodeLength())
+      name_modded = true;
     }
     if (assigned && opt.x_names && !sc.umi_names.empty()) {
-      std::string mod_name2 = (opt.com_names ? "\t" : " ");
+      std::string mod_name2 = (name_modded ? "\t" : " ");
       mod_name2 += "RX:Z:";
       bool umi_empty = true;
       for (int umi_index = 0; umi_index < sc.umi_names.size(); umi_index++) { // Iterate through vector of all UMI names

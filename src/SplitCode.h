@@ -804,6 +804,7 @@ struct SplitCode {
     bool discard;
     bool passes_filter;
     std::string ofile;
+    std::string identified_tags_seqs;
   };
   
   struct SeqString {
@@ -996,8 +997,8 @@ struct SplitCode {
   }
   
   bool matchSequences(const SplitCodeTag& tag, const std::string& match_seq) {
-    // Returns true if one of the sequences in tag is equal to seq
-    // (Remember: tag.seq can have multiple sequences separated by '/')
+    // Returns true if sequence in tag is equal to seq
+    // (Takes into account the case that tag.seq can have multiple sequences separated by '/' [shouldn't happen in practice since those should be resolved into separate tags])
     char delimeter = '/';
     std::stringstream ss(tag.seq);
     std::string seq;
@@ -1038,7 +1039,7 @@ struct SplitCode {
       return false;
     }
     std::string polymer_str = seq.substr(seq.find(":") + 1);
-    if (!polymer_str.empty()) { // sequence:range_begin-range_end
+    if (!polymer_str.empty() && seq.find(":") != std::string::npos) { // sequence:range_begin-range_end
       std::string s1 = polymer_str.substr(0, polymer_str.find("-"));
       std::string s2 = polymer_str.substr(polymer_str.find("-") + 1);
       if (s2.empty()) {
@@ -1125,17 +1126,19 @@ struct SplitCode {
     // Only go through loop once; but if tag can belong to any file (new_tag.file == -1), iterate through nFiles (we'll make one new_tag per file)
     int start_file = new_tag.file == -1 ? 0 : new_tag.file;
     int end_file = new_tag.file == -1 ? nFiles : new_tag.file+1;
-    for (file = start_file; file < end_file; file++,new_tag_index++) {
+    std::string new_tag_seq = new_tag.seq;
+    for (file = start_file; file < end_file; file++) {
       new_tag.file = file;
       char delimeter = '/'; // Sequence can be delimited by '/' if the user gives multiple sequences for one tag record
-      std::stringstream ss(new_tag.seq);
+      std::stringstream ss(new_tag_seq);
       int num_seqs = 0;
-      tags_vec.push_back(new_tag);
       auto new_tag_index_original = new_tag_index;
       while (std::getline(ss, seq, delimeter)) {
         if (seq.empty()) {
           continue;
         }
+        new_tag.seq = seq;
+        tags_vec.push_back(new_tag);
         ++num_seqs;
         for (int i = 0; i < seq.size(); i++) {
           if (seq[i] != 'A' && seq[i] != 'T' && seq[i] != 'C' && seq[i] != 'G') {
@@ -1159,18 +1162,19 @@ struct SplitCode {
         }
         addToMap(seq, new_tag_index);
         generate_partial_matches(seq, partial5_min_match, partial5_mismatch_freq, partial3_min_match, partial3_mismatch_freq, new_tag_index, new_tag);
+        ++new_tag_index;
       }
       if (num_seqs == 0) {
         std::cerr << "Error: Sequence #" << n_tag_entries << ": \"" << name << "\" is empty" << std::endl;
         return false;
       }
       if (!after_str.empty()) {
-        for (int i = new_tag_index_original; i <= new_tag_index; i++) {
+        for (int i = new_tag_index_original; i < new_tag_index; i++) {
           before_after_vec.push_back(std::make_pair(i, std::make_pair(true, after_str)));
         }
       }
       if (!before_str.empty()) {
-        for (int i = new_tag_index_original; i <= new_tag_index; i++) {
+        for (int i = new_tag_index_original; i < new_tag_index; i++) {
           before_after_vec.push_back(std::make_pair(i, std::make_pair(false, before_str)));
         }
       }
@@ -2804,6 +2808,7 @@ struct SplitCode {
               results.name_ids.reserve(sz*1.5);
             }
             results.name_ids.push_back(tag.name_id);
+            results.identified_tags_seqs += tag.seq;
             if (check_group) {
               group_v.push_back(tag.group);
             }
