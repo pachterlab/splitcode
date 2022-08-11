@@ -93,14 +93,15 @@ void usage() {
        << "Output Options:" << endl
        << "-m, --mapping    Output file where the mapping between final barcode sequences and names will be written" << endl
        << "-o, --output     FASTQ file(s) where output will be written (comma-separated)" << endl
-       << "                 Number of output FASTQ files should equal --nFastqs" << endl
+       << "                 Number of output FASTQ files should equal --nFastqs (unless --select is provided)" << endl
        << "-O, --outb       FASTQ file where final barcodes will be written" << endl
        << "                 If not supplied, final barcodes are prepended to reads of first FASTQ file (or as the first read for --pipe)" << endl
        << "-u, --unassigned FASTQ file(s) where output of unassigned reads will be written (comma-separated)" << endl
-       << "                 Number of FASTQ files should equal --nFastqs" << endl
+       << "                 Number of FASTQ files should equal --nFastqs (unless --select is provided)" << endl
        << "-E, --empty      Sequence to fill in empty reads in output FASTQ files (default: no sequence is used to fill in those reads)" << endl
        << "    --empty-remove Empty reads are stripped in output FASTQ files (don't even output an empty sequence)" << endl
        << "-p, --pipe       Write to standard output (instead of output FASTQ files)" << endl
+       << "-S, --select     Select which FASTQ files to output (comma-separated) (e.g. 0,1,3 = Output files #0, #1, #3)" << endl
        << "    --gzip       Output compressed gzip'ed FASTQ files" << endl
        << "    --out-fasta  Output in FASTA format rather than FASTQ format" << endl
        << "    --no-output  Don't output any sequences (output statistics only)" << endl
@@ -153,7 +154,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   int qtrim_naive_flag = 0;
   int phred64_flag = 0;
 
-  const char *opt_string = "t:N:n:b:d:i:l:f:F:e:c:o:O:u:m:k:r:A:L:R:E:g:y:Y:j:J:a:v:z:Z:5:3:w:x:P:q:s:Tph";
+  const char *opt_string = "t:N:n:b:d:i:l:f:F:e:c:o:O:u:m:k:r:A:L:R:E:g:y:Y:j:J:a:v:z:Z:5:3:w:x:P:q:s:S:Tph";
   static struct option long_options[] = {
     // long args
     {"version", no_argument, &version_flag, 1},
@@ -219,6 +220,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"extract", required_argument, 0, 'x'},
     {"prefix", required_argument, 0, 'P'},
     {"summary", required_argument, 0, 's'},
+    {"select", required_argument, 0, 'S'},
     {0,0,0,0}
   };
   
@@ -417,6 +419,10 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
       stringstream(optarg) >> opt.summary_file;
       break;
     }
+    case 'S': {
+      stringstream(optarg) >> opt.select_output_files_str;
+      break;
+    }
     default: break;
     }
   }
@@ -494,6 +500,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   for (int i = optind; i < argc; i++) {
     opt.files.push_back(argv[i]);
   }
+  opt.select_output_files.resize(opt.nfiles, true);
 }
 
 bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
@@ -555,6 +562,34 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
     std::cerr << ERROR_STR << " --empty cannot be specified with --empty-remove" << std::endl;
     ret = false;
   }
+  int nf = opt.nfiles;
+  if (!opt.select_output_files_str.empty()) {
+    nf = 0;
+    opt.select_output_files.assign(opt.nfiles, false);
+    try {
+      std::stringstream ss(opt.select_output_files_str);
+      std::string s;
+      while (getline(ss, s, ',')) {
+        int f = std::stoi(s);
+        if (f < 0) {
+          std::cerr << ERROR_STR << " --select must contain numbers >= 0" << std::endl;
+          ret = false;
+          break;
+        } else if (f >= opt.nfiles) {
+          std::cerr << ERROR_STR << " --select must contain numbers less than --nFastqs" << std::endl;
+          ret = false;
+          break;
+        }
+        opt.select_output_files[f] = true;
+      }
+      for (int i = 0; i < opt.select_output_files.size(); i++) {
+        if (opt.select_output_files[i]) nf++;
+      }
+    } catch (std::exception &e) {
+      std::cerr << ERROR_STR << " --select must contain numbers >= 0" << std::endl;
+      ret = false;
+    }
+  }
   
   bool output_files_specified = opt.output_files.size() > 0 || opt.unassigned_files.size() > 0 || !opt.outputb_file.empty();
   if (opt.output_files.size() == 0 && output_files_specified && !opt.pipe && !opt.x_only) {
@@ -582,6 +617,10 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
       std::cerr << ERROR_STR << " Cannot use --out-fasta when --no-output is specified" << std::endl;
       ret = false;
     }
+    if (!opt.select_output_files_str.empty()) {
+      std::cerr << ERROR_STR << " Cannot use --select when --no-output is specified" << std::endl;
+      ret = false;
+    }
   } else {
     if (!output_files_specified && !opt.pipe && !opt.x_only) {
       std::cerr << ERROR_STR << " Must either specify an output option or --no-output" << std::endl;
@@ -595,12 +634,12 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
       if (opt.output_files.size() > 0 || !opt.outputb_file.empty()) { // Still allow --unassigned with --pipe
         std::cerr << ERROR_STR << " Cannot provide output files when --pipe is specified" << std::endl;
         ret = false;
-      } else if (opt.unassigned_files.size() != 0 && opt.unassigned_files.size() % opt.nfiles != 0) {
+      } else if (opt.unassigned_files.size() != 0 && opt.unassigned_files.size() % nf != 0 || opt.unassigned_files.size() > nf) {
         std::cerr << ERROR_STR << " Incorrect number of --unassigned output files" << std::endl;
         ret = false;
       }
     } else {
-      if (opt.output_files.size() % opt.nfiles != 0 || opt.unassigned_files.size() % opt.nfiles != 0) {
+      if (opt.output_files.size() % nf != 0 || opt.unassigned_files.size() % nf != 0 || opt.output_files.size() > nf || opt.unassigned_files.size() > nf) {
         std::cerr << ERROR_STR << " Incorrect number of output files" << std::endl;
         ret = false;
       }

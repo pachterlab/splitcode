@@ -249,6 +249,7 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
         }
       }
     }
+    int jj = -1;
     for (int j = 0; j < jmax; j++) {
       if (!assigned && !write_unassigned_fastq) {
         break;
@@ -256,6 +257,10 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
       if (opt.x_only) {
         break;
       }
+      if (!opt.select_output_files[j]) {
+        continue;
+      }
+      jj++;
       std::stringstream o;
       const char* s = seqs[i+j].first;
       int l = seqs[i+j].second;
@@ -263,7 +268,7 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
       int nl = names[i+j].second;
       const char* q = quals[i+j].first;
       // Write out read
-      bool embed_final_barcode = assigned && j==0 && !write_barcode_separate_fastq_ && !use_pipe && !sc.always_assign && !opt.no_output_barcodes;
+      bool embed_final_barcode = assigned && jj == 0 && !write_barcode_separate_fastq_ && !use_pipe && !sc.always_assign && !opt.no_output_barcodes;
       o << start_char;
       o << std::string(n,nl) << mod_name << "\n";
       if (embed_final_barcode) {
@@ -291,17 +296,17 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
           fwrite(ostr.c_str(), 1, ostr_len, stdout);
         } else {
           if (opt.gzip) {
-            gzwrite(r.ofile.empty() ? out_gz[j] : out_keep_gz[r.ofile][j+1], ostr.c_str(), ostr_len);
+            gzwrite(r.ofile.empty() ? out_gz[jj] : out_keep_gz[r.ofile][jj+1], ostr.c_str(), ostr_len);
           } else {
-            // note: we use j+1 for out_keep and out_keep_gz because the zeroth index is the barcodes file
-            fwrite(ostr.c_str(), 1, ostr_len, r.ofile.empty() ? out[j] : out_keep[r.ofile][j+1]);
+            // note: we use jj+1 for out_keep and out_keep_gz because the zeroth index is the barcodes file
+            fwrite(ostr.c_str(), 1, ostr_len, r.ofile.empty() ? out[jj] : out_keep[r.ofile][jj+1]);
           }
         }
       } else {
         if (opt.gzip) {
-          gzwrite(outu_gz[j], ostr.c_str(), ostr_len);
+          gzwrite(outu_gz[jj], ostr.c_str(), ostr_len);
         } else {
-          fwrite(ostr.c_str(), 1, ostr_len, outu[j]);
+          fwrite(ostr.c_str(), 1, ostr_len, outu[jj]);
         }
       }
     }

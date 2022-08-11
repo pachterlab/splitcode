@@ -71,6 +71,8 @@ struct ProgramOptions {
   std::string extract_str;
   std::string barcode_prefix;
   std::string summary_file;
+  std::string select_output_files_str;
+  std::vector<bool> select_output_files; // todo
   
   ProgramOptions() :
     threads(1),
