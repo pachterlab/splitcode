@@ -123,7 +123,7 @@ I;<*,(,%#$" > $test_dir/test.fq
 
 checkcmdoutput "$splitcode --trim-only --pipe $test_dir/test.fq" cb52b79ed7469ca2ffe5739ec544b157
 checkcmdoutput "$splitcode --trim-only --pipe -q 10 --qtrim-3 $test_dir/test.fq" 0284bb3b6fa601d6f85d8d051f7e6431
-cat ./func_tests/test.fq|./src/splitcode --trim-only --pipe -q 10 --qtrim-3 -|md5sum
+cat ./func_tests/test.fq|./src/splitcode --trim-only --pipe -q 10 --qtrim-3 -
 checkcmdoutput "cat $test_dir/test.fq|$splitcode --trim-only --pipe -q 10 --qtrim-3 -|md5sum" 0284bb3b6fa601d6f85d8d051f7e6431
 checkcmdoutput "$splitcode --trim-only --pipe -q 10 --qtrim-5 --qtrim-3 $test_dir/test.fq" 0284bb3b6fa601d6f85d8d051f7e6431
 checkcmdoutput "$splitcode --trim-only --pipe -q 10 --qtrim-5 $test_dir/test.fq" cb52b79ed7469ca2ffe5739ec544b157
