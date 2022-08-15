@@ -162,11 +162,9 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
       i += incf;
       continue;
     }
-    if (sc.always_assign) {
-      r.ofile = ""; // If always-assign, don't allow writing output to alternative files based on identified tags
-    }
     auto& umi_vec = r.umi_data;
-    bool assigned = sc.isAssigned(r);
+    bool assigned = sc.isAssigned(r); // Note: r.discard and assigned will both true be in the case of sc.always_assign==true but the read doesn't pass our keep/discard filter (if !sc.always_assign, assigned will be false if r.discard is false)
+    bool assigned2 = sc.isAssigned(r, true); // Unlike assigned, assigned2 is false if sc.always_assign==true but the read doesn't pass the keep/discard filter; basically, it's equivalent to: (assigned && !r.discard)
     bool use_pipe = opt.pipe && r.ofile.empty(); // Conditions under which we'll write to stdout
     // Conditions under which we'll write to separate barcode file (either write_barcode_separate_fastq specified previously or we need to write reads out to r.ofile even though user specified --pipe):
     bool write_barcode_separate_fastq_ = write_barcode_separate_fastq || (!r.ofile.empty() && (opt.pipe && !opt.no_output_barcodes));
@@ -185,7 +183,7 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
       //mod_name += "\t" + "CB:Z:" + sc.binaryToString(sc.getID(r.id), sc.getBarcodeLength())
       name_modded = true;
     }
-    if (assigned && opt.x_names && !sc.umi_names.empty()) {
+    if (assigned2 && opt.x_names && !sc.umi_names.empty()) {
       std::string mod_name2 = (name_modded ? "\t" : " ");
       mod_name2 += "RX:Z:";
       bool umi_empty = true;
@@ -222,7 +220,7 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
         fwrite(ostr.c_str(), 1, ostr_len, r.ofile.empty() ? outb : out_keep[r.ofile][0]);
       }
     }
-    if (!sc.umi_names.empty() && assigned && !opt.no_x_out) { // Write out extracted UMIs as needed
+    if (!sc.umi_names.empty() && assigned2 && !opt.no_x_out) { // Write out extracted UMIs as needed
       for (int umi_index = 0; umi_index < sc.umi_names.size(); umi_index++) { // Iterate through vector of all UMI names
         std::string curr_umi = umi_vec[umi_index];
         if (curr_umi.empty()) {
@@ -251,7 +249,7 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
     }
     int jj = -1;
     for (int j = 0; j < jmax; j++) {
-      if (!assigned && !write_unassigned_fastq) {
+      if (!(assigned2) && !write_unassigned_fastq) {
         break;
       }
       if (opt.x_only) {
@@ -291,15 +289,15 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
       
       const std::string& ostr = o.str();
       size_t ostr_len = ostr.length();
-      if (assigned) {
+      if (assigned2) {
         if (use_pipe) {
           fwrite(ostr.c_str(), 1, ostr_len, stdout);
         } else {
           if (opt.gzip) {
-            gzwrite(r.ofile.empty() ? out_gz[jj] : out_keep_gz[r.ofile][jj+1], ostr.c_str(), ostr_len);
+            gzwrite(r.ofile.empty() ? out_gz[jj] : out_keep_gz[r.ofile][j+1], ostr.c_str(), ostr_len);
           } else {
-            // note: we use jj+1 for out_keep and out_keep_gz because the zeroth index is the barcodes file
-            fwrite(ostr.c_str(), 1, ostr_len, r.ofile.empty() ? out[jj] : out_keep[r.ofile][jj+1]);
+            // note: we use j+1 for out_keep and out_keep_gz because the zeroth index is the barcodes file
+            fwrite(ostr.c_str(), 1, ostr_len, r.ofile.empty() ? out[jj] : out_keep[r.ofile][j+1]);
           }
         }
       } else {

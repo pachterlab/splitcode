@@ -649,10 +649,6 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
     std::cerr << ERROR_STR << " Cannot use --trim-only with --no-output" << std::endl;
     ret = false;
   }
-  if (opt.trim_only && opt.unassigned_files.size() != 0) {
-    std::cerr << ERROR_STR << " Cannot use --trim-only with --unassigned" << std::endl;
-    ret = false;
-  }
   if (opt.trim_only && !opt.outputb_file.empty()) {
     std::cerr << ERROR_STR << " Cannot use --trim-only with --outb" << std::endl;
     ret = false;

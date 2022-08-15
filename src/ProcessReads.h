@@ -137,7 +137,11 @@ public:
               out_keep_gz[f.second].push_back(nullptr);
               continue;
             }
-            out_keep_gz[f.second].push_back(gzopen((f.second + "_" + (i == 0 ? "barcodes" : std::to_string(i)) + suffix_gz).c_str(), "wb1"));
+            if (i != 0 && !opt.select_output_files[i-1]) {
+              out_keep_gz[f.second].push_back(nullptr);
+              continue;
+            }
+            out_keep_gz[f.second].push_back(gzopen((f.second + "_" + (i == 0 ? "barcodes" : std::to_string(i-1)) + suffix_gz).c_str(), "wb1"));
           }
         }
       } else {
@@ -148,7 +152,11 @@ public:
               out_keep[f.second].push_back(nullptr);
               continue;
             }
-            out_keep[f.second].push_back(fopen((f.second + "_" + (i == 0 ? "barcodes" : std::to_string(i)) + suffix).c_str(), "wb"));
+            if (i != 0 && !opt.select_output_files[i-1]) {
+              out_keep[f.second].push_back(nullptr);
+              continue;
+            }
+            out_keep[f.second].push_back(fopen((f.second + "_" + (i == 0 ? "barcodes" : std::to_string(i-1)) + suffix).c_str(), "wb"));
           }
         }
       }
@@ -165,7 +173,11 @@ public:
               out_keep_gz[f.second].push_back(nullptr); // zeroth index is the barcodes file or nullptr if we're not writing a separate barcodes file
               continue;
             }
-            out_keep_gz[f.second].push_back(gzopen((f.second + "_" + (i == 0 ? "barcodes" : std::to_string(i)) + suffix_gz).c_str(), "wb1"));
+            if (i != 0 && !opt.select_output_files[i-1]) {
+              out_keep_gz[f.second].push_back(nullptr);
+              continue;
+            }
+            out_keep_gz[f.second].push_back(gzopen((f.second + "_" + (i == 0 ? "barcodes" : std::to_string(i-1)) + suffix_gz).c_str(), "wb1"));
           }
         }
       } else {
@@ -176,7 +188,11 @@ public:
               out_keep[f.second].push_back(nullptr);
               continue;
             }
-            out_keep[f.second].push_back(fopen((f.second + "_" + (i == 0 ? "barcodes" : std::to_string(i)) + suffix).c_str(), "wb"));
+            if (i != 0 && !opt.select_output_files[i-1]) {
+              out_keep[f.second].push_back(nullptr);
+              continue;
+            }
+            out_keep[f.second].push_back(fopen((f.second + "_" + (i == 0 ? "barcodes" : std::to_string(i-1)) + suffix).c_str(), "wb"));
           }
         }
       }

@@ -44,6 +44,7 @@ struct SplitCode {
     quality_trimming_threshold = -1;
     phred64 = false;
     num_reads_set = false;
+    num_reads_assigned = 0;
     summary_n_reads_filtered = 0;
     summary_n_reads_filtered_assigned = 0;
     setNFiles(0);
@@ -64,6 +65,7 @@ struct SplitCode {
     curr_barcode_mapping_i = 0;
     curr_umi_id_i = 0;
     num_reads_set = false;
+    num_reads_assigned = 0;
     summary_n_reads_filtered = 0;
     summary_n_reads_filtered_assigned = 0;
     this->summary_file = summary_file;
@@ -128,7 +130,7 @@ struct SplitCode {
     std::vector<double> summary_read_length_pre_means;
     std::vector<double> summary_read_length_post_means;
     if (num_reads_set) {
-      size_t n_retained_reads = (always_assign ? num_reads : getNumMapped()) - summary_n_reads_filtered_assigned;
+      size_t n_retained_reads = (always_assign ? num_reads_assigned : getNumMapped()) - summary_n_reads_filtered_assigned;
       for (int i = 0; i < nFiles; i++) {
         summary_read_length_pre_means.push_back(num_reads == 0 ? 0 : (summary_read_length_pre[i] / static_cast<double>(num_reads)));
       }
@@ -144,9 +146,7 @@ struct SplitCode {
       of << "\t" << "\"n_processed\": " << num_reads << ",\n";
       of << "\t" << "\"n_reads_max\": " << (max_num_reads == 0 ? num_reads : max_num_reads) << ",\n";
     }
-    if (!always_assign || num_reads_set) {
-      of << "\t" << "\"n_assigned\": " << (always_assign ? num_reads : getNumMapped()) << ",\n";
-    }
+    of << "\t" << "\"n_assigned\": " << (always_assign ? num_reads_assigned : getNumMapped()) << ",\n";
     if (num_reads_set) {
       of << "\t" << "\"read_length_mean\": [" << v_to_csv_double(summary_read_length_pre_means) << "],\n";
     }
@@ -2967,7 +2967,7 @@ struct SplitCode {
       if (update_summary) { // Update summary statistics
         if (!r.passes_filter) {
           summary_n_reads_filtered++;
-          if (isAssigned(r)) {
+          if (isAssigned(r, true)) {
             summary_n_reads_filtered_assigned++;
           }
         }
@@ -2992,7 +2992,7 @@ struct SplitCode {
                 tts.trim_right += trim_len;
               }
               summary_tags_trimmed_assigned[tag_name_id].resize(std::max(match_len+1, (int)summary_tags_trimmed_assigned[tag_name_id].size()), TrimTagSummary());
-              if (isAssigned(r)) {
+              if (isAssigned(r, true)) {
                 auto& tts2 = summary_tags_trimmed_assigned[tag_name_id][match_len];
                 set_tag_ids_assigned.insert(tag_name_id);
                 tts2.count++;
@@ -3021,7 +3021,7 @@ struct SplitCode {
           if (leftOffset > 0) {
             summary_n_reads_total_trimmed_5[j]++;
             summary_n_bases_total_trimmed_5[j] += leftOffset;
-            if (isAssigned(r)) {
+            if (isAssigned(r, true)) {
               summary_n_reads_total_trimmed_5_assigned[j]++;
               summary_n_bases_total_trimmed_5_assigned[j] += leftOffset;
             }
@@ -3029,7 +3029,7 @@ struct SplitCode {
           if (rightOffset > 0) {
             summary_n_reads_total_trimmed_3[j]++;
             summary_n_bases_total_trimmed_3[j] += rightOffset;
-            if (isAssigned(r)) {
+            if (isAssigned(r, true)) {
               summary_n_reads_total_trimmed_3_assigned[j]++;
               summary_n_bases_total_trimmed_3_assigned[j] += rightOffset;
             }
@@ -3041,7 +3041,7 @@ struct SplitCode {
           summary_read_length_pre[j] += og_len;
           summary_read_length_min_pre[j] = og_len < summary_read_length_min_pre[j] || summary_read_length_min_pre[j] == -1 ? og_len : summary_read_length_min_pre[j];
           summary_read_length_max_pre[j] = og_len > summary_read_length_max_pre[j] ? og_len : summary_read_length_max_pre[j];
-          if (isAssigned(r)) {
+          if (isAssigned(r, true)) {
             auto modified_len = r.modified_len.empty() ? r.og_len[j] : r.modified_len[j];
             summary_read_length_post[j] += modified_len;
             summary_read_length_min_post[j] = modified_len < summary_read_length_min_post[j] || summary_read_length_min_post[j] == -1 ? modified_len : summary_read_length_min_post[j];
@@ -3054,14 +3054,14 @@ struct SplitCode {
           summary_n_bases_qual_trimmed_3[j] += q3;
           summary_n_reads_qual_trimmed_5[j] += (q5 != 0);
           summary_n_reads_qual_trimmed_3[j] += (q3 != 0);
-          if (isAssigned(r)) {
+          if (isAssigned(r, true)) {
             summary_n_bases_qual_trimmed_5_assigned[j] += q5;
             summary_n_bases_qual_trimmed_3_assigned[j] += q3;
             summary_n_reads_qual_trimmed_5_assigned[j] += (q5 != 0);
             summary_n_reads_qual_trimmed_3_assigned[j] += (q3 != 0);
           }
         }
-        if (do_extract) {
+        if (do_extract && isAssigned(r, true)) {
           auto& umi_vec = r.umi_data;
           for (int umi_index = 0; umi_index < umi_names.size(); umi_index++) { // Iterate through vector of all UMI names
             std::string curr_umi = umi_vec[umi_index];
@@ -3076,7 +3076,10 @@ struct SplitCode {
         }
       }
       auto& u = r.name_ids;
-      if (u.empty() || !isAssigned(r)) {
+      if (isAssigned(r, true)) {
+        num_reads_assigned++;
+      }
+      if (u.empty() || !isAssigned(r) || always_assign) {
         continue;
       }
       int id = idmap_find(u);
@@ -3095,6 +3098,10 @@ struct SplitCode {
   
   bool isAssigned(Results& r) {
     return (!r.discard && !r.name_ids.empty()) || always_assign;
+  }
+  
+  bool isAssigned(Results& r, bool exclude_discard_if_always_assign) {
+    return exclude_discard_if_always_assign ? isAssigned(r) && !r.discard : isAssigned(r);
   }
   
   std::string getNameString(Results& r) {
@@ -3365,7 +3372,7 @@ struct SplitCode {
   
   std::string summary_file;
   
-  size_t num_reads, max_num_reads;
+  size_t num_reads, max_num_reads, num_reads_assigned;
   bool num_reads_set;
   
   size_t summary_n_reads_filtered;
