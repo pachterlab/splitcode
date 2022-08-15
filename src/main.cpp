@@ -657,6 +657,10 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
     std::cerr << ERROR_STR << " Cannot use --trim-only with --mapping" << std::endl;
     ret = false;
   }
+  if (opt.trim_only && opt.com_names) {
+    std::cerr << ERROR_STR << " Cannot use --trim-only with --com-names" << std::endl;
+    ret = false;
+  }
   opt.output_fastq_specified = output_files_specified;
   opt.verbose = !opt.pipe;
   

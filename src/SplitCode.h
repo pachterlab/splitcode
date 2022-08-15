@@ -2908,6 +2908,9 @@ struct SplitCode {
     }
     auto &u = results.name_ids;
     if (u.empty()) {
+      if (keep_check || keep_check_group) {
+        results.discard = true;
+      }
       return;
     }
     if (keep_check) {
