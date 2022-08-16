@@ -443,7 +443,7 @@ struct SplitCode {
           if (i == 0) {
             extra = std::stoi(s2);
           } else if (i == 1) {
-            extra2 = std::stoi(s2);
+            extra2 = std::stoi(s2)+1; // +1 because internally we treat the interval as [extra, extra2)
           }
           i++;
         }
