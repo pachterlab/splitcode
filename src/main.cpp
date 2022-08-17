@@ -112,7 +112,13 @@ void usage() {
        << "    --seq-names  Modify names of outputted sequences to include the sequences of identified tags" << endl
        << "    --x-names    Modify names of outputted sequences to include extracted UMI-like sequences" << endl
        << "    --x-only     Only output extracted UMI-like sequences" << endl
-       << "Other Options:" << endl
+       << "-M  --sam-tags   Modify the default SAM tags (default: ";
+        for (int i = 0; i < sizeof(ProgramOptions::sam_tags_default) / sizeof(ProgramOptions::sam_tags_default[0]); i++) {
+          if (i != 0) cout << ",";
+          cout << ProgramOptions::sam_tags_default[i];
+        }
+       cout << ")" << endl;
+  cout << "Other Options:" << endl
        << "-N, --nFastqs    Number of FASTQ file(s) per run" << endl
        << "                 (default: 1) (specify 2 for paired-end)" << endl
        << "-n, --numReads   Maximum number of reads to process from supplied input" << endl
@@ -154,7 +160,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   int qtrim_naive_flag = 0;
   int phred64_flag = 0;
 
-  const char *opt_string = "t:N:n:b:d:i:l:f:F:e:c:o:O:u:m:k:r:A:L:R:E:g:y:Y:j:J:a:v:z:Z:5:3:w:x:P:q:s:S:Tph";
+  const char *opt_string = "t:N:n:b:d:i:l:f:F:e:c:o:O:u:m:k:r:A:L:R:E:g:y:Y:j:J:a:v:z:Z:5:3:w:x:P:q:s:S:M:Tph";
   static struct option long_options[] = {
     // long args
     {"version", no_argument, &version_flag, 1},
@@ -221,6 +227,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"prefix", required_argument, 0, 'P'},
     {"summary", required_argument, 0, 's'},
     {"select", required_argument, 0, 'S'},
+    {"sam-tags", required_argument, 0, 'M'},
     {0,0,0,0}
   };
   
@@ -421,6 +428,19 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     }
     case 'S': {
       stringstream(optarg) >> opt.select_output_files_str;
+      break;
+    }
+    case 'M': {
+      std::string m;
+      stringstream(optarg) >> m;
+      m.erase(remove(m.begin(),m.end(),' '),m.end()); // remove spaces from string
+      std::stringstream ss(m);
+      std::string s;
+      int i = 0;
+      while (std::getline(ss, s, ',') && i < sizeof(ProgramOptions::sam_tags_default) / sizeof(ProgramOptions::sam_tags_default[0])) {
+        opt.sam_tags[i] = s;
+        i++;
+      }
       break;
     }
     default: break;

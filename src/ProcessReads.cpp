@@ -174,18 +174,18 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
     }
     bool name_modded = false;
     if ((assigned || r.discard) && opt.seq_names && !r.identified_tags_seqs.empty()) {
-      mod_name += " CB:Z:" + r.identified_tags_seqs; // Sequences of identified tags stitched together
+      mod_name += " " + opt.sam_tags[0] + r.identified_tags_seqs; // Sequences of identified tags stitched together
       name_modded = true;
     }
     if (assigned && opt.com_names && !sc.always_assign) {
       mod_name += (name_modded ? "\t" : " ");
-      mod_name += "BI:i:" + std::to_string(sc.getID(r.id));
-      //mod_name += "\t" + "CB:Z:" + sc.binaryToString(sc.getID(r.id), sc.getBarcodeLength())
+      mod_name += opt.sam_tags[2] + std::to_string(sc.getID(r.id));
+      //mod_name += "\t" + opt.sam_tags[0] + sc.binaryToString(sc.getID(r.id), sc.getBarcodeLength())
       name_modded = true;
     }
     if (assigned2 && opt.x_names && !sc.umi_names.empty()) {
       std::string mod_name2 = (name_modded ? "\t" : " ");
-      mod_name2 += "RX:Z:";
+      mod_name2 += opt.sam_tags[1];
       bool umi_empty = true;
       for (int umi_index = 0; umi_index < sc.umi_names.size(); umi_index++) { // Iterate through vector of all UMI names
         std::string curr_umi = umi_vec[umi_index];
