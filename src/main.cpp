@@ -112,13 +112,8 @@ void usage() {
        << "    --seq-names  Modify names of outputted sequences to include the sequences of identified tags" << endl
        << "    --x-names    Modify names of outputted sequences to include extracted UMI-like sequences" << endl
        << "    --x-only     Only output extracted UMI-like sequences" << endl
-       << "-M  --sam-tags   Modify the default SAM tags (default: ";
-        for (int i = 0; i < sizeof(ProgramOptions::sam_tags_default) / sizeof(ProgramOptions::sam_tags_default[0]); i++) {
-          if (i != 0) cout << ",";
-          cout << ProgramOptions::sam_tags_default[i];
-        }
-       cout << ")" << endl;
-  cout << "Other Options:" << endl
+       << "-M  --sam-tags   Modify the default SAM tags (default: CB:Z,RX:Z:,BI:i:)" << endl
+       << "Other Options:" << endl
        << "-N, --nFastqs    Number of FASTQ file(s) per run" << endl
        << "                 (default: 1) (specify 2 for paired-end)" << endl
        << "-n, --numReads   Maximum number of reads to process from supplied input" << endl
@@ -437,7 +432,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
       std::stringstream ss(m);
       std::string s;
       int i = 0;
-      while (std::getline(ss, s, ',') && i < sizeof(ProgramOptions::sam_tags_default) / sizeof(ProgramOptions::sam_tags_default[0])) {
+      while (std::getline(ss, s, ',') && i < 3) {
         opt.sam_tags[i] = s;
         i++;
       }

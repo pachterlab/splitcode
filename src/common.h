@@ -73,7 +73,6 @@ struct ProgramOptions {
   std::string summary_file;
   std::string select_output_files_str;
   std::vector<bool> select_output_files;
-  static constexpr const char* sam_tags_default[3] = {"CB:Z", "RX:Z:", "BI:i:"};
   std::vector<std::string> sam_tags;
   
   ProgramOptions() :
@@ -107,6 +106,7 @@ struct ProgramOptions {
     quality_trimming_naive(false),
     phred64(false)
   {
+    const char* sam_tags_default[3] = {"CB:Z", "RX:Z:", "BI:i:"};
     sam_tags.push_back(std::string(sam_tags_default[0]));
     sam_tags.push_back(std::string(sam_tags_default[1]));
     sam_tags.push_back(std::string(sam_tags_default[2]));
