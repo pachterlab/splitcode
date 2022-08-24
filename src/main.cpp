@@ -72,6 +72,7 @@ void usage() {
        << "                 (Note: for --next/--previous, specify tag names as {name} and specify tag group names as {{group}}" << endl
        << "                 Can also specify the number of base pairs that must appear between the current tag and the next/previous tag." << endl
        << "                 E.g. {bc}4-12 means the next/previous tag is 4-12 bases away and has name 'bc')" << endl
+       << "-U, --subs       Specifies sequence to substitute tag with when found in read (. = original sequence) (comma-separated)" << endl
        << "-z, --partial5   Specifies tag may be truncated at the 5′ end (comma-separated min_match:mismatch_freq)" << endl
        << "-Z, --partial3   Specifies tag may be truncated at the 3′ end (comma-separated min_match:mismatch_freq)" << endl
        << "Read modification and extraction options (for configuring on the command-line):" << endl
@@ -155,7 +156,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   int qtrim_naive_flag = 0;
   int phred64_flag = 0;
 
-  const char *opt_string = "t:N:n:b:d:i:l:f:F:e:c:o:O:u:m:k:r:A:L:R:E:g:y:Y:j:J:a:v:z:Z:5:3:w:x:P:q:s:S:M:Tph";
+  const char *opt_string = "t:N:n:b:d:i:l:f:F:e:c:o:O:u:m:k:r:A:L:R:E:g:y:Y:j:J:a:v:z:Z:5:3:w:x:P:q:s:S:M:U:Tph";
   static struct option long_options[] = {
     // long args
     {"version", no_argument, &version_flag, 1},
@@ -198,6 +199,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"exclude", required_argument, 0, 'e'},
     {"next", required_argument, 0, 'a'},
     {"after", required_argument, 0, 'a'},
+    {"subs", required_argument, 0, 'U'},
     {"previous", required_argument, 0, 'v'},
     {"partial5", required_argument, 0, 'z'},
     {"partial3", required_argument, 0, 'Z'},
@@ -322,6 +324,10 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     }
     case 'v': {
       stringstream(optarg) >> opt.before_str;
+      break;
+    }
+    case 'U': {
+      stringstream(optarg) >> opt.subs_str;
       break;
     }
     case 'z': {
@@ -698,6 +704,7 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
     stringstream ss12(opt.before_str);
     stringstream ss13(opt.partial5_str);
     stringstream ss14(opt.partial3_str);
+    stringstream ss15(opt.subs_str);
     while (ss1.good()) {
       uint16_t max_finds = 0;
       uint16_t min_finds = 0;
@@ -712,6 +719,7 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
       string before_str = "";
       string partial5_str = "";
       string partial3_str = "";
+      string subs_str = "";
       int partial5_min_match, partial3_min_match;
       double partial5_mismatch_freq, partial3_mismatch_freq;
       bool trim_left, trim_right;
@@ -912,7 +920,15 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
         ret = false;
         break;
       }
-      if (!sc.addTag(bc, name.empty() ? bc : name, group, mismatch, indel, total_dist, file, pos_start, pos_end, max_finds, min_finds, exclude, trim_dir, trim_offset, after_str, before_str, partial5_min_match, partial5_mismatch_freq, partial3_min_match, partial3_mismatch_freq)) {
+      if (!opt.subs_str.empty()) {
+        if (!ss15.good()) {
+          std::cerr << ERROR_STR << " Number of values in --subs is less than that in --tags" << std::endl;
+          ret = false;
+          break;
+        }
+        getline(ss15, subs_str, ',');
+      }
+      if (!sc.addTag(bc, name.empty() ? bc : name, group, mismatch, indel, total_dist, file, pos_start, pos_end, max_finds, min_finds, exclude, trim_dir, trim_offset, after_str, before_str, partial5_min_match, partial5_mismatch_freq, partial3_min_match, partial3_mismatch_freq, subs_str)) {
         std::cerr << ERROR_STR << " Could not finish processing supplied tags list" << std::endl;
         ret = false;
         break;
@@ -962,6 +978,18 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
       std::cerr << ERROR_STR << " Number of values in --previous is greater than that in --tags" << std::endl;
       ret = false;
     }
+    if (ret && !opt.partial5_str.empty() && ss13.good()) {
+      std::cerr << ERROR_STR << " Number of values in --partial5 is greater than that in --tags" << std::endl;
+      ret = false;
+    }
+    if (ret && !opt.partial3_str.empty() && ss14.good()) {
+      std::cerr << ERROR_STR << " Number of values in --partial3 is greater than that in --tags" << std::endl;
+      ret = false;
+    }
+    if (ret && !opt.subs_str.empty() && ss15.good()) {
+      std::cerr << ERROR_STR << " Number of values in --subs is greater than that in --tags" << std::endl;
+      ret = false;
+    }
   } else if (!opt.distance_str.empty()) {
     std::cerr << ERROR_STR << " --distances cannot be supplied unless --tags is" << std::endl;
     ret = false;
@@ -994,6 +1022,15 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
     ret = false;
   } else if (!opt.before_str.empty()) {
     std::cerr << ERROR_STR << " --previous cannot be supplied unless --tags is" << std::endl;
+    ret = false;
+  } else if (!opt.partial5_str.empty()) {
+    std::cerr << ERROR_STR << " --partial5 cannot be supplied unless --tags is" << std::endl;
+    ret = false;
+  } else if (!opt.partial3_str.empty()) {
+    std::cerr << ERROR_STR << " --partial3 cannot be supplied unless --tags is" << std::endl;
+    ret = false;
+  } else if (!opt.subs_str.empty()) {
+    std::cerr << ERROR_STR << " --subs cannot be supplied unless --tags is" << std::endl;
     ret = false;
   } else if (!opt.config_file.empty()) {
     ret = ret && sc.addTags(opt.config_file);

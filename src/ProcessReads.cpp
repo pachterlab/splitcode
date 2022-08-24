@@ -248,11 +248,34 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
       }
     }
     int jj = -1;
-    for (int j = 0; j < jmax; j++) {
-      if (!(assigned2) && !write_unassigned_fastq) {
-        break;
+    bool no_output = (!(assigned2) && !write_unassigned_fastq) || opt.x_only; // When to not output read sequences
+    std::vector<const char*> s_(jmax, nullptr);
+    std::vector<const char*> q_(jmax, nullptr);
+    std::vector<int> l_(jmax,0);
+    std::vector<std::pair<std::string,std::string> > edited_s_vec;
+    if (!no_output && r.modsubs.empty()) {
+      for (int j = 0; j < jmax; j++) {
+        s_[j] = seqs[i+j].first;
+        q_[j] = quals[i+j].first;
+        l_[j] = seqs[i+j].second;
       }
-      if (opt.x_only) {
+    } else if (!no_output) { // If we need to make a substitution in the read
+      edited_s_vec = sc.getEditedRead(seqs, quals, i, jmax, r, include_quals);
+      for (int j = 0; j < jmax; j++) {
+        s_[j] = edited_s_vec[j].first.c_str(); // sequence
+        q_[j] = edited_s_vec[j].second.c_str(); // quality
+        l_[j] = edited_s_vec[j].first.length();
+        if (edited_s_vec[j].first == " ") { // Substitution resulted in an empty string
+          l_[j] = 0;
+        } else if (edited_s_vec[j].first.empty()) { // Sequence underwent no substitutions so just extract the original sequence in the buffer
+          s_[j] = seqs[i+j].first;
+          q_[j] = quals[i+j].first;
+          l_[j] = seqs[i+j].second;
+        }
+      }
+    }
+    for (int j = 0; j < jmax; j++) {
+      if (no_output) {
         break;
       }
       if (!opt.select_output_files[j]) {
@@ -260,11 +283,11 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
       }
       jj++;
       std::stringstream o;
-      const char* s = seqs[i+j].first;
-      int l = seqs[i+j].second;
+      const char* s = s_[j];
+      int l = l_[j];
       const char* n = names[i+j].first;
       int nl = names[i+j].second;
-      const char* q = quals[i+j].first;
+      const char* q = q_[j];
       // Write out read
       bool embed_final_barcode = assigned && jj == 0 && !write_barcode_separate_fastq_ && !use_pipe && !sc.always_assign && !opt.no_output_barcodes;
       o << start_char;
@@ -420,7 +443,7 @@ void ReadProcessor::processBuffer() {
     SplitCode::Results results;
     mp.sc.processRead(s, l, jmax, results, q);
     if (mp.sc.isAssigned(results)) { // Only modify/trim the reads stored in seq if assigned
-      mp.sc.modifyRead(seqs, quals, i-incf, results);
+      mp.sc.modifyRead(seqs, quals, i-incf, results, true);
     }
     rv.push_back(results);
 

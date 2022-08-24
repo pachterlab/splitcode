@@ -788,14 +788,17 @@ struct SplitCode {
     uint16_t extra_after2;
     bool partial5;
     bool partial3;
+    std::string substitution;
   };
 
   struct Results {
     std::vector<uint32_t> name_ids;
     std::vector<std::string> umi_data;
     std::vector<std::pair<int,std::pair<int,int>>> modtrim;
+    std::vector<std::pair<int,std::pair<int,std::pair<std::string,int>>>> modsubs;
     std::vector<int32_t> og_len;
     std::vector<int32_t> modified_len;
+    std::vector<int32_t> modified_pos;
     std::vector<int32_t> n_bases_qual_trimmed_5;
     std::vector<int32_t> n_bases_qual_trimmed_3;
     std::vector<std::pair<std::pair<uint32_t,int32_t>,std::pair<int32_t,int32_t>>> tag_trimmed_left; // tag name id, bases trimmed, match length, error
@@ -1014,7 +1017,7 @@ struct SplitCode {
               int16_t file, int32_t pos_start, int32_t pos_end,
               uint16_t max_finds, uint16_t min_finds, bool not_include_in_barcode,
               dir trim, int trim_offset, std::string after_str, std::string before_str,
-              int partial5_min_match, double partial5_mismatch_freq, int partial3_min_match, double partial3_mismatch_freq) {
+              int partial5_min_match, double partial5_mismatch_freq, int partial3_min_match, double partial3_mismatch_freq, std::string subs_str) {
     if (init) {
       std::cerr << "Error: Already initialized" << std::endl;
       return false;
@@ -1065,6 +1068,16 @@ struct SplitCode {
         new_seq += s + (i != range_end ? "/" : "");
       }
       seq = new_seq;
+    }
+    if (!subs_str.empty()) {
+      std::transform(subs_str.begin(), subs_str.end(), subs_str.begin(), ::toupper);
+      subs_str.erase(remove(subs_str.begin(),subs_str.end(),' '),subs_str.end()); // remove spaces from string
+      for (int i = 0; i < subs_str.size(); i++) {
+        if (subs_str[i] != 'A' && subs_str[i] != 'T' && subs_str[i] != 'C' && subs_str[i] != 'G' && subs_str[i] != 'N' && subs_str[i] != '.' && subs_str[i] != '-') {
+          std::cerr << "Error: Sequence #" << n_tag_entries << ": \"" << name << "\" contains a non-ATCGN character in specified substitution" << std::endl;
+          return false;
+        }
+      }
     }
     if (max_finds < min_finds && max_finds != 0) {
       std::cerr << "Error: Sequence #" << n_tag_entries << ": \"" << name << "\" -- max finds cannot be less than min finds" << std::endl;
@@ -1138,6 +1151,7 @@ struct SplitCode {
           continue;
         }
         new_tag.seq = seq;
+        new_tag.substitution = subs_str == "." ? seq : subs_str;
         tags_vec.push_back(new_tag);
         ++num_seqs;
         for (int i = 0; i < seq.size(); i++) {
@@ -1379,6 +1393,7 @@ struct SplitCode {
       std::string group = "";
       std::string after_str = "";
       std::string before_str = "";
+      std::string subs_str = "";
       int mismatch, indel, total_dist;
       parseDistance("", mismatch, indel, total_dist); // Set up default values
       int16_t file;
@@ -1420,6 +1435,8 @@ struct SplitCode {
           std::stringstream(field) >> max_finds_g;
         } else if (h[i] == "EXCLUDE") {
           std::stringstream(field) >> exclude;
+        } else if (h[i] == "SUBS") {
+          std::stringstream(field) >> subs_str;
         } else if (h[i] == "AFTER" || h[i] == "NEXT") {
           std::stringstream(field) >> after_str;
           ret = ret && validateBeforeAfterStr(after_str);
@@ -1445,7 +1462,7 @@ struct SplitCode {
       }
       auto trim_dir = trim_left ? left : (trim_right ? right : nodir);
       auto trim_offset = trim_left ? trim_left_offset : (trim_right ? trim_right_offset : 0);
-      if (!ret || !addTag(bc, name.empty() ? bc : name, group, mismatch, indel, total_dist, file, pos_start, pos_end, max_finds, min_finds, exclude, trim_dir, trim_offset, after_str, before_str, partial5_min_match, partial5_mismatch_freq, partial3_min_match, partial3_mismatch_freq)) {
+      if (!ret || !addTag(bc, name.empty() ? bc : name, group, mismatch, indel, total_dist, file, pos_start, pos_end, max_finds, min_finds, exclude, trim_dir, trim_offset, after_str, before_str, partial5_min_match, partial5_mismatch_freq, partial3_min_match, partial3_mismatch_freq, subs_str)) {
         std::cerr << "Error: The file \"" << config_file << "\" contains an error" << std::endl;
         return false;
       }
@@ -2813,6 +2830,9 @@ struct SplitCode {
               group_v.push_back(tag.group);
             }
           }
+          if (!tag.substitution.empty()) { // Do substitution
+            results.modsubs.push_back(std::make_pair(file, std::make_pair(pos,std::make_pair(tag.substitution, k))));
+          }
           if (do_extract) { // UMI extraction
             doUMIExtraction(seq, pos, k, file, readLength, umi_seen, umi_seen_copy, umi_data, tag.name_id, tag.group);
           }
@@ -2941,11 +2961,13 @@ struct SplitCode {
     }
   }
   
-  static void modifyRead(std::vector<std::pair<const char*, int>>& seqs, std::vector<std::pair<const char*, int>>& quals, int i, Results& results) {
+  static void modifyRead(std::vector<std::pair<const char*, int>>& seqs, std::vector<std::pair<const char*, int>>& quals, int i, Results& results, bool edit_sub_len = false) {
     // Modify (trim) the reads in the actual read buffer itself
-    if (!results.modtrim.empty()) {
+    if (!results.modtrim.empty() || !results.modsubs.empty()) {
       results.modified_len.reserve(results.og_len.size());
-      results.modified_len.assign(results.og_len.begin(), results.og_len.begin()+results.og_len.size()); // Copy og_len into modified_len
+      results.modified_len.assign(results.og_len.begin(), results.og_len.end()); // Copy og_len into modified_len
+      results.modified_pos.reserve(results.og_len.size());
+      results.modified_pos.assign(results.og_len.size(), 0);
     }
     size_t q_size = quals.size();
     for (auto& mt : results.modtrim) {
@@ -2956,10 +2978,84 @@ struct SplitCode {
       seqs[index].first += leftOffset;
       seqs[index].second = readLength;
       results.modified_len[j] = readLength;
+      results.modified_pos[j] += leftOffset;
       if (q_size > index) { // Just in case we decided not to store quality scores
         quals[index].first += leftOffset;
         quals[index].second = readLength;
       }
+    }
+
+    if (edit_sub_len && !results.modsubs.empty()) {
+      updateEditedReadLengths(results);
+    }
+  }
+  
+  static std::vector<std::pair<std::string,std::string> > getEditedRead(const std::vector<std::pair<const char *, int> >& s, const std::vector<std::pair<const char *, int> >& q, int i, int jmax, Results& results, bool store_quals = false) { // Make substitutions in read (only call AFTER modifyRead has been called with edit_sub_len=true)
+    std::vector<std::pair<std::string,std::string> > ret;
+    ret.reserve(jmax);
+    ret.resize(jmax);
+    bool store_quals_ = store_quals && !q.empty();
+    for (int n = 0; n < results.modsubs.size(); n++) {
+      const auto &ms = results.modsubs[n];
+      int j = ms.first;
+      int pos = ms.second.first;
+      const std::string& sub = ms.second.second.first;
+      int k = ms.second.second.second;
+      if (k == 0 || ret[j].first == " ") {
+        continue;
+      }
+      if (ret[j].first.empty()) {
+        ret[j].first = std::string(s[i+j].first, s[i+j].second); // copy sequence
+      }
+      ret[j].first.replace(pos, k, sub); // Substitution
+      if (ret[j].first.empty()) {
+        ret[j].first = " "; // " " means substitution resulted in an empty sequence
+      }
+      if (store_quals_) {
+        if (ret[j].second.empty()) {
+          ret[j].second = std::string(q[i+j].first, q[i+j].second); // copy quality
+        }
+        ret[j].second.replace(pos, k, sub.length(), QUAL); // Substitution
+      }
+    }
+    return ret;
+  }
+  
+  static void updateEditedReadLengths(Results& results) { // Call at the end of modifyRead() if !modsubs.empty()
+    std::vector<int> lens_change(results.og_len.size(), 0); // Vector initialized to zeroes; will contain how much the read length has shifted post-substitutions
+    for (int n = 0; n < results.modsubs.size(); n++) {
+      // Remember: results.modsubs = std::make_pair(file, std::make_pair(pos,std::make_pair(tag.substitution, k)))
+      auto &ms = results.modsubs[n];
+      int j = ms.first;
+      int &pos = ms.second.first;
+      pos += lens_change[j];
+      pos -= results.modified_pos[j];
+      int left_overshoot = 0;
+      int right_overshoot = 0;
+      int& k = ms.second.second.second;
+      std::string& sub = ms.second.second.first;
+      sub = (sub == "-" ? "" : sub);
+      if (pos < 0) {
+        left_overshoot=pos*-1;
+        k -= left_overshoot;
+        if (k <= 0) {
+          k = 0;
+          continue; // trimmed too far, no substitution needed
+        }
+        pos = 0; // the interval from pos to pos+k shouldn't conflict with any other substitutions in theory because all the substitution intervals should be non-overlapping
+      }
+      if (pos+k > results.modified_len[j]) {
+        right_overshoot = pos+k-results.modified_len[j];
+        k -= right_overshoot;
+        if (k <= 0) {
+          k = 0;
+          continue; // trimmed too far, no substitution needed
+        }
+      }
+      int sub_len = sub.length();
+      int read_length_change = sub_len-k;
+      results.modified_len[j] += read_length_change;
+      lens_change[j] += read_length_change;
     }
   }
   
