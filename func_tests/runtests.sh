@@ -155,8 +155,9 @@ checkcmdoutput "$splitcode --trim-only --pipe -q 10 --qtrim-3 --qtrim-pre -5 5 -
 
 # Adapter trimming tests
 
-checkcmdoutput "$splitcode --trim-only -b CCAAA --partial5=3:0.33 --left=1 --pipe $test_dir/test.fq" cb52b79ed7469ca2ffe5739ec544b157
+checkcmdoutput "$splitcode --trim-only -b CCAAA --partial5=3:0.35 --left=1 --pipe $test_dir/test.fq" b637fbabe71eb90bb9b3399a17eabef7
 checkcmdoutput "$splitcode --trim-only -b CCAAA --partial5=3:0.34 --left=1 --pipe $test_dir/test.fq" b637fbabe71eb90bb9b3399a17eabef7
+checkcmdoutput "$splitcode --trim-only -b CCAAA --partial5=3:0.33 --left=1 --pipe $test_dir/test.fq" cb52b79ed7469ca2ffe5739ec544b157
 checkcmdoutput "$splitcode --trim-only -b CCAAA --partial5=4:0.34 --left=1 --pipe $test_dir/test.fq" cb52b79ed7469ca2ffe5739ec544b157
 checkcmdoutput "$splitcode --trim-only -b CCAAA --partial5=2:0.34 --left=1 --pipe $test_dir/test.fq" c6eba12c36e53301f23a9823c2901f24
 checkcmdoutput "$splitcode --trim-only -b CCAAA,CCGGAA --partial5=2:0.34, --partial3=,4 --left=1,0 --right=0,1 --pipe $test_dir/test.fq" 5d4541fb96da328d07ab9189216cf4a5
