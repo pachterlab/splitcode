@@ -970,7 +970,7 @@ struct SplitCode {
             int error = mm.second;
             addToMap(mismatch_seq, new_tag_index, error);
             // DEBUG:
-            std::cerr << s << ": " << mismatch_seq << " " << error << " | " << mm.second << " [partial5]" << new_tag_index << std::endl;
+            std::cerr << s << ": " << mismatch_seq << " " << error << " | " << mm.second << " [partial5]" << new_tag_index << " " << init << std::endl;
           }
         }
       }

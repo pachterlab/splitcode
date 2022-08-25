@@ -1132,10 +1132,12 @@ int main(int argc, char *argv[]) {
   ParseOptions(argc,argv,opt);
   SplitCode sc(opt.nfiles, opt.summary_file, opt.trim_only, opt.disable_n, opt.trim_5_str, opt.trim_3_str, opt.extract_str, opt.extract_no_chain, opt.barcode_prefix, opt.filter_length_str,
                opt.quality_trimming_5, opt.quality_trimming_3, opt.quality_trimming_pre, opt.quality_trimming_naive, opt.quality_trimming_threshold, opt.phred64);
-  if (!CheckOptions(opt, sc)) {
+  bool checkopts = CheckOptions(opt, sc);
+  if (!checkopts) {
     usage();
     exit(1);
   }
+  std::cerr << "Finished checking options" << std::endl;
   if (opt.input_interleaved_nfiles != 0) {
     opt.input_interleaved_nfiles = opt.nfiles;
     opt.nfiles = 1;
