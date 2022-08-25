@@ -1137,7 +1137,6 @@ int main(int argc, char *argv[]) {
     usage();
     exit(1);
   }
-  std::cerr << "Finished checking options" << std::endl;
   if (opt.input_interleaved_nfiles != 0) {
     opt.input_interleaved_nfiles = opt.nfiles;
     opt.nfiles = 1;

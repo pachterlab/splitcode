@@ -957,9 +957,7 @@ struct SplitCode {
       for (int i = 0; i < seq.length(); i++) {
         std::string s = seq.substr(i);
         size_t l = s.length();
-        // TODO: VERBOSE output
         int mismatch_dist = floor(partial5_mismatch_freq*l);
-        std::cerr << "generate_partial_matches " << partial5_mismatch_freq << " " << l << " " << mismatch_dist << std::endl;
         if (l >= partial5_min_match) {
           addToMap(s, new_tag_index);
           std::unordered_map<std::string,int> mismatches;
@@ -970,7 +968,7 @@ struct SplitCode {
             int error = mm.second;
             addToMap(mismatch_seq, new_tag_index, error);
             // DEBUG:
-            std::cerr << s << ": " << mismatch_seq << " " << error << " | " << mm.second << " [partial5]" << new_tag_index << " " << init << std::endl;
+            // std::cout << s << ": " << mismatch_seq << " " << error << " | " << mm.second << " [partial5]" << std::endl;
           }
         }
       }
