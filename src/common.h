@@ -107,7 +107,7 @@ struct ProgramOptions {
     quality_trimming_naive(false),
     phred64(false)
   {
-    const char* sam_tags_default[3] = {"CB:Z", "RX:Z:", "BI:i:"};
+    const char* sam_tags_default[3] = {"CB:Z:", "RX:Z:", "BI:i:"};
     sam_tags.push_back(std::string(sam_tags_default[0]));
     sam_tags.push_back(std::string(sam_tags_default[1]));
     sam_tags.push_back(std::string(sam_tags_default[2]));

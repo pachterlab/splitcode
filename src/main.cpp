@@ -113,7 +113,7 @@ void usage() {
        << "    --seq-names  Modify names of outputted sequences to include the sequences of identified tags" << endl
        << "    --x-names    Modify names of outputted sequences to include extracted UMI-like sequences" << endl
        << "    --x-only     Only output extracted UMI-like sequences" << endl
-       << "-M  --sam-tags   Modify the default SAM tags (default: CB:Z,RX:Z:,BI:i:)" << endl
+       << "-M  --sam-tags   Modify the default SAM tags (default: CB:Z:,RX:Z:,BI:i:)" << endl
        << "Other Options:" << endl
        << "-N, --nFastqs    Number of FASTQ file(s) per run" << endl
        << "                 (default: 1) (specify 2 for paired-end)" << endl
