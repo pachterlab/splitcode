@@ -451,14 +451,20 @@ struct SplitCode {
       if (x.second.first) {
         tag.extra_after = extra;
         tag.extra_after2 = extra2;
-        tag.has_after = true;
-        tag.has_after_group = group;
+        if (!group) {
+          tag.has_after = true;
+        } else {
+          tag.has_after_group = true; 
+        }
         tag.id_after = id;
       } else {
         tag.extra_before = extra;
         tag.extra_before2 = extra2;
-        tag.has_before = true;
-        tag.has_before_group = group;
+        if (!group) {
+          tag.has_before = true;
+        } else {
+          tag.has_before_group = true; 
+        }
         tag.id_before = id;
       }
     }
