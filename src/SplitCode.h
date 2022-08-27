@@ -451,20 +451,14 @@ struct SplitCode {
       if (x.second.first) {
         tag.extra_after = extra;
         tag.extra_after2 = extra2;
-        if (!group) {
-          tag.has_after = true;
-        } else {
-          tag.has_after_group = true; 
-        }
+        tag.has_after = true;
+        tag.has_after_group = group;
         tag.id_after = id;
       } else {
         tag.extra_before = extra;
         tag.extra_before2 = extra2;
-        if (!group) {
-          tag.has_before = true;
-        } else {
-          tag.has_before_group = true; 
-        }
+        tag.has_before = true;
+        tag.has_before_group = group;
         tag.id_before = id;
       }
     }
@@ -1519,13 +1513,13 @@ struct SplitCode {
         } else if (search_group_after && tag.group != search_id_after) {
           continue;
         }
-        if (tag.has_before || tag.has_before_group) {
+        if (tag.has_before) {
           if (!search_tag_before) {
             continue;
           }
-          if (tag.has_before && tag.id_before != name_id_curr_) {
+          if (tag.has_before_group && tag.id_before != name_id_curr_) {
             continue;
-          } else if (tag.has_before_group && tag.id_before != group_curr_) {
+          } else if (tag.has_before && tag.id_before != group_curr_) {
             continue;
           } else {
             if (pos-end_pos_curr < tag.extra_before) {
