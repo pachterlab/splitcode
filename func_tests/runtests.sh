@@ -167,4 +167,77 @@ checkcmdoutput "$splitcode --trim-only -b CCGC,GAAG -a ,{CCGC} -v {GAAG}, -l 0:-
 checkcmdoutput "$splitcode --trim-only -b CCGC,GAAG -a ,{CCGC} -v {GAAG}, -l 0:-4:0, --partial3=4:0.25,3 --partial5=4,4 --right=1,0 --left=0,1 --pipe $test_dir/test.fq" cb52b79ed7469ca2ffe5739ec544b157
 checkcmdoutput "$splitcode --trim-only -b CCGC,GAAG -a ,{CCGC} -l 0:-4:0, --partial3=4:0.25,3 --partial5=4,4 --right=1,0 --left=0,1 --pipe $test_dir/test.fq" 11b55a195b5976331305569416db5bd4
 
+# More tests
+
+echo "@read1
+GATACTCCGGTTTTTTTTTTAAAAACCCCCGATACTCCGG
++
+;I;<)(,%#\$KI;<)(,%#\$KI;<)(,%#\$\$\$\$\$\$\$\$\$\$\$
+@read2
+ATGCTTCCGGTTTTTTTTTTAAAAACCCCC
++
+KI;<)(,%#\$KI;<)(,%#\$KI;<)(,%#\$
+@read3
+TAGAGAACACTTTTTTTTTTAAAAACCCCC
++
+KI;<)(,%#\$KI;<)(,%#\$KI;<)(,%#\$
+@read4
+TTAATTCCGGTTTTTTTTTTAAAAACCCCC
++
+KI;<)(,%#\$KI;<)(,%#\$KI;<)(,%#\$
+@read5
+TTGGTACTCCTTTTTTTTTTAAAAACCCCC
++
+KI;<)(,%#\$KI;<)(,%#\$KI;<)(,%#\$
+@read6
+CCTAGAGAATTTTTTTTTTTAAAAACCCCC
++
+KI;<)(,%#\$KI;<)(,%#\$KI;<)(,%#\$
+@read7
+GGTACTCCAATTTTTTTTTTAAAAACCCCC
++
+KI;<)(,%#\$KI;<)(,%#\$KI;<)(,%#\$
+@read8
+TAGAGAACCTTTTTTTTTTTAAAAACCCCC
++
+KI;<)(,%#\$KI;<)(,%#\$KI;<)(,%#\$" > $test_dir/test_1.fq
+
+echo "@read1
+GATACTCCGGTTTTTTTTTTAAAAACCCCC
++
+KI;<)(,%#\$KI;<)(,%#\$KI;J;;;;;;
+@read2
+ATGCTTCCGGTTTTTTTTTTAAAAACCCCC
++
+KI;<)(,%#\$KI;<)(,%#\$KI;<)(,%#\$
+@read3
+TAGAGAACACTTTTTTTTTTAAAAACCCCC
++
+KI;<)(,%#\$KI;<)(,%#\$KI;<)(,%#\$
+@read4
+TTAATTCCGGTTTTTTTTTTAAAAACCCCC
++
+KI;<)(,%#\$KI;<)(,%#\$KI;<)(,%#\$
+@read5
+TTGGTACTCCTTTTTTTTTTAAAAACCCCC
++
+KI;<)(,%#\$KI;<)(,%#\$KI;<)(,%#\$
+@read6
+CCTAGAGAATTTTTTTTTTTAAAAACCCCC
++
+KI;<)(,%#\$KI;<)(,%#\$KI;<)(,%#\$
+@read7
+GGTACTCCAATTTTTTTTTTAAAAACCCCC
++
+KI;<)(,%#\$KI;<)(,%#\$KI;<)(,%#\$
+@read8
+TAGAGAACCTTTTTTTTTTTAAAAACCCCC
++
+KI;<)(,%#\$KI;<)(,%#\$KI;<)(,%#\$" > $test_dir/test_2.fq
+
+# Testing sam tags (and some other checks)
+
+checkcmdoutput "$splitcode --pipe --no-outb  --x-names --seq-names --com-names --nFastqs=2 --keep-grp=<(echo "t,b") -m /dev/null -g t,t,b,b,b -b GATACT,TAGAGAA,CCGG,AACC,AAAAACC -d 1,1,1,1,1 -l 0:0:10,0:0:10,0,0,0 -v ,,{{t}}14-14,{{t}}14-14,{{t}}14-14 $test_dir/test_1.fq $test_dir/test_2.fq" 53a53635d0ad34937feaca1f2aa8ae5d
+checkcmdoutput "$splitcode --pipe --no-outb  --x-names --seq-names --com-names --nFastqs=2 --keep-grp=<(echo "t,b") -m /dev/null -g t,t,b,b,b -b GATACT,TAGAGAA,CCGG,AACC,AAAAACC -d 1,1,1,1,1 -l 0:0:10,0:0:10,0,0,0 -v ,,{{t}}14-14,{{t}}14-14,{{t}}14-14 -M AB:G:,XX:X:,FS:D:,JKL $test_dir/test_1.fq $test_dir/test_2.fq" fd979c64c21eb530e3fb8eb964efac25
+
 
