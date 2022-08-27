@@ -239,5 +239,11 @@ KI;<)(,%#\$KI;<)(,%#\$KI;<)(,%#\$" > $test_dir/test_2.fq
 
 checkcmdoutput "$splitcode --pipe --no-outb  --x-names --seq-names --com-names --nFastqs=2 --keep-grp=<(echo "t,b") -m /dev/null -g t,t,b,b,b -b GATACT,TAGAGAA,CCGG,AACC,AAAAACC -d 1,1,1,1,1 -l 0:0:10,0:0:10,0,0,0 -v ,,{{t}}14-14,{{t}}14-14,{{t}}14-14 $test_dir/test_1.fq $test_dir/test_2.fq" 53a53635d0ad34937feaca1f2aa8ae5d
 checkcmdoutput "$splitcode --pipe --no-outb  --x-names --seq-names --com-names --nFastqs=2 --keep-grp=<(echo "t,b") -m /dev/null -g t,t,b,b,b -b GATACT,TAGAGAA,CCGG,AACC,AAAAACC -d 1,1,1,1,1 -l 0:0:10,0:0:10,0,0,0 -v ,,{{t}}14-14,{{t}}14-14,{{t}}14-14 -M AB:G:,XX:X:,FS:D:,JKL $test_dir/test_1.fq $test_dir/test_2.fq" fd979c64c21eb530e3fb8eb964efac25
+checkcmdoutput "$splitcode --pipe --no-outb  --x-names --seq-names --com-names --nFastqs=2 -m /dev/null -g t,t,b,b,b -b GATACT,TAGAGAA,CCGG,AACC,AAAAACC -d 0,0,1,1,1 -l 0:0:10,0:0:7,0,0,0 -v ,,{{t}}14-14,{{t}}15-16,{{t}}15-16 -M AB:G:,XX:X:,FS:D:,JKL $test_dir/test_1.fq $test_dir/test_2.fq" 6620fed5ace9d1a1a85a51065d5b0c11
 
+# Testing subs
+
+checkcmdoutput "$splitcode --pipe --no-outb  --x-names --seq-names --com-names --nFastqs=2 --keep-grp=<(echo "t,b") -m /dev/null -g t,t,b,b,b -b GATACT,TAGAGAA,CCGG,AACC,AAAAACC -d 1,1,1,1,1 -l 0:0:10,0:0:10,0,0,0 -v ,,{{t}}14-14,{{t}}14-14,{{t}}14-14 -M AB:G:,XX:X:,FS:D:,JKL --subs=.,.,.,.,. $test_dir/test_1.fq $test_dir/test_2.fq" 8e9a69d297d492cbfe054004666efa44
+checkcmdoutput "$splitcode --pipe --no-outb  --x-names --seq-names --com-names --nFastqs=2 --keep-grp=<(echo "t,b") -m /dev/null -g t,t,b,b,b -b GATACT,TAGAGAA,CCGG,AACC,AAAAACC -d 1,1,1,1,1 -l 0:0:10,0:0:10,0,0,0 -M AB:G:,XX:X:,FS:D:,JKL --subs=.,.,.,.,. $test_dir/test_1.fq $test_dir/test_2.fq" 078e57e27856ccb38ca751a9a832bfc3
+checkcmdoutput "$splitcode --pipe --no-outb  --x-names --seq-names --com-names --nFastqs=2 -m /dev/null -g t,t,b,b,b -b GATACT,TAGAGAA,CCGG,AACC,AAAAACC -d 1,1,1,1,1 -l 0:0:10,0:0:10,0,0,0 -M AB:G:,XX:X:,FS:D:,JKL --subs=.,.,.,.,. $test_dir/test_1.fq $test_dir/test_2.fq" 05940a828e3dbfbd8a0c44f9b375abb6
 
