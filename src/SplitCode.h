@@ -1517,9 +1517,9 @@ struct SplitCode {
           if (!search_tag_before) {
             continue;
           }
-          if (tag.has_before_group && tag.id_before != name_id_curr_) {
+          if (tag.has_before_group && tag.id_before != group_curr_) {
             continue;
-          } else if (tag.has_before && tag.id_before != group_curr_) {
+          } else if (tag.has_before && tag.id_before != name_id_curr_) {
             continue;
           } else {
             if (pos-end_pos_curr < tag.extra_before) {
