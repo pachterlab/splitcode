@@ -1507,7 +1507,7 @@ struct SplitCode {
           continue;
         }
         tag_id_ = x.first;
-        auto& tag = tags_vec[tag_id_];
+        const auto& tag = tags_vec[tag_id_];
         if (search_tag_name_after && tag.name_id != search_id_after) {
           continue;
         } else if (search_group_after && tag.group != search_id_after) {
@@ -3240,14 +3240,14 @@ struct SplitCode {
     if (use_16) {
       auto &u = idmap16[i];
       id = idmap_find(u);
-      for (auto& tag_id : u) {
-        barcode_str += names[tags_vec[tag_id].name_id] + ",";
+      for (auto name_id : u) {
+        barcode_str += names[name_id] + ",";
       }
     } else {
       auto &u = idmap[i];
       id = idmap_find(u);
-      for (auto& tag_id : u) {
-        barcode_str += names[tags_vec[tag_id].name_id] + ",";
+      for (auto name_id : u) {
+        barcode_str += names[name_id] + ",";
       }
     }
     if (!barcode_str.empty()) {
