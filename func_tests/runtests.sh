@@ -256,5 +256,14 @@ checkcmdoutput "$splitcode --trim-only --pipe --x-names --seq-names --nFastqs=2 
 checkcmdoutput "$splitcode --trim-only --pipe --x-names --seq-names --nFastqs=2 -b GATACT,TAGAGAA,CCGG,AACC,AAAAACC,AC:2 -d 1,1,1,1,1,0 -l 0:0:10,0:0:10,0,0,0,1 --subs=TT,GG,GG,GG,GG,NNNNNNNN $test_dir/test_1.fq $test_dir/test_2.fq" d5f194caf779d8a1fd0aa59bb9fe8eae
 
 checkcmdoutput "$splitcode --trim-only --pipe --x-names --seq-names --nFastqs=2 -g t,t,b,b,b -b GATACT,TAGAGAA,CCGG,AACC,AAAAACC -d 1,1,1,1,1 -v ,,{{t}}14-14,{{t}}14-14,{{t}}14-14 --subs=TT,GG,GG,GG,GG $test_dir/test_1.fq $test_dir/test_2.fq" 4d8a551a84d4d10b7deac330227616cc
+checkcmdoutput "$splitcode --trim-only --pipe --x-names --seq-names --nFastqs=2 -g t,t,b,b,b -b GATACT,TAGAGAA,CCGG,AACC,AAAAACC -d 1,1,1,1,1 -v ,,{{t}}14-14,{{t}}14-14,{{t}}14-14 --subs=TTTTTTTTTTTTTTT,GGGGGGGGGGGGGGG,GG,GG,GG -q 30 --qtrim-5 -M AB:G:,XX:X:,FS:D:,JKL -n 2 $test_dir/test_1.fq $test_dir/test_2.fq" 622e99643d60536a6ee99f9d968ac20f
+checkcmdoutput "$splitcode --trim-only --pipe --x-names --seq-names --nFastqs=2 -g t,t,b,b,b -b GATACT,TAGAGAA,CCGG,AACC,AAAAACC -d 1,1,1,1,1 -v ,,{{t}}14-14,{{t}}14-14,{{t}}14-14 --subs=TTTTTTTTTTTTTTT,GGGGGGGGGGGGGGG,GG,GG,GG -q 30 --qtrim-5 --qtrim-pre -M AB:G:,XX:X:,FS:D:,JKL -n 2 $test_dir/test_1.fq $test_dir/test_2.fq" 901358fbfe41d20a9b4dd99fbac22866
+checkcmdoutput "$splitcode --trim-only --pipe --x-names --seq-names --nFastqs=2 -g t,t,b,b,b -b GATACT,TAGAGAA,CCGG,AACC,AAAAACC -d 1,1,1,1,1 -v ,,{{t}}14-14,{{t}}14-14,{{t}}14-14 --subs=TTTTTTTTTTTTTTT,GGGGGGGGGGGGGGG,GG,GG,GG -q 30 --qtrim-5 --qtrim-pre -3 2,1 -M AB:G:,XX:X:,FS:D:,JKL -n 2 $test_dir/test_1.fq $test_dir/test_2.fq" e1dbf41e8fbc3b9919834a241feb9bb8
+checkcmdoutput "$splitcode --trim-only --pipe --x-names --seq-names --nFastqs=2 -g t,t,b,b,b -b GATACT,TAGAGAA,CCGG,AACC,AAAAACC -d 1,1,1,1,1 -v ,,{{t}}14-14,{{t}}14-14,{{t}}14-14 --subs=TTTTTTTTTTTTTTT,GGGGGGGGGGGGGGG,GG,GG,GG -5 3,2 -3 2,1 -M AB:G:,XX:X:,FS:D:,JKL -n 2 $test_dir/test_1.fq $test_dir/test_2.fq" 26c827664525506605c10cbfe6ce8566
+
+
+checkcmdoutput "$splitcode -m /dev/null --pipe --x-names --seq-names --nFastqs=2 -g t,t,b,b,b -b GATACT,TAGAGAA,CCGG,AACC,AAAAACC -d 1,1,1,1,1 -v ,,{{t}}14-14,{{t}}14-14,{{t}}14-14 --subs=TTTTTTTTTTTTTTT,GGGGGGGGGGGGGGG,GG,GG,GG -q 30 --qtrim-5 --qtrim-pre -3 2,1 -M AB:G:,XX:X:,FS:D:,JKL -n 2 --extract=\"{GATACT}<umi[2]>\" --no-outb --no-chain --no-x-out -l 0,0,0,0,0 $test_dir/test_1.fq $test_dir/test_2.fq" 0f55956a9552e59fa5dfde6cf9d758ad
+checkcmdoutput "$splitcode -m /dev/null --pipe --x-names --seq-names --nFastqs=2 -g t,t,b,b,b -b GATACT,TAGAGAA,CCGG,AACC,AAAAACC -d 1,1,1,1,1 -v ,,{{t}}14-14,{{t}}14-14,{{t}}14-14 --subs=TTTTTTTTTTTTTTT,GGGGGGGGGGGGGGG,GG,GG,GG -q 30 --qtrim-5 --qtrim-pre -3 2,1 -M AB:G:,XX:X:,FS:D:,JKL -n 2 --extract=\"{GATACT}<umi[3]>\" --no-outb --no-chain --no-x-out -l 0,0,0,0,0 $test_dir/test_1.fq $test_dir/test_2.fq" 022da965571c430ad0bd98455cb21820
+
 
 

@@ -2833,7 +2833,8 @@ struct SplitCode {
             }
           }
           if (!tag.substitution.empty()) { // Do substitution
-            results.modsubs.push_back(std::make_pair(file, std::make_pair(pos,std::make_pair(tag.substitution, k))));
+            results.modsubs.push_back(std::make_pair(file, std::make_pair(pos+trim_5,std::make_pair(tag.substitution, k))));
+            // ^Note: We needed to do pos+trim_5, not pos, because pos is w.r.t. trimmed sequenced
           }
           if (do_extract) { // UMI extraction
             doUMIExtraction(seq, pos, k, file, readLength, umi_seen, umi_seen_copy, umi_data, tag.name_id, tag.group);
