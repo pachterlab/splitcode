@@ -419,7 +419,8 @@ struct SplitCode {
         group = true;
         const auto& itnames = std::find(group_names.begin(), group_names.end(), name);
         if (itnames == group_names.end()) {
-          continue;
+          std::cerr << "Error: Could process \"" << s << "\" because \"" << name << "\" does not exist" << std::endl;
+          exit(1);
         } else {
           id = itnames - group_names.begin();
         }
@@ -427,7 +428,8 @@ struct SplitCode {
         name = s.substr(1,s.find_first_of('}')-1);
         const auto& itnames = std::find(names.begin(), names.end(), name);
         if (itnames == names.end()) {
-          continue;
+          std::cerr << "Error: Could process \"" << s << "\" because \"" << name << "\" does not exist" << std::endl;
+          exit(1);
         } else {
           id = itnames - names.begin();
         }
