@@ -1017,7 +1017,7 @@ struct SplitCode {
               int16_t file, int32_t pos_start, int32_t pos_end,
               uint16_t max_finds, uint16_t min_finds, bool not_include_in_barcode,
               dir trim, int trim_offset, std::string after_str, std::string before_str,
-              int partial5_min_match, double partial5_mismatch_freq, int partial3_min_match, double partial3_mismatch_freq, std::string subs_str) {
+              int partial5_min_match, double partial5_mismatch_freq, int partial3_min_match, double partial3_mismatch_freq, std::string subs_str, bool seq_is_file = false) {
     if (init) {
       std::cerr << "Error: Already initialized" << std::endl;
       return false;
@@ -1029,11 +1029,11 @@ struct SplitCode {
     uint32_t new_tag_index = tags_vec.size();
     ++n_tag_entries;
 
-    if (seq.length() > 0 && seq[0] == '*') {
+    if (!seq_is_file && seq.length() > 0 && seq[0] == '*') {
       new_tag.initiator = true;
       seq.erase(0,1);
     }
-    if (seq.length() > 0 && seq[seq.size()-1] == '*') {
+    if (!seq_is_file && seq.length() > 0 && seq[seq.size()-1] == '*') {
       new_tag.terminator = true;
       seq.erase(seq.end()-1);
     }
@@ -1041,7 +1041,7 @@ struct SplitCode {
       std::cerr << "Error: Sequence #" << n_tag_entries << ": \"" << name << "\" is empty" << std::endl;
       return false;
     }
-    std::string polymer_str = seq.substr(seq.find(":") + 1);
+    std::string polymer_str = !seq_is_file ? seq.substr(seq.find(":") + 1) : "";
     if (!polymer_str.empty() && seq.find(":") != std::string::npos) { // sequence:range_begin-range_end
       std::string s1 = polymer_str.substr(0, polymer_str.find("-"));
       std::string s2 = polymer_str.substr(polymer_str.find("-") + 1);
@@ -1068,6 +1068,59 @@ struct SplitCode {
         new_seq += s + (i != range_end ? "/" : "");
       }
       seq = new_seq;
+    } else { // Not a polymer range, let's check if user actually supplied a file as input
+      if (!seq_is_file) {
+        for (int i = 0; i < seq.size(); i++) {
+          if (seq[i] != 'A' && seq[i] != 'T' && seq[i] != 'C' && seq[i] != 'G' && seq[i] != 'a' && seq[i] != 't' && seq[i] != 'c' && seq[i] != 'g' && seq[i] != '/') {
+            // An invalid sequence character, so maybe user supplied a file, let's check:
+            if (seq[seq.size()-1] == '$') { // A $ at the end of the file means we need to set seq_is_file to true, indicating each tag gets its own unique name
+              seq.erase(seq.end()-1);
+              seq_is_file = true;
+              --n_tag_entries;
+            }
+            struct stat stFileInfo;
+            auto intstat = stat(seq.c_str(), &stFileInfo);
+            if (intstat != 0) {
+              std::cerr << "Error: Sequence #" << n_tag_entries << ": \"" << name << "\" contains an invalid sequence (if a file was supplied in lieu of an actual sequence, that file could not be found)" << std::endl;
+              return false; // Nope, not an existing file, let's return false
+            }
+            std::ifstream seqfile(seq);
+            std::string line;
+            seq.clear();
+            if (!seq_is_file) {
+              seq.reserve(524288);
+            }
+            bool first = true;
+            size_t n = 0;
+            while (std::getline(seqfile,line)) {
+              if (line.size() == 0) {
+                continue;
+              }
+              if (line[0] == '#') {
+                continue;
+              }
+              if (seq_is_file) {
+                bool ret = addTag((new_tag.initiator ? "*" : "") + line + (new_tag.terminator ? "*" : ""), name + "-" + std::to_string(n++), group_name, mismatch_dist, indel_dist, total_dist,
+                 file, pos_start, pos_end,
+                 max_finds, min_finds, not_include_in_barcode,
+                 trim, trim_offset, after_str, before_str,
+                 partial5_min_match, partial5_mismatch_freq, partial3_min_match, partial3_mismatch_freq, subs_str, true);
+                if (!ret) {
+                  return false;
+                }
+              } else if (first) {
+                seq += (line);
+                first = false;
+              } else {
+                seq += ("/" + line);
+              }
+            }
+            if (seq_is_file) {
+              return true;
+            }
+          }
+        } 
+      }
     }
     if (!subs_str.empty()) {
       std::transform(subs_str.begin(), subs_str.end(), subs_str.begin(), ::toupper);

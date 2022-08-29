@@ -60,6 +60,20 @@ checkcmdoutput "$splitcode -t 1 -y <(echo "Y,ODD,EVEN,LIGTAG") -N 2 -c $test_dir
 checkcmdoutput "$splitcode -t 1 -y <(echo "Y,ODD,EVEN,LIGTAG") -N 2 -c $test_dir/splitcode_example_config_3.txt --mod-names --com-names --pipe -m /dev/null $test_dir/B_1.fastq.gz $test_dir/B_2.fastq.gz" af7415d5cae5cd87ec9c38faeb0a3093
 checkcmdoutput "$splitcode -t 1 -y <(echo "Y,ODD,EVEN,LIGTAG") -N 2 -c $test_dir/splitcode_example_config_3.txt -P TTCC -n 10 --mod-names --pipe -m /dev/null $test_dir/B_1.fastq.gz $test_dir/B_2.fastq.gz" 964a52f977964e1c2eeb4ffadf49bdcd
 
+# Testing files supplied in config file
+
+cat $test_dir/splitcode_example_config_4.txt > $test_dir/splitcode_example_config_4_.txt
+echo "EVEN"$'\t'"Even2Bo"$'\t'"${test_dir}/even.txt\$"$'\t'"2"$'\t'"1:30"$'\t'"1"$'\t'"{{ODD}}6-12
+ODD"$'\t'"Odd2Bo"$'\t'"${test_dir}/odd.txt\$"$'\t'"2"$'\t'"1:15"$'\t'"2"$'\t'"{{EVEN}}6-12" >> $test_dir/splitcode_example_config_4_.txt
+checkcmdoutput "$splitcode -t 1 --pipe -N 2 -c $test_dir/splitcode_example_config_4_.txt -y <(echo "DPM,Y,ODD,EVEN,ODD") -m /dev/null $test_dir/A_1.fastq.gz $test_dir/A_2.fastq.gz" 5ff23e700eeb1a86eab3c0cf60a39108
+checkcmdoutput "$splitcode -t 1 --pipe -N 2 -c $test_dir/splitcode_example_config_4_.txt -y <(echo "DPM,Y,ODD,EVEN,ODD") -n 100 -m /dev/null $test_dir/A_1.fastq.gz $test_dir/A_2.fastq.gz" b2da5c0f4a2e3ade60583c31eb5ac93d
+checkcmdoutput "$splitcode -t 1 --pipe -N 2 -c $test_dir/splitcode_example_config_4_.txt -y <(echo "DPM,Y,ODD,EVEN,ODD") -n 100 --mod-names -m /dev/null $test_dir/A_1.fastq.gz $test_dir/A_2.fastq.gz" 13b5021426756b65a39aea31f1518186
+cat $test_dir/splitcode_example_config_4.txt > $test_dir/splitcode_example_config_4__.txt
+echo "EVEN"$'\t'"Even2Bo"$'\t'"${test_dir}/even.txt"$'\t'"2"$'\t'"1:30"$'\t'"1"$'\t'"{{ODD}}6-12
+ODD"$'\t'"Odd2Bo"$'\t'"${test_dir}/odd.txt"$'\t'"2"$'\t'"1:15"$'\t'"2"$'\t'"{{EVEN}}6-12" >> $test_dir/splitcode_example_config_4__.txt
+checkcmdoutput "$splitcode -t 1 --pipe -N 2 -c $test_dir/splitcode_example_config_4__.txt -y <(echo "DPM,Y,ODD,EVEN,ODD") -n 100 -m /dev/null $test_dir/A_1.fastq.gz $test_dir/A_2.fastq.gz" b2da5c0f4a2e3ade60583c31eb5ac93d
+checkcmdoutput "$splitcode -t 1 --pipe -N 2 -c $test_dir/splitcode_example_config_4__.txt -y <(echo "DPM,Y,ODD,EVEN,ODD") -n 100 --mod-names -m /dev/null $test_dir/A_1.fastq.gz $test_dir/A_2.fastq.gz" 3fad75cf39a30f328434370c70f995a0
+
 # Basic UMI extraction testing
 
 checkcmdoutput "$splitcode -t 1 -N 2 -c $test_dir/splitcode_example_config.txt -y <(echo "DPM,Y,ODD,EVEN,ODD") -m /dev/null --pipe -x \"{Odd2Bo50}<umi[6]>\" $test_dir/A_1.fastq.gz $test_dir/A_2.fastq.gz|head -16" 4a413abb788efb880a35e6d60ca4ac4d
