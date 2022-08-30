@@ -2,7 +2,7 @@
 
 ### Setup ###
 
-splitcode="./src/splitcode"
+splitcode="./src/splitcode --assign"
 test_dir="./func_tests"
 
 cmdexec() {

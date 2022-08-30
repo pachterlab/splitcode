@@ -98,7 +98,7 @@ struct ProgramOptions {
     x_only(false),
     gzip(false),
     discard(false),
-    trim_only(false),
+    trim_only(true),
     discard_group(false),
     disable_n(true),
     quality_trimming_5(false),

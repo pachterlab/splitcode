@@ -124,9 +124,9 @@ void usage() {
        << "-y, --keep-grp   File containing a list of arrangements of tag groups to keep" << endl
        << "-Y, --remove-grp File containing a list of arrangements of tag groups to remove/discard" << endl
        << "-t, --threads    Number of threads to use" << endl
-       << "-T, --trim-only  All reads are assigned and trimmed regardless of what tags are present" << endl
        << "-s, --summary    File where summary statistics will be written to" << endl
        << "-h, --help       Displays usage information" << endl
+       << "    --assign     Assign reads to a final barcode sequence identifier based on tags present" << endl
        << "    --inleaved   Specifies that input is an interleaved FASTQ file" << endl
        << "    --version    Prints version number" << endl
        << "    --cite       Prints citation information" << endl;
@@ -155,6 +155,8 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   int qtrim_pre_flag = 0;
   int qtrim_naive_flag = 0;
   int phred64_flag = 0;
+  int assign_flag = 0;
+  bool trim_only_specified = false;
 
   const char *opt_string = "t:N:n:b:d:i:l:f:F:e:c:o:O:u:m:k:r:A:L:R:E:g:y:Y:j:J:a:v:z:Z:5:3:w:x:P:q:s:S:M:U:Tph";
   static struct option long_options[] = {
@@ -180,6 +182,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"qtrim-pre", no_argument, &qtrim_pre_flag, 1},
     {"qtrim-naive", no_argument, &qtrim_naive_flag, 1},
     {"phred64", no_argument, &phred64_flag, 1},
+    {"assign", no_argument, &assign_flag, 1},
     // short args
     {"help", no_argument, 0, 'h'},
     {"pipe", no_argument, 0, 'p'},
@@ -253,6 +256,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     }
     case 'T': {
       opt.trim_only = true;
+      trim_only_specified = true;
       break;
     }
     case 't': {
@@ -517,6 +521,9 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   if (phred64_flag) {
     opt.phred64 = true;
   }
+  if (assign_flag && !trim_only_specified) {
+    opt.trim_only = false;
+  }
   
   for (int i = optind; i < argc; i++) {
     opt.files.push_back(argv[i]);
@@ -666,20 +673,16 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
       }
     }
   }
-  if (opt.trim_only && opt.no_output) {
-    std::cerr << ERROR_STR << " Cannot use --trim-only with --no-output" << std::endl;
-    ret = false;
-  }
   if (opt.trim_only && !opt.outputb_file.empty()) {
-    std::cerr << ERROR_STR << " Cannot use --trim-only with --outb" << std::endl;
+    std::cerr << ERROR_STR << " Cannot use --outb unless --assign is specified" << std::endl;
     ret = false;
   }
   if (opt.trim_only && !opt.mapping_file.empty()) {
-    std::cerr << ERROR_STR << " Cannot use --trim-only with --mapping" << std::endl;
+    std::cerr << ERROR_STR << " Cannot use --mapping unless --assign is specified" << std::endl;
     ret = false;
   }
   if (opt.trim_only && opt.com_names) {
-    std::cerr << ERROR_STR << " Cannot use --trim-only with --com-names" << std::endl;
+    std::cerr << ERROR_STR << " Cannot use --com-names unless --assign is specified" << std::endl;
     ret = false;
   }
   opt.output_fastq_specified = output_files_specified;
