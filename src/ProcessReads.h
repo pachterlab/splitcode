@@ -93,7 +93,7 @@ public:
 class MasterProcessor {
 public:
   MasterProcessor (SplitCode &sc, const ProgramOptions& opt)
-    : sc(sc), opt(opt), numreads(0), bufsize(1ULL<<23) { 
+    : sc(sc), opt(opt), numreads(0), bufsize(1ULL<<23), curr_readbatch_id(0) { 
 
     SR = new FastqSequenceReader(opt);
     verbose = opt.verbose;
@@ -255,6 +255,7 @@ public:
   std::vector<std::mutex> parallel_reader_locks;
   bool parallel_read;
   std::mutex writer_lock;
+  std::condition_variable cv;
   
   std::vector<FILE*> out;
   std::vector<gzFile> out_gz;
@@ -279,12 +280,14 @@ public:
   int64_t numreads;
   size_t bufsize;
   int nfiles;
+  int curr_readbatch_id;
 
   void processReads();
   void update(int n, std::vector<SplitCode::Results>& rv,
               std::vector<std::pair<const char*, int>>& seqs,
               std::vector<std::pair<const char*, int>>& names,
-              std::vector<std::pair<const char*, int>>& quals);  
+              std::vector<std::pair<const char*, int>>& quals,
+              int readbatch_id);  
   void writeOutput(std::vector<SplitCode::Results>& rv,
                    std::vector<std::pair<const char*, int>>& seqs,
                    std::vector<std::pair<const char*, int>>& names,

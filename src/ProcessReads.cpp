@@ -90,6 +90,7 @@ void MasterProcessor::processReads() {
   
   std::vector<std::thread> workers;
   parallel_read = opt.threads > 4 && opt.files.size() > opt.nfiles;
+  parallel_read = false; // We'll just always turn parallel_read off so FASTQs are processed in a deterministic and sequential order (at the expense of speed saturating)
   if (parallel_read) {
     delete SR;
     SR = nullptr;
@@ -119,9 +120,10 @@ void MasterProcessor::processReads() {
 void MasterProcessor::update(int n, std::vector<SplitCode::Results>& rv,
                              std::vector<std::pair<const char*, int>>& seqs,
                              std::vector<std::pair<const char*, int>>& names,
-                             std::vector<std::pair<const char*, int>>& quals) {
+                             std::vector<std::pair<const char*, int>>& quals,
+                             int readbatch_id) {
   // acquire the writer lock
-  std::lock_guard<std::mutex> lock(this->writer_lock);
+  std::unique_lock<std::mutex> lock(this->writer_lock);
   
   if (opt.max_num_reads != 0 && numreads+n > opt.max_num_reads) {
     n = opt.max_num_reads-numreads;
@@ -131,11 +133,16 @@ void MasterProcessor::update(int n, std::vector<SplitCode::Results>& rv,
   sc.update(rv);
   
   if (write_output_fastq) {
+    while (readbatch_id != curr_readbatch_id && !parallel_read) {
+      cv.wait(lock, [this, readbatch_id]{ return readbatch_id == curr_readbatch_id; });
+    }
     writeOutput(rv, seqs, names, quals);
   }
 
   numreads += n;
-  // releases the lock
+  curr_readbatch_id++;
+  lock.unlock(); // releases the lock
+  cv.notify_all(); // Alert all other threads to check their readbatch_id's!
 }
 
 void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
@@ -408,7 +415,7 @@ void ReadProcessor::operator()() {
 
     // update the results, MP acquires the lock
     int nfiles = mp.nfiles;
-    mp.update(seqs.size() / nfiles, rv, seqs, names, quals);
+    mp.update(seqs.size() / nfiles, rv, seqs, names, quals, readbatch_id);
     clear();
     if (mp.opt.max_num_reads != 0 && mp.numreads >= mp.opt.max_num_reads) {
       return;
