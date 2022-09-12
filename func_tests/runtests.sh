@@ -298,4 +298,5 @@ checkcmdoutput "cat $test_dir/umi1.fastq" 18b0a455896b74aab83a6b0ff721de05
 checkcmdoutput "$splitcode --trim-only -t 1 -i bc1 -b AAAAAGCCCC -d 1 --x-names --pipe --subs=ATC -x \"<~umi1{#bc1}>\" $test_dir/test_1.fq" 56a0fb91eb32570b511e0c9525263a3a
 checkcmdoutput "$splitcode --trim-only -t 1 -i bc1 -b AAAAAGCCCC -d 1 --x-names --pipe -x \"<~umi1{@bc1}>\" $test_dir/test_1.fq" 8b434ce88a9d5bb6af4743b0cccbf209
 checkcmdoutput "$splitcode --trim-only -t 1 -i bc1 -b AAAAAGCCCC -d 1 --x-names --pipe -x \"<~umi1{@bc1}>,<umi2{bc1}>,<umi1[3]>{bc1}\" $test_dir/test_1.fq" 813e94a0fa68aa1a9ea2c3a74b7daed6
+checkcmdoutput "$splitcode --trim-only -t 1 -i bc1 -b AAAAAGCCCC -d 1 --x-names --pipe -x \"<~umi1{@bc1}>,<umi2{bc1}>,<umi1[3]>{bc1},<umi3[3]>{bc1}\" --sam-tags=\"CB:Z:,RX:Z:/RY:Z:\" $test_dir/test_1.fq" e675ac734c9859c0a03a5bbc967a0c6f
 

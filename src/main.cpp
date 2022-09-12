@@ -443,7 +443,19 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
       std::string s;
       int i = 0;
       while (std::getline(ss, s, ',') && i < 3) {
-        opt.sam_tags[i] = s;
+        if (i == 1) { // Allow multiple tags for extraction (default RX:Z:)
+          opt.sam_tags[i].clear();
+          std::stringstream ss2(s);
+          std::string s2;
+          while (std::getline(ss2, s2, '/')) { // Multiple tags separated by '/'
+            opt.sam_tags[i].push_back(s2);
+          }
+          if (opt.sam_tags[i].empty()) {
+            opt.sam_tags[i][0] = s;
+          }
+        } else {
+          opt.sam_tags[i][0] = s;
+        }
         i++;
       }
       break;
