@@ -841,7 +841,7 @@ struct SplitCode {
     std::pair<int16_t,int32_t> location1;
     std::pair<int16_t,int32_t> location2;
     uint16_t name_id;
-    bool group1, group2, id1_present, id2_present, rev_comp, special_extraction;
+    bool group1, group2, id1_present, id2_present, rev_comp, special_extraction, use_sub, use_read_sequence;
   };
   
   struct TrimTagSummary {
@@ -2074,6 +2074,8 @@ struct SplitCode {
     auto& padding_right = umi.padding_right;
     auto& rev_comp = umi.rev_comp;
     auto& special_extraction = umi.special_extraction;
+    auto& use_sub = umi.use_sub;
+    auto& use_read_sequence = umi.use_read_sequence;
     length_range_start = 0;
     length_range_end = 0;
     padding_left = 0;
@@ -2084,6 +2086,8 @@ struct SplitCode {
     name1_present = false;
     name2_present = false;
     special_extraction = false;
+    use_sub = false;
+    use_read_sequence = false;
     std::string name1 = "", name2 = "";
     try {
       // Find the UMI name and position:
@@ -2120,6 +2124,13 @@ struct SplitCode {
           }
           if (special_extraction_name.empty()) {
             return false; // malformed
+          }
+          if (special_extraction_name.length() > 1 && special_extraction_name[0] == '#') {
+            special_extraction_name = special_extraction_name.substr(1);
+            use_sub = true;
+          } else if (special_extraction_name.length() > 1 && special_extraction_name[0] == '@') {
+            special_extraction_name = special_extraction_name.substr(1);
+            use_read_sequence = true;
           }
         }
       }
@@ -2329,7 +2340,7 @@ struct SplitCode {
         name2 = special_extraction_name;
       }
       bool ret;
-      if (special_extraction && name1 == "*") {
+      if (special_extraction && name1 == "*") { // A special case where we extract sequences of identified tags stitched together because <umi{*}> specified
         if (extract_seq_names) { // Should only be specified once so return false if already specified
           ret = false;
         } else {
@@ -2483,7 +2494,12 @@ struct SplitCode {
         if (u.id1 == tag_id && u.group1 == group && tag_id_ != -1) {
           auto extract_min_len = u.length_range_start;
           auto extract_max_len = u.length_range_end;
-          std::string extracted_umi = tags_vec[tag_id_].seq;
+          std::string extracted_umi;
+          if (u.use_read_sequence) { // Extract whatever was in the read itself
+            extracted_umi = seq.substr(pos, k);
+          } else { // Extract what the original tag sequence or tag substitution sequence was
+            extracted_umi = u.use_sub && !tags_vec[tag_id_].substitution.empty() ? (tags_vec[tag_id_].substitution == "-" ? "" : tags_vec[tag_id_].substitution) : tags_vec[tag_id_].seq;
+          }
           if (extract_max_len == 0 || (extracted_umi.length() >= extract_min_len && extracted_umi.length() <= extract_max_len)) { // if a length range is supplied, just make sure the extracted string fits within the range
             addToUmiData(u, extracted_umi);
           }

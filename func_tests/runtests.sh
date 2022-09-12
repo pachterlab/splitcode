@@ -286,5 +286,16 @@ checkcmdoutput "$splitcode -m /dev/null --pipe --x-names --seq-names --nFastqs=2
 checkcmdoutput "$splitcode -m $test_dir/testmapping.txt --pipe --x-names --seq-names --nFastqs=2 -g t,t,b,b,b -b GATACT,TAGAGAA,CCGG,AACC,AAAAACC -d 1,1,1,1,1 -v ,,{{t}}14-14,{{t}}14-14,{{t}}14-14 --subs=TTTTTTTTTTTTTTT,GGGGGGGGGGGGGGG,GG,GG,GG -n 3 --left=1:1,1,1,1,1 -q 30 --qtrim-5 --mod-names -w 1,1 $test_dir/test_1.fq $test_dir/test_2.fq" d41d8cd98f00b204e9800998ecf8427e
 checkcmdoutput "cat $test_dir/testmapping.txt" adee4c7edfa0b9bb26d6ebb4d351582d
 
+# Additional advanced UMI extraction tests (special cases)
 
+checkcmdoutput "$splitcode -t 1 -N 2 -c $test_dir/splitcode_example_config.txt -y <(echo \"DPM,Y,ODD,EVEN,ODD\") --x-names -m /dev/null --pipe -x \"<umi1{{EVEN}}>,<umi2{{ODD}}>\" $test_dir/A_1.fastq.gz $test_dir/A_2.fastq.gz|head -20" 4dc03f395f130585d8fb9b6d97ec8efa
+checkcmdoutput "$splitcode -t 1 -N 2 -c $test_dir/splitcode_example_config.txt -y <(echo \"DPM,Y,ODD,EVEN,ODD\") --x-names -m /dev/null --pipe -x \"<umi1{{EVEN}}>,<umi2{{ODD}}>\" $test_dir/A_1.fastq.gz $test_dir/A_2.fastq.gz|head -560|tail -20" 42243836798d98d3dd1cb9b054029929
+checkcmdoutput "$splitcode -t 1 --no-chain -N 2 -c $test_dir/splitcode_example_config.txt -y <(echo \"DPM,Y,ODD,EVEN,ODD\") --x-names -m /dev/null --pipe -x \"<umi1{{EVEN}}>,<umi2{{ODD}}>\" $test_dir/A_1.fastq.gz $test_dir/A_2.fastq.gz|head -560|tail -20" eaba520366b8572afac57539d69e716e
+checkcmdoutput "$splitcode -t 1 -N 2 -c $test_dir/splitcode_example_config.txt -y <(echo \"DPM,Y,ODD,EVEN,ODD\") --x-names -m /dev/null --pipe -x \"1:10<umi1>1:20,1:10<umi2[8-12]>1:20,<umi1{{EVEN}}>,<umi2{{ODD}}>,<umi3{{ODD}}>,<umi4{Odd2Bo10}>\" $test_dir/A_1.fastq.gz $test_dir/A_2.fastq.gz|head -20" d6d98eb83e4e60e3a9f1ace688db065a
+checkcmdoutput "$splitcode --trim-only -t 1 -i bc1 -b AAAAAGCCCC -d 1 --x-names --pipe -x \"<~umi1{bc1}>\" $test_dir/test_1.fq" 51e0dc9135b51a3ec7399882913ccb99
+cmdexec "$splitcode --trim-only -t 1 -i bc1 -b AAAAAGCCCC -d 1 -o /dev/null -x \"<~$test_dir/umi1{bc1}>\" $test_dir/test_1.fq"
+checkcmdoutput "cat $test_dir/umi1.fastq" 18b0a455896b74aab83a6b0ff721de05
+checkcmdoutput "$splitcode --trim-only -t 1 -i bc1 -b AAAAAGCCCC -d 1 --x-names --pipe --subs=ATC -x \"<~umi1{#bc1}>\" $test_dir/test_1.fq" 56a0fb91eb32570b511e0c9525263a3a
+checkcmdoutput "$splitcode --trim-only -t 1 -i bc1 -b AAAAAGCCCC -d 1 --x-names --pipe -x \"<~umi1{@bc1}>\" $test_dir/test_1.fq" 8b434ce88a9d5bb6af4743b0cccbf209
+checkcmdoutput "$splitcode --trim-only -t 1 -i bc1 -b AAAAAGCCCC -d 1 --x-names --pipe -x \"<~umi1{@bc1}>,<umi2{bc1}>,<umi1[3]>{bc1}\" $test_dir/test_1.fq" 813e94a0fa68aa1a9ea2c3a74b7daed6
 
