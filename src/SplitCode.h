@@ -812,6 +812,7 @@ struct SplitCode {
     bool passes_filter;
     std::string ofile;
     std::string identified_tags_seqs;
+    std::string identified_tags_seqs_; // In case we want to store the actual read sequence (via use_read_sequence) or the substitution sequence (via use_sub)
   };
   
   struct SeqString {
@@ -2343,8 +2344,6 @@ struct SplitCode {
       if (special_extraction && name1 == "*") { // A special case where we extract sequences of identified tags stitched together because <umi{*}> specified
         if (extract_seq_names) { // Should only be specified once so return false if already specified
           ret = false;
-        } else if (use_sub || use_read_sequence) { // Neither should not be true in this case
-          ret = false;
         } else {
           extract_seq_names = true;
           extract_seq_names_umi = umi;
@@ -2951,7 +2950,7 @@ struct SplitCode {
                    search_tag_name_after, search_group_after, search_id_after,
                    search_tag_before, group_curr, name_id_curr, search_after_start)) {
           look_for_initiator = false;
-          auto& tag = tags_vec[tag_id];
+          const auto& tag = tags_vec[tag_id];
           if (tag.min_finds > 0) {
             min_finds[tag_id]--;
           }
@@ -2992,6 +2991,13 @@ struct SplitCode {
             }
             results.name_ids.push_back(tag.name_id);
             results.identified_tags_seqs += tag.seq;
+            if (extract_seq_names && (extract_seq_names_umi.use_read_sequence || extract_seq_names_umi.use_sub)) {
+              if (extract_seq_names_umi.use_read_sequence) { // Extract whatever was in the read itself
+                results.identified_tags_seqs_ += seq.substr(pos, k);
+              } else { // Extract what the original tag sequence or tag substitution sequence was
+                results.identified_tags_seqs_ += extract_seq_names_umi.use_sub && !tag.substitution.empty() ? (tag.substitution == "-" ? "" : tag.substitution) : tag.seq;
+              }
+            }
             if (check_group) {
               group_v.push_back(tag.group);
             }
@@ -3082,7 +3088,7 @@ struct SplitCode {
       }
     }
     if (do_extract && extract_seq_names) {
-      doUMIExtractionSeqNames(results.identified_tags_seqs, umi_data);
+      doUMIExtractionSeqNames(extract_seq_names_umi.use_read_sequence || extract_seq_names_umi.use_sub ? results.identified_tags_seqs_ : results.identified_tags_seqs, umi_data);
     }
     for (auto& it : min_finds) {
       if (it.second > 0) {
