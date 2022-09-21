@@ -299,4 +299,8 @@ checkcmdoutput "$splitcode --trim-only -t 1 -i bc1 -b AAAAAGCCCC -d 1 --x-names 
 checkcmdoutput "$splitcode --trim-only -t 1 -i bc1 -b AAAAAGCCCC -d 1 --x-names --pipe -x \"<~umi1{@bc1}>\" $test_dir/test_1.fq" 8b434ce88a9d5bb6af4743b0cccbf209
 checkcmdoutput "$splitcode --trim-only -t 1 -i bc1 -b AAAAAGCCCC -d 1 --x-names --pipe -x \"<~umi1{@bc1}>,<umi2{bc1}>,<umi1[3]>{bc1}\" $test_dir/test_1.fq" 813e94a0fa68aa1a9ea2c3a74b7daed6
 checkcmdoutput "$splitcode --trim-only -t 1 -i bc1 -b AAAAAGCCCC -d 1 --x-names --pipe -x \"<~umi1{@bc1}>,<umi2{bc1}>,<umi1[3]>{bc1},<umi3[3]>{bc1}\" --sam-tags=\"CB:Z:,RX:Z:/RY:Z:\" $test_dir/test_1.fq" e675ac734c9859c0a03a5bbc967a0c6f
+checkcmdoutput "$splitcode -t 1 -N 2 -c $test_dir/splitcode_example_config.txt -y <(echo \"DPM,Y,ODD,EVEN,ODD\") --x-names -m /dev/null --pipe -x \"<umi1{{EVEN}}>,<~umi3{*}>,<umi2{{ODD}}>\" $test_dir/A_1.fastq.gz $test_dir/A_2.fastq.gz|head -48" b340f4e12eeaddffa88ffc83c6964afa
+checkcmdoutput "$splitcode -t 1 -N 2 -c $test_dir/splitcode_example_config.txt -y <(echo \"DPM,Y,ODD,EVEN,ODD\") --x-names -m /dev/null --pipe -x \"<umi1{{EVEN}}>,<umi2{*}>,<umi2{{ODD}}>\" $test_dir/A_1.fastq.gz $test_dir/A_2.fastq.gz|head -40" 130d75560550456801354c9b31ba4a27
+checkcmdoutput "$splitcode --trim-only -t 1 -i bc1 -b AAAAACCCCCG --x-names --pipe -x \"0:0<umi1[5]>,<~umi2{@bc1}>,<~umi3{*}>\" --no-x-out --sam-tags=\"CB:Z:,RX:Z:/RY:Z:/RZ:Z:,BI:I:\" $test_dir/test_1.fq" b7cb8dd7e44b34f07f66ea3b3a9e7504
+checkcmdoutput "$splitcode --trim-only -t 1 -i bc0,bc1 -b TACT,AAAAACCCCCG -g a,a --x-names --pipe -x \"0:0<umi1[5]>,<~umi2[4]{{a}}>,<~umi3[15-25]{*}>\" --no-x-out --sam-tags=\"CB:Z:,RX:Z:/RY:Z:/RZ:Z:,BI:I:\" $test_dir/test_1.fq" f06262837c002c9e37e28535d2a617ae
 

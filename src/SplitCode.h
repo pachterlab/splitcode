@@ -2343,6 +2343,8 @@ struct SplitCode {
       if (special_extraction && name1 == "*") { // A special case where we extract sequences of identified tags stitched together because <umi{*}> specified
         if (extract_seq_names) { // Should only be specified once so return false if already specified
           ret = false;
+        } else if (use_sub || use_read_sequence) { // Neither should not be true in this case
+          ret = false;
         } else {
           extract_seq_names = true;
           extract_seq_names_umi = umi;
@@ -2729,6 +2731,34 @@ struct SplitCode {
     }
   }
   
+  void doUMIExtractionSeqNames(const std::string& identified_tags_seq, std::vector<std::string>& umi_data) {
+    auto extract_no_chain = this->extract_no_chain;
+    auto revcomp = [](const std::string s) {
+      std::string r(s);
+      std::transform(s.rbegin(), s.rend(), r.begin(), [](char c) {
+        switch(c) {
+        case 'A': return 'T';
+        case 'C': return 'G';
+        case 'G': return 'C';
+        case 'T': return 'A';
+        default: return 'N';
+        }
+        return 'N';
+      });
+      return r;
+    };
+    auto addToUmiData = [extract_no_chain, &umi_data, &revcomp](const UMI& u, const std::string& extracted_umi) {
+      umi_data[u.name_id] += extract_no_chain && !umi_data[u.name_id].empty() ? "" : (!u.rev_comp ? extracted_umi : revcomp(extracted_umi));
+    };
+    auto &u = extract_seq_names_umi;
+    auto extract_min_len = u.length_range_start;
+    auto extract_max_len = u.length_range_end;
+    const std::string& extracted_umi = identified_tags_seq;
+    if (extract_max_len == 0 || (extracted_umi.length() >= extract_min_len && extracted_umi.length() <= extract_max_len)) { // if a length range is supplied, just make sure the extracted string fits within the range
+      addToUmiData(u, extracted_umi);
+    }
+  }
+  
   std::pair<int,int> trimQuality(const char*& s, int& l, const char*& q) {
     // Same "partial sum" algorithm used by cutadapt
     int phred_offset = phred64 ? -64 : -33;
@@ -3050,6 +3080,9 @@ struct SplitCode {
           results.passes_filter = false; // read is too long
         }
       }
+    }
+    if (do_extract && extract_seq_names) {
+      doUMIExtractionSeqNames(results.identified_tags_seqs, umi_data);
     }
     for (auto& it : min_finds) {
       if (it.second > 0) {
