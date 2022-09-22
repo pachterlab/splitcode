@@ -113,7 +113,10 @@ void usage() {
        << "    --seq-names  Modify names of outputted sequences to include the sequences of identified tags" << endl
        << "    --x-names    Modify names of outputted sequences to include extracted UMI-like sequences" << endl
        << "    --x-only     Only output extracted UMI-like sequences" << endl
-       << "-M  --sam-tags   Modify the default SAM tags (default: CB:Z:,RX:Z:,BI:i:)" << endl
+       << "-X, --sub-assign Assign reads to a secondary sequence ID based on a subset of tags present (must be used with --assign)" << endl
+       << "                 (e.g. 0,2 = Generate unique ID based the tags present by subsetting those tags to tag #0 and tag #2 only)" << endl
+       << "                 The names of the outputted sequences will be modified to include this secondary sequence ID" << endl
+       << "-M  --sam-tags   Modify the default SAM tags (default: CB:Z:,RX:Z:,BI:i:,SI:i)" << endl
        << "Other Options:" << endl
        << "-N, --nFastqs    Number of FASTQ file(s) per run" << endl
        << "                 (default: 1) (specify 2 for paired-end)" << endl
@@ -158,7 +161,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   int assign_flag = 0;
   bool trim_only_specified = false;
 
-  const char *opt_string = "t:N:n:b:d:i:l:f:F:e:c:o:O:u:m:k:r:A:L:R:E:g:y:Y:j:J:a:v:z:Z:5:3:w:x:P:q:s:S:M:U:Tph";
+  const char *opt_string = "t:N:n:b:d:i:l:f:F:e:c:o:O:u:m:k:r:A:L:R:E:g:y:Y:j:J:a:v:z:Z:5:3:w:x:P:q:s:S:M:U:X:Tph";
   static struct option long_options[] = {
     // long args
     {"version", no_argument, &version_flag, 1},
@@ -228,6 +231,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"summary", required_argument, 0, 's'},
     {"select", required_argument, 0, 'S'},
     {"sam-tags", required_argument, 0, 'M'},
+    {"sub-assign", required_argument, 0, 'X'},
     {0,0,0,0}
   };
   
@@ -435,6 +439,19 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
       stringstream(optarg) >> opt.select_output_files_str;
       break;
     }
+    case 'X': {
+      std::string subset_n;
+      stringstream(optarg) >> subset_n;
+      std::stringstream ss(subset_n);
+      while (std::getline(ss, subset_n, ',')) { 
+        try {
+          opt.sub_assign_vec.push_back(std::stoi(subset_n));
+        } catch (std::exception &e) { }
+      }
+      std::sort(opt.sub_assign_vec.begin(), opt.sub_assign_vec.end());
+      opt.sub_assign_vec.erase(std::unique(opt.sub_assign_vec.begin(), opt.sub_assign_vec.end()), opt.sub_assign_vec.end());
+      break;
+    }
     case 'M': {
       std::string m;
       stringstream(optarg) >> m;
@@ -600,6 +617,10 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
   }
   if (!opt.empty_read_sequence.empty() && opt.empty_remove) {
     std::cerr << ERROR_STR << " --empty cannot be specified with --empty-remove" << std::endl;
+    ret = false;
+  }
+  if (!opt.sub_assign_vec.empty() && opt.trim_only) {
+    std::cout << "Cannot use --sub-assign unless --assign is specified" << std::endl;
     ret = false;
   }
   int nf = opt.nfiles;
@@ -1146,7 +1167,7 @@ int main(int argc, char *argv[]) {
   ProgramOptions opt;
   ParseOptions(argc,argv,opt);
   SplitCode sc(opt.nfiles, opt.summary_file, opt.trim_only, opt.disable_n, opt.trim_5_str, opt.trim_3_str, opt.extract_str, opt.extract_no_chain, opt.barcode_prefix, opt.filter_length_str,
-               opt.quality_trimming_5, opt.quality_trimming_3, opt.quality_trimming_pre, opt.quality_trimming_naive, opt.quality_trimming_threshold, opt.phred64);
+               opt.quality_trimming_5, opt.quality_trimming_3, opt.quality_trimming_pre, opt.quality_trimming_naive, opt.quality_trimming_threshold, opt.phred64, opt.sub_assign_vec);
   bool checkopts = CheckOptions(opt, sc);
   if (!checkopts) {
     usage();

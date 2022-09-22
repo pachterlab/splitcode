@@ -190,6 +190,11 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
       //mod_name += "\t" + opt.sam_tags[0][0] + sc.binaryToString(sc.getID(r.id), sc.getBarcodeLength())
       name_modded = true;
     }
+    if (assigned && r.subassign_id != -1) {
+      mod_name += (name_modded ? "\t" : " ");
+      mod_name += opt.sam_tags[3][0] + std::to_string(r.subassign_id);
+      name_modded = true;
+    }
     if (assigned2 && opt.x_names && !sc.umi_names.empty()) {
       std::string mod_name2 = (name_modded ? "\t" : " ");
       mod_name2 += opt.sam_tags[1][0];

@@ -75,6 +75,7 @@ struct ProgramOptions {
   std::string select_output_files_str;
   std::vector<bool> select_output_files;
   std::vector<std::vector<std::string> > sam_tags;
+  std::vector<size_t> sub_assign_vec;
   
   ProgramOptions() :
     threads(1),
@@ -107,10 +108,11 @@ struct ProgramOptions {
     quality_trimming_naive(false),
     phred64(false)
   {
-    const char* sam_tags_default[3] = {"CB:Z:", "RX:Z:", "BI:i:"};
+    const char* sam_tags_default[4] = {"CB:Z:", "RX:Z:", "BI:i:", "SI:i:"};
     sam_tags.push_back(std::vector<std::string>(1, std::string(sam_tags_default[0])));
     sam_tags.push_back(std::vector<std::string>(1, std::string(sam_tags_default[1])));
     sam_tags.push_back(std::vector<std::string>(1, std::string(sam_tags_default[2])));
+    sam_tags.push_back(std::vector<std::string>(1, std::string(sam_tags_default[3])));
   }
 };
 

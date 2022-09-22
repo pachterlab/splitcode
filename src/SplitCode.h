@@ -54,7 +54,8 @@ struct SplitCode {
   SplitCode(int nFiles, std::string summary_file = "", bool trim_only = false, bool disable_n = true,
             std::string trim_5_str = "", std::string trim_3_str = "", std::string extract_str = "", bool extract_no_chain = false, std::string barcode_prefix = "",
             std::string filter_length_str = "", bool quality_trimming_5 = false, bool quality_trimming_3 = false,
-            bool quality_trimming_pre = false, bool quality_trimming_naive = false, int quality_trimming_threshold = -1, bool phred64 = false) {
+            bool quality_trimming_pre = false, bool quality_trimming_naive = false, int quality_trimming_threshold = -1, bool phred64 = false,
+            std::vector<size_t> sub_assign_vec = std::vector<size_t>(0)) {
     init = false;
     extract_seq_names = false;
     discard_check = false;
@@ -83,6 +84,7 @@ struct SplitCode {
     this->quality_trimming_naive = quality_trimming_naive;
     this->quality_trimming_threshold = quality_trimming_threshold;
     this->phred64 = phred64;
+    this->sub_assign_vec = sub_assign_vec;
     setNFiles(nFiles);
     setTrimOnly(trim_only);
     setRandomReplacement(!disable_n);
@@ -262,6 +264,8 @@ struct SplitCode {
       of << "\t\t" << "\"tags_vector_size\": " << getNumTags() << ",\n";
       of << "\t\t" << "\"tags_map_size\": " << getMapSize() << ",\n";
       of << "\t\t" << "\"num_elements_in_tags_map\": " << getMapSize(false) << ",\n";
+      of << "\t\t" << "\"assign_id_map_size\": " << idmap_getsize() << ",\n";
+      of << "\t\t" << "\"sub_assign_id_map_size\": " << idmap_getsize(true) << ",\n";
       of << "\t\t" << "\"always_assign\": " << always_assign << "\n";
     of << "\t" << "}" << "\n";
     of << "}" << std::endl;
@@ -605,7 +609,7 @@ struct SplitCode {
       int prev_start_pos = -1;
       std::pair<int,int> max_loc = std::make_pair(-1,-1); // k-mer location with the rightmost non-(-1) location
       int smallest_kmer_unbound = -1; // the smallest k-mer size with a -1 location
-      for (auto &loc : kmer_size_locations[i]) {
+      for (const auto &loc : kmer_size_locations[i]) {
         if (smallest_kmer_unbound == -1 && loc.second == -1) {
           smallest_kmer_unbound = loc.first;
         }
@@ -689,7 +693,7 @@ struct SplitCode {
     for (auto& it: tags) {
       int kmer_size = it.first.length();
       if (emap.find(kmer_size) != emap.end()) { // emap[kmer_size]
-        for (auto &e : emap[kmer_size]) {
+        for (const auto &e : emap[kmer_size]) {
           bool found = false;
           // Check if any tags associated with the current sequence are in the same location as the current expansion 
           for (auto x : it.second) {
@@ -808,6 +812,7 @@ struct SplitCode {
     std::vector<std::pair<std::pair<uint32_t,int32_t>,std::pair<int32_t,int32_t>>> tag_trimmed_left; // tag name id, bases trimmed, match length, error
     std::vector<std::pair<std::pair<uint32_t,int32_t>,std::pair<int32_t,int32_t>>> tag_trimmed_right;
     int id;
+    int subassign_id;
     bool discard;
     bool passes_filter;
     std::string ofile;
@@ -1388,6 +1393,20 @@ struct SplitCode {
             return false;
           }
           this->barcode_prefix = value;
+        } else if (field == "@sub-assign") {
+          if (!this->sub_assign_vec.empty()) {
+            std::cerr << "Error: The file \"" << config_file << "\" specifies @sub-assign which was already previously set" << std::endl;
+            return false;
+          }
+          std::string subset_n;
+          std::stringstream ss(value);
+          while (std::getline(ss, subset_n, ',')) { 
+            try {
+              this->sub_assign_vec.push_back(std::stoi(subset_n));
+            } catch (std::exception &e) { }
+          }
+          std::sort(this->sub_assign_vec.begin(), this->sub_assign_vec.end());
+          this->sub_assign_vec.erase(std::unique(this->sub_assign_vec.begin(), this->sub_assign_vec.end()), this->sub_assign_vec.end());
         } else if (field == "@extract") {
           if (!this->extract_str.empty()) {
             std::cerr << "Error: The file \"" << config_file << "\" specifies @extract which was already previously set" << std::endl;
@@ -1559,7 +1578,7 @@ struct SplitCode {
       if (it == tags.end()) {
         break;
       }
-      for (auto &x : it->second) {
+      for (const auto &x : it->second) {
         if (x.second == -1) {
           k_expanded = x.first;
           continue;
@@ -2749,7 +2768,7 @@ struct SplitCode {
     auto addToUmiData = [extract_no_chain, &umi_data, &revcomp](const UMI& u, const std::string& extracted_umi) {
       umi_data[u.name_id] += extract_no_chain && !umi_data[u.name_id].empty() ? "" : (!u.rev_comp ? extracted_umi : revcomp(extracted_umi));
     };
-    auto &u = extract_seq_names_umi;
+    const auto &u = extract_seq_names_umi;
     auto extract_min_len = u.length_range_start;
     auto extract_max_len = u.length_range_end;
     const std::string& extracted_umi = identified_tags_seq;
@@ -2831,6 +2850,7 @@ struct SplitCode {
   void processRead(std::vector<const char*>& s, std::vector<int>& l, int jmax, Results& results, std::vector<const char*>& q) {
     // Note: s and l may end up being trimmed/modified (even if the read ends up becoming unassigned)
     results.id = -1;
+    results.subassign_id = -1;
     results.discard = false;
     results.passes_filter = true;
     auto min_finds = min_finds_map; // copy
@@ -3102,7 +3122,7 @@ struct SplitCode {
         break;
       }
     }
-    auto &u = results.name_ids;
+    const auto &u = results.name_ids;
     if (u.empty()) {
       if (keep_check || keep_check_group) {
         results.discard = true;
@@ -3350,7 +3370,7 @@ struct SplitCode {
           }
         }
       }
-      auto& u = r.name_ids;
+      const auto& u = r.name_ids;
       if (isAssigned(r, true)) {
         num_reads_assigned++;
       }
@@ -3368,6 +3388,16 @@ struct SplitCode {
         idmap_insert(u,1);
       }
       r.id = id;
+      if (!sub_assign_vec.empty()) {
+        int s_id = idmap_find(u, true);
+        if (s_id == -1) {
+          s_id = idmap_getsize(true);
+          idmap_insert(u,1,true);
+        }
+        if (s_id != -2) { // make sure it's not an empty subset
+          r.subassign_id = s_id;
+        }
+      }
     }
   }
   
@@ -3411,13 +3441,13 @@ struct SplitCode {
     std::string barcode_str = "";
     int id;
     if (use_16) {
-      auto &u = idmap16[i];
+      const auto &u = idmap16[i];
       id = idmap_find(u);
       for (auto name_id : u) {
         barcode_str += names[name_id] + ",";
       }
     } else {
-      auto &u = idmap[i];
+      const auto &u = idmap[i];
       id = idmap_find(u);
       for (auto name_id : u) {
         barcode_str += names[name_id] + ",";
@@ -3431,41 +3461,66 @@ struct SplitCode {
     return o;
   }
   
-  int idmap_find(std::vector<uint32_t>& u) {
+  int idmap_find(const std::vector<uint32_t>& u, bool sub_assign = false) {
+    const auto &idmapinv16_ = !sub_assign ? idmapinv16 : subassign_idmapinv16;
+    const auto &idmapinv_ = !sub_assign ? idmapinv : subassign_idmapinv;
+    std::vector<uint32_t> u_sub;
+    if (sub_assign) {
+      u_sub.reserve(sub_assign_vec.size());
+      for (size_t i = 0; i < sub_assign_vec.size(); i++) {
+        if (sub_assign_vec[i] < u.size()) u_sub.push_back(u[sub_assign_vec[i]]);
+        else break;
+      }
+      if (u_sub.size() == 0) return -2; // Means the subset is empty
+    }
+    const auto &u_ = !sub_assign ? u : u_sub;
     if (use_16) {
-      std::vector<uint16_t> u16(u.begin(), u.end());
-      auto it = idmapinv16.find(u16);
-      if (it != idmapinv16.end()) {
+      std::vector<uint16_t> u16(u_.begin(), u_.end());
+      auto it = idmapinv16_.find(u16);
+      if (it != idmapinv16_.end()) {
         return it->second;
       }
     } else {
-      auto it = idmapinv.find(u);
-      if (it != idmapinv.end()) {
+      auto it = idmapinv_.find(u_);
+      if (it != idmapinv_.end()) {
         return it->second;
       }
     }
     return -1;
   }
   
-  int idmap_find(std::vector<uint16_t>& u) {
+  int idmap_find(const std::vector<uint16_t>& u, bool sub_assign = false) {
     std::vector<uint32_t> u32(u.begin(), u.end());
-    return idmap_find(u32);
+    return idmap_find(u32, sub_assign);
   }
   
-  size_t idmap_getsize() {
-    return use_16 ? idmapinv16.size() : idmapinv.size();
+  size_t idmap_getsize(bool sub_assign = false) {
+    if (!sub_assign) return use_16 ? idmapinv16.size() : idmapinv.size();
+    else return use_16 ? subassign_idmapinv16.size() : subassign_idmapinv.size();
   }
   
-  void idmap_insert(std::vector<uint32_t>& u, int val) {
-    if (use_16) {
-      std::vector<uint16_t> u16(u.begin(), u.end());
-      idmapinv16.insert({u16,idmap_getsize()});
-      idmap16.push_back(std::move(u16));
+  void idmap_insert(const std::vector<uint32_t>& u, int val, bool sub_assign = false) {
+    auto &idmapinv16_ = !sub_assign ? idmapinv16 : subassign_idmapinv16;
+    auto &idmapinv_ = !sub_assign ? idmapinv : subassign_idmapinv;
+    std::vector<uint32_t> u_sub;
+    if (sub_assign) {
+      u_sub.reserve(sub_assign_vec.size());
+      for (size_t i = 0; i < sub_assign_vec.size(); i++) {
+        if (sub_assign_vec[i] < u.size()) u_sub.push_back(u[sub_assign_vec[i]]);
+        else break;
+      }
     } else {
-      idmapinv.insert({u,idmap_getsize()});
-      idmap.push_back(std::move(u));
+      idcount.push_back(val);
     }
-    idcount.push_back(val);
+    const auto &u_ = !sub_assign ? u : u_sub;
+    if (use_16) {
+      std::vector<uint16_t> u16(u_.begin(), u_.end());
+      idmapinv16_.insert({u16,idmap_getsize(sub_assign)});
+      if (!sub_assign) idmap16.push_back(std::move(u16));
+    } else {
+      idmapinv_.insert({u_,idmap_getsize(sub_assign)});
+      if (!sub_assign) idmap.push_back(u_);
+    }
   }
   
   uint64_t getID(uint64_t id) { // Get the "real ID" (aka results ID merged with prefix)
@@ -3529,9 +3584,9 @@ struct SplitCode {
   }
   
   static uint64_t hashSequence(const std::string& s) {
-    int len = s.length();
+    const int len = s.length();
     uint64_t hash = 0;
-    int n = len / MAX_K;
+    const int n = len / MAX_K;
     int i = 0;
     while (i < n) {
       hash ^= hashKmer(s.substr(i*MAX_K,MAX_K));
@@ -3587,8 +3642,8 @@ struct SplitCode {
   
   static uint64_t hashSequence2(const char* s, size_t l) {
     uint64_t hash = l;
-    size_t max_size = 24;
-    size_t n = l / max_size;
+    const size_t max_size = 24;
+    const size_t n = l / max_size;
     size_t i = 0;
     while (i < n) {
       auto x = hashKmer2(s + i*max_size, max_size, i);
@@ -3619,6 +3674,8 @@ struct SplitCode {
   std::vector<std::vector<uint16_t>> idmap16;
   robin_hood::unordered_node_map<std::vector<uint32_t>, int, VectorHasher> idmapinv;
   robin_hood::unordered_node_map<std::vector<uint16_t>, int, VectorHasher> idmapinv16;
+  robin_hood::unordered_node_map<std::vector<uint32_t>, int, VectorHasher> subassign_idmapinv;
+  robin_hood::unordered_node_map<std::vector<uint16_t>, int, VectorHasher> subassign_idmapinv16;
   std::vector<uint32_t> idcount;
   std::unordered_map<std::vector<uint32_t>, std::string, VectorHasher> idmapinv_keep;
   std::unordered_map<std::vector<uint32_t>, int, VectorHasher> idmapinv_discard;
@@ -3664,6 +3721,8 @@ struct SplitCode {
   
   bool extract_seq_names;
   UMI extract_seq_names_umi;
+  
+  std::vector<size_t> sub_assign_vec;
   
   bool init;
   bool discard_check;
