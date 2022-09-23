@@ -105,6 +105,7 @@ void usage() {
        << "-S, --select     Select which FASTQ files to output (comma-separated) (e.g. 0,1,3 = Output files #0, #1, #3)" << endl
        << "    --gzip       Output compressed gzip'ed FASTQ files" << endl
        << "    --out-fasta  Output in FASTA format rather than FASTQ format" << endl
+       << "    --keep-com   Preserve the comments of the read names of the input FASTQ file(s)" << endl
        << "    --no-output  Don't output any sequences (output statistics only)" << endl
        << "    --no-outb    Don't output final barcode sequences" << endl
        << "    --no-x-out   Don't output extracted UMI-like sequences (should be used with --x-names)" << endl
@@ -159,6 +160,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   int qtrim_naive_flag = 0;
   int phred64_flag = 0;
   int assign_flag = 0;
+  int keep_com_flag = 0;
   bool trim_only_specified = false;
 
   const char *opt_string = "t:N:n:b:d:i:l:f:F:e:c:o:O:u:m:k:r:A:L:R:E:g:y:Y:j:J:a:v:z:Z:5:3:w:x:P:q:s:S:M:U:X:Tph";
@@ -185,6 +187,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"qtrim-pre", no_argument, &qtrim_pre_flag, 1},
     {"qtrim-naive", no_argument, &qtrim_naive_flag, 1},
     {"phred64", no_argument, &phred64_flag, 1},
+    {"keep-com", no_argument, &keep_com_flag, 1},
     {"assign", no_argument, &assign_flag, 1},
     // short args
     {"help", no_argument, 0, 'h'},
@@ -549,6 +552,9 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   }
   if (phred64_flag) {
     opt.phred64 = true;
+  }
+  if (keep_com_flag) {
+    opt.keep_fastq_comments = true;
   }
   if (assign_flag && !trim_only_specified) {
     opt.trim_only = false;

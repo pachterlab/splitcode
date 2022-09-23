@@ -175,13 +175,18 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
     bool use_pipe = opt.pipe && r.ofile.empty(); // Conditions under which we'll write to stdout
     // Conditions under which we'll write to separate barcode file (either write_barcode_separate_fastq specified previously or we need to write reads out to r.ofile even though user specified --pipe):
     bool write_barcode_separate_fastq_ = write_barcode_separate_fastq || (!r.ofile.empty() && (opt.pipe && !opt.no_output_barcodes));
-    std::string mod_name = "";
-    if ((assigned || r.discard) && opt.mod_names) {
-      mod_name = "::" + sc.getNameString(r); // Barcode names
-    }
     bool name_modded = false;
+    std::string mod_name = "";
+    if (opt.keep_fastq_comments) {
+      mod_name += "\t"; // In this option, we always start the fastq comment with a tab
+      name_modded = true;
+    }
+    if ((assigned || r.discard) && opt.mod_names) {
+      mod_name += "::" + sc.getNameString(r); // Barcode names
+    }
     if ((assigned || r.discard) && opt.seq_names && !r.identified_tags_seqs.empty()) {
-      mod_name += " " + opt.sam_tags[0][0] + r.identified_tags_seqs; // Sequences of identified tags stitched together
+      mod_name += (name_modded ? "\t" : " ");
+      mod_name += opt.sam_tags[0][0] + r.identified_tags_seqs; // Sequences of identified tags stitched together
       name_modded = true;
     }
     if (assigned && opt.com_names && !sc.always_assign) {
@@ -216,6 +221,9 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
       if (!umi_empty) {
         mod_name += mod_name2;
       }
+    }
+    if (mod_name == " " || mod_name == "\t") {
+      mod_name = "";
     }
     if (assigned && (write_barcode_separate_fastq_ || use_pipe) && !sc.always_assign && !opt.no_output_barcodes) { // Write out barcode read
       std::stringstream o;
@@ -361,6 +369,7 @@ ReadProcessor::ReadProcessor(const ProgramOptions& opt, MasterProcessor& mp) :
    if (full) {
      quals.reserve(bufsize/50);
    }
+   comments = mp.opt.keep_fastq_comments;
    rv.reserve(1000);
    clear();
 }
@@ -373,7 +382,8 @@ ReadProcessor::ReadProcessor(ReadProcessor && o) :
   names(std::move(o.names)),
   quals(std::move(o.quals)),
   flags(std::move(o.flags)),
-  full(o.full) {
+  full(o.full),
+  comments(o.comments) {
     buffer = o.buffer;
     o.buffer = nullptr;
     o.bufsize = 0;
@@ -406,7 +416,7 @@ void ReadProcessor::operator()() {
         parallel_read_empty.emplace(i);
         continue;
       }
-      mp.FSRs[i].fetchSequences(buffer, bufsize, seqs, names, quals, flags, readbatch_id, full);
+      mp.FSRs[i].fetchSequences(buffer, bufsize, seqs, names, quals, flags, readbatch_id, full, comments);
     } else {
       std::lock_guard<std::mutex> lock(mp.reader_lock);
       if (mp.SR->empty()) {
@@ -414,7 +424,7 @@ void ReadProcessor::operator()() {
         return;
       } else {
         // get new sequences
-        mp.SR->fetchSequences(buffer, bufsize, seqs, names, quals, flags, readbatch_id, full);
+        mp.SR->fetchSequences(buffer, bufsize, seqs, names, quals, flags, readbatch_id, full, comments);
       }
       // release the reader lock
     }
@@ -546,7 +556,8 @@ bool FastqSequenceReader::fetchSequences(char *buf, const int limit, std::vector
   std::vector<std::pair<const char *, int> > &quals,
   std::vector<uint32_t>& flags,
   int& read_id,
-  bool full) {
+  bool full,
+  bool comments) {
     
   std::string line;
   readbatch_id += 1; // increase the batch id
@@ -596,7 +607,7 @@ bool FastqSequenceReader::fetchSequences(char *buf, const int limit, std::vector
       // fits into the buffer
       if (full) {
         for (int i = 0; i < nfiles; i++) {
-          nl[i] = seq[i]->name.l;
+          nl[i] = seq[i]->name.l + (comments ? seq[i]->comment.l+1 : 0);
           bufadd += l[i] + nl[i]; // includes name and qual
         }
         bufadd += 2*pad;
@@ -617,7 +628,7 @@ bool FastqSequenceReader::fetchSequences(char *buf, const int limit, std::vector
           bufpos += l[i]+1;
           seqs.emplace_back(pi,l[i]);
 
-          if (full) {
+          if (full && !comments) {
             pi = buf + bufpos;
             memcpy(pi, seq[i]->qual.s,l[i]+1);
             bufpos += l[i]+1;
@@ -626,6 +637,22 @@ bool FastqSequenceReader::fetchSequences(char *buf, const int limit, std::vector
             memcpy(pi, seq[i]->name.s, nl[i]+1);
             bufpos += nl[i]+1;
             names.emplace_back(pi, nl[i]);
+          } else if (full && comments) {
+            pi = buf + bufpos;
+            memcpy(pi, seq[i]->qual.s,l[i]+1);
+            bufpos += l[i]+1;
+            quals.emplace_back(pi,l[i]);
+            pi = buf + bufpos;
+            memcpy(pi, seq[i]->name.s, (nl[i]-(seq[i]->comment.l+1)));
+            names.emplace_back(pi, nl[i]);
+            bufpos += (nl[i]-(seq[i]->comment.l+1));
+            pi = buf + bufpos;
+            const char* blank_space = " ";
+            memcpy(pi, blank_space, 1);
+            bufpos += 1;
+            pi = buf + bufpos;
+            memcpy(pi, seq[i]->comment.s, seq[i]->comment.l+1);
+            bufpos += seq[i]->comment.l+1;
           }
         }
 

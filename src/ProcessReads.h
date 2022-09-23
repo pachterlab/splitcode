@@ -45,7 +45,8 @@ public:
                               std::vector<std::pair<const char*, int>>& quals,
                               std::vector<uint32_t>& flags,
                               int &readbatch_id,
-                              bool full=false) = 0;
+                              bool full=false,
+                              bool comments=false) = 0;
   
   
 public:
@@ -76,7 +77,8 @@ public:
                       std::vector<std::pair<const char*, int>>& quals,
                       std::vector<uint32_t>& flags,
                       int &readbatch_id,
-                      bool full=false);
+                      bool full=false,
+                      bool comments=false);
   
 public:
   int nfiles = 1;
@@ -312,6 +314,7 @@ public:
   
   std::vector<SplitCode::Results> rv;
   bool full;
+  bool comments;
   
   /*std::vector<std::vector<int>> newIDs;
   std::vector<std::vector<int>> IDs;*/
