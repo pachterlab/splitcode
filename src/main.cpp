@@ -459,7 +459,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
       std::stringstream ss(m);
       std::string s;
       int i = 0;
-      while (std::getline(ss, s, ',') && i < 3) {
+      while (std::getline(ss, s, ',') && i < 4) {
         if (i == 1) { // Allow multiple tags for extraction (default RX:Z:)
           opt.sam_tags[i].clear();
           std::stringstream ss2(s);
