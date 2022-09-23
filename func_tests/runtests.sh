@@ -308,10 +308,10 @@ checkcmdoutput "$splitcode --trim-only -t 1 -i bc0,bc1 -b TACT,AAAAACCCCCGC -d 0
 
 # Testing --sub-assign
 
-checkcmdoutput "$splitcode -t 1 --pipe -N 2 -c $test_dir/splitcode_example_config.txt -y <(echo "DPM,Y,ODD,EVEN,ODD") --com-names -m /dev/null --sub-assign=5 $test_dir/A_1.fastq.gz $test_dir/A_2.fastq.gz" 063bab96c81fca687c4729d4d6237c4a
-checkcmdoutput "$splitcode -t 1 --pipe -N 2 -c $test_dir/splitcode_example_config.txt -y <(echo "DPM,Y,ODD,EVEN,ODD") --com-names -m /dev/null --sub-assign=4,5,6 $test_dir/A_1.fastq.gz $test_dir/A_2.fastq.gz" 01c1b8f108e7c62492274f60fe598878
-checkcmdoutput "$splitcode -t 1 --pipe -N 2 -c $test_dir/splitcode_example_config.txt -y <(echo "DPM,Y,ODD,EVEN,ODD") --com-names -m /dev/null --sub-assign=0 $test_dir/A_1.fastq.gz $test_dir/A_2.fastq.gz" c7f239165220b0a80c4f96b1bfe45097
-checkcmdoutput "$splitcode -t 1 --pipe -N 2 -c $test_dir/splitcode_example_config.txt -y <(echo "DPM,Y,ODD,EVEN,ODD") --com-names -m /dev/null --sub-assign=1,2 $test_dir/A_1.fastq.gz $test_dir/A_2.fastq.gz" 7aa3ced89af20430739c495afadf04b6
-checkcmdoutput "$splitcode -t 1 --pipe -N 2 -c $test_dir/splitcode_example_config.txt -y <(echo "DPM,Y,ODD,EVEN,ODD") --com-names -m /dev/null --sub-assign=0,1,2 $test_dir/A_1.fastq.gz $test_dir/A_2.fastq.gz" 7b627293f84e94e997b2eee08deef0cb
-checkcmdoutput "$splitcode -t 1 --pipe -N 2 -c $test_dir/splitcode_example_config.txt -y <(echo \"DPM,Y,ODD,EVEN,ODD\") --com-names -m /dev/null --sub-assign=0,1,2,3,4 --sam-tags=\"CB:Z:,RX:Z:,BI:i:,AA:i:\" $test_dir/A_1.fastq.gz $test_dir/A_2.fastq.gz" b9d2d6b47a4a1174273a3db0374a35d7
+checkcmdoutput "$splitcode -t 1 --pipe -N 2 -c $test_dir/splitcode_example_config.txt -y <(echo "DPM,Y,ODD,EVEN,ODD") --com-names -m /dev/null --sub-assign=5 $test_dir/A_1.fastq.gz $test_dir/A_2.fastq.gz" d9bd0b3183cfb50256d5473af2f6476e
+checkcmdoutput "$splitcode -t 1 --pipe -N 2 -c $test_dir/splitcode_example_config.txt -y <(echo "DPM,Y,ODD,EVEN,ODD") --com-names -m /dev/null --sub-assign=4,5,6 $test_dir/A_1.fastq.gz $test_dir/A_2.fastq.gz" c2b234369f465fc982687bb71c3750c4
+checkcmdoutput "$splitcode -t 1 --pipe -N 2 -c $test_dir/splitcode_example_config.txt -y <(echo "DPM,Y,ODD,EVEN,ODD") --com-names -m /dev/null --sub-assign=0 $test_dir/A_1.fastq.gz $test_dir/A_2.fastq.gz" b8a61b0af84661c4da6fb4c7151a2210
+checkcmdoutput "$splitcode -t 1 --pipe -N 2 -c $test_dir/splitcode_example_config.txt -y <(echo "DPM,Y,ODD,EVEN,ODD") --com-names -m /dev/null --sub-assign=1,2 $test_dir/A_1.fastq.gz $test_dir/A_2.fastq.gz" c4f74a40c002f329d1871f4611aadd92
+checkcmdoutput "$splitcode -t 1 --pipe -N 2 -c $test_dir/splitcode_example_config.txt -y <(echo "DPM,Y,ODD,EVEN,ODD") --com-names -m /dev/null --sub-assign=0,1,2 $test_dir/A_1.fastq.gz $test_dir/A_2.fastq.gz" c90450075bda6beab6656095fb344991
+checkcmdoutput "$splitcode -t 1 --pipe -N 2 -c $test_dir/splitcode_example_config.txt -y <(echo \"DPM,Y,ODD,EVEN,ODD\") --com-names -m /dev/null --sub-assign=0,1,2,3,4 --sam-tags=\"CB:Z:,RX:Z:,BI:i:,AA:i:\" $test_dir/A_1.fastq.gz $test_dir/A_2.fastq.gz" 9af079a5eef6bc1f35b438a39b48b618
 
