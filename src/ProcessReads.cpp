@@ -178,10 +178,10 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
     bool name_modded = false;
     std::string mod_name = "";
     if (opt.keep_fastq_comments) {
-      mod_name += "\t"; // In this option, we always start the fastq comment with a tab
-      name_modded = true;
+      name_modded = true; // In this option, we always start the fastq comment with a tab
     }
     if ((assigned || r.discard) && opt.mod_names) {
+      mod_name += (name_modded ? "\t" : "");
       mod_name += "::" + sc.getNameString(r); // Barcode names
     }
     if ((assigned || r.discard) && opt.seq_names && !r.identified_tags_seqs.empty()) {

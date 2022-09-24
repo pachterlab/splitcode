@@ -315,3 +315,6 @@ checkcmdoutput "$splitcode -t 1 --pipe -N 2 -c $test_dir/splitcode_example_confi
 checkcmdoutput "$splitcode -t 1 --pipe -N 2 -c $test_dir/splitcode_example_config.txt -y <(echo "DPM,Y,ODD,EVEN,ODD") --com-names -m /dev/null --sub-assign=0,1,2 $test_dir/A_1.fastq.gz $test_dir/A_2.fastq.gz" c90450075bda6beab6656095fb344991
 checkcmdoutput "$splitcode -t 1 --pipe -N 2 -c $test_dir/splitcode_example_config.txt -y <(echo \"DPM,Y,ODD,EVEN,ODD\") --com-names -m /dev/null --sub-assign=0,1,2,3,4 --sam-tags=\"CB:Z:,RX:Z:,BI:i:,AA:i:\" $test_dir/A_1.fastq.gz $test_dir/A_2.fastq.gz" 9af079a5eef6bc1f35b438a39b48b618
 
+# Testing piping and --keep-com
+
+checkcmdoutput "$splitcode --assign -t 1 --pipe -N 2 -c $test_dir/splitcode_example_config.txt -y <(echo \"DPM,Y,ODD,EVEN,ODD\") --mod-names --com-names --no-outb -m /dev/null $test_dir/A_1.fastq.gz $test_dir/A_2.fastq.gz|head -96|splitcode --assign -t 1 --pipe -N 2 -c $test_dir/splitcode_example_config.txt -y <(echo \"DPM,Y,ODD,EVEN,ODD\") --com-names --keep-com --sub-assign=0 -m /dev/null --inleaved -" 0e7e7a8f68481e9262f680068c14f971
