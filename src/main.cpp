@@ -627,6 +627,7 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
           ret = false;
           break;
         }
+        opt.batch_ids.push_back(id);
         num_lines++;
       }
       if (opt.nfiles > 1 && num_files != opt.nfiles) {
@@ -784,7 +785,7 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
     std::cerr << ERROR_STR << " Cannot use --outb unless --assign is specified" << std::endl;
     ret = false;
   }
-  if (opt.trim_only && !opt.mapping_file.empty()) {
+  if (opt.trim_only && !opt.mapping_file.empty() && !opt.remultiplex) {
     std::cerr << ERROR_STR << " Cannot use --mapping unless --assign is specified" << std::endl;
     ret = false;
   }
@@ -1291,7 +1292,29 @@ int main(int argc, char *argv[]) {
   int numreads = ProcessReads(MP, opt);
   fflush(stdout);
   if (!opt.mapping_file.empty()) { // output mapping file:
-    if (!(opt.mapping_file.size() > 3 && opt.mapping_file.compare(opt.mapping_file.size() - 3, 3, ".gz") == 0)) {
+    if (opt.remultiplex) { // remultiplexing mapping file
+      size_t num_remultiplexed_barcodes = opt.files.size() / opt.nfiles;
+      if (!(opt.mapping_file.size() > 3 && opt.mapping_file.compare(opt.mapping_file.size() - 3, 3, ".gz") == 0)) { // plaintext
+        std::ofstream of;
+        of.open(opt.mapping_file);
+        if (!of.is_open()) {
+          std::cerr << "Error: Couldn't open file: " << opt.mapping_file << std::endl;
+        } else {
+          for (size_t i = 0; i < opt.batch_ids.size(); i++) {
+            std::string o = sc.binaryToString(sc.getID(i), sc.getBarcodeLength()) + "\t" + opt.batch_ids[i] + "\n";
+            of << o;
+          }
+          of.close();
+        }
+      } else { // gzip
+        gzFile out_gz = gzopen(opt.mapping_file.c_str(), "wb6");
+        for (size_t i = 0; i < opt.batch_ids.size(); i++) {
+          std::string o = sc.binaryToString(sc.getID(i), sc.getBarcodeLength()) + "\t" + opt.batch_ids[i] + "\n";
+          gzwrite(out_gz, o.c_str(), o.length());
+        }
+        gzclose(out_gz);
+      }
+    } else if (!(opt.mapping_file.size() > 3 && opt.mapping_file.compare(opt.mapping_file.size() - 3, 3, ".gz") == 0)) {
       sc.writeBarcodeMapping(opt.mapping_file); // output plaintext mapping file
     } else {
       gzFile out_gz = gzopen(opt.mapping_file.c_str(), "wb6");

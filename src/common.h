@@ -78,6 +78,7 @@ struct ProgramOptions {
   std::vector<bool> select_output_files;
   std::vector<std::vector<std::string> > sam_tags;
   std::vector<size_t> sub_assign_vec;
+  std::vector<std::string> batch_ids;
   
   ProgramOptions() :
     threads(1),

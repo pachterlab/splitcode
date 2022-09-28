@@ -326,5 +326,5 @@ BB $test_dir/B_1.fastq.gz $test_dir/B_2.fastq.gz
 CC $test_dir/test.fq $test_dir/test.fq
 DD $test_dir/test_1.fq $test_dir/test_2.fq" > $test_dir/batch.txt
 
-checkcmdoutput "$splitcode --remultiplex -t 1 --pipe --com-names $test_dir/batch.txt" cf242391e572712067750d6b4169918d
+checkcmdoutput "$splitcode --trim-only --remultiplex -t 1 --pipe --com-names $test_dir/batch.txt" cf242391e572712067750d6b4169918d
 
