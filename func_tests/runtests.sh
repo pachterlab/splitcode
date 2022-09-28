@@ -318,3 +318,13 @@ checkcmdoutput "$splitcode -t 1 --pipe -N 2 -c $test_dir/splitcode_example_confi
 # Testing piping and --keep-com
 
 checkcmdoutput "$splitcode --assign -t 1 --pipe -N 2 -c $test_dir/splitcode_example_config.txt -y <(echo \"DPM,Y,ODD,EVEN,ODD\") --mod-names --com-names --no-outb -m /dev/null $test_dir/A_1.fastq.gz $test_dir/A_2.fastq.gz|head -96|splitcode --assign -t 1 --pipe -N 2 -c $test_dir/splitcode_example_config.txt -y <(echo \"DPM,Y,ODD,EVEN,ODD\") --com-names --keep-com --sub-assign=0 -m /dev/null --inleaved -" 0e7e7a8f68481e9262f680068c14f971
+
+# Testing remultiplexing
+
+echo "AAA $test_dir/A_1.fastq.gz $test_dir/A_2.fastq.gz
+BB $test_dir/B_1.fastq.gz $test_dir/B_2.fastq.gz
+CC $test_dir/test.fq $test_dir/test.fq
+DD $test_dir/test_1.fq $test_dir/test_2.fq" > $test_dir/batch.txt
+
+checkcmdoutput "$splitcode --remultiplex -t 1 --pipe --com-names $test_dir/batch.txt" cf242391e572712067750d6b4169918d
+

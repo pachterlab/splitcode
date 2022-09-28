@@ -671,7 +671,7 @@ bool FastqSequenceReader::fetchSequences(char *buf, const int limit, std::vector
         }
 
         numreads++;
-        flags.push_back(current_file / nfiles); // flags.push_back(numreads-1);
+        flags.push_back((current_file-nfiles) / nfiles); // flags.push_back(numreads-1);
       } else {
         if (interleave_nfiles != 0) {
           std::cerr << "Error: There was an error processing interleaved FASTQ input. Exiting..." << std::endl;

@@ -598,8 +598,8 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
       ret = false;
     } else {
       // open the file, parse and fill the batch_files values
-      opt.files.clear();
       std::ifstream bfile(opt.files[0]);
+      opt.files.clear();
       std::string line;
       std::string id;
       std::vector<std::string> f_vec;
@@ -634,6 +634,7 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
         ret = false;
       } else {
         opt.nfiles = num_files;
+        opt.select_output_files.resize(opt.nfiles, true);
         for (size_t i = 0; i < num_lines; i++) {
           for (size_t j = 0; j < opt.nfiles; j++) {
             opt.files.push_back(f_vec[i*opt.nfiles+j]);
