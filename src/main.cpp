@@ -132,6 +132,7 @@ void usage() {
        << "-h, --help       Displays usage information" << endl
        << "    --assign     Assign reads to a final barcode sequence identifier based on tags present" << endl
        << "    --inleaved   Specifies that input is an interleaved FASTQ file" << endl
+       << "    --remultiplex  Turn on remultiplexing mode" << endl
        << "    --version    Prints version number" << endl
        << "    --cite       Prints citation information" << endl;
 }
@@ -161,6 +162,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   int phred64_flag = 0;
   int assign_flag = 0;
   int keep_com_flag = 0;
+  int remultiplex_flag = 0;
   bool trim_only_specified = false;
 
   const char *opt_string = "t:N:n:b:d:i:l:f:F:e:c:o:O:u:m:k:r:A:L:R:E:g:y:Y:j:J:a:v:z:Z:5:3:w:x:P:q:s:S:M:U:X:Tph";
@@ -189,6 +191,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"phred64", no_argument, &phred64_flag, 1},
     {"keep-com", no_argument, &keep_com_flag, 1},
     {"assign", no_argument, &assign_flag, 1},
+    {"remultiplex", no_argument, &remultiplex_flag, 1},
     // short args
     {"help", no_argument, 0, 'h'},
     {"pipe", no_argument, 0, 'p'},
@@ -559,6 +562,9 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   if (assign_flag && !trim_only_specified) {
     opt.trim_only = false;
   }
+  if (remultiplex_flag) {
+    opt.remultiplex = true;
+  }
   
   for (int i = optind; i < argc; i++) {
     opt.files.push_back(argv[i]);
@@ -578,10 +584,68 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
            << ", but only " << n << " cores on the machine" << endl;
     }    
   }
+  if (opt.remultiplex && opt.files.size() != 1) {
+    cerr << ERROR_STR << " A single batch file must be supplied (for remultiplexing)" << endl;
+    ret = false;
+  } else if (opt.remultiplex && !opt.trim_only) {
+    cerr << ERROR_STR << " --assign cannot be used with remultiplexing" << endl;
+    ret = false;
+  } else if (opt.remultiplex) {
+    struct stat stFileInfo;
+    auto intstat = stat(opt.files[0].c_str(), &stFileInfo);
+    if (intstat != 0) {
+      cerr << ERROR_STR << " batch file not found " << opt.files[0] << endl;
+      ret = false;
+    } else {
+      // open the file, parse and fill the batch_files values
+      opt.files.clear();
+      std::ifstream bfile(opt.files[0]);
+      std::string line;
+      std::string id;
+      std::vector<std::string> f_vec;
+      size_t num_files = 0;
+      size_t num_lines = 0;
+      while (std::getline(bfile,line)) {
+        if (line.size() == 0) {
+          continue;
+        }
+        std::stringstream ss(line);
+        ss >> id;
+        if (id[0] == '#') {
+          continue;
+        }
+        std::string f;
+        size_t i;
+        for (i = 0; ss >> f; i++) {
+          f_vec.push_back(f);
+        }
+        if (num_files == 0) {
+          num_files = i;
+        }
+        if (i == 0 || i != num_files) {
+          cerr << ERROR_STR << " batch file malformatted" << endl;
+          ret = false;
+          break;
+        }
+        num_lines++;
+      }
+      if (opt.nfiles > 1 && num_files != opt.nfiles) {
+        cerr << ERROR_STR << " nFastqs inconsistent with number of files in batch file" << endl;
+        ret = false;
+      } else {
+        opt.nfiles = num_files;
+        for (size_t i = 0; i < num_lines; i++) {
+          for (size_t j = 0; j < opt.nfiles; j++) {
+            opt.files.push_back(f_vec[i*opt.nfiles+j]);
+          }
+        }
+      }
+    }
+  }
   if (opt.files.size() == 0) {
     cerr << ERROR_STR << " Missing read files" << endl;
     ret = false;
-  } else if (!(opt.files.size() == 1 && opt.files[0] == "-")) { // If not reading from stdin via -
+  } else if (!(opt.files.size() == 1 && opt.files[0] == "-") || opt.remultiplex) { // If not reading from stdin via -
     struct stat stFileInfo;
     for (auto& fn : opt.files) {
       auto intStat = stat(fn.c_str(), &stFileInfo);
@@ -595,7 +659,10 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
     std::cerr << ERROR_STR << " nFastqs must be a non-zero positive number" << std::endl;
     ret = false;
   } else if (opt.input_interleaved_nfiles != 0) {
-    if (opt.files.size() != 1) {
+    if (opt.remultiplex) {
+      std::cerr << ERROR_STR << " interleaved input cannot be used with remultiplexing" << std::endl;
+      ret = false;
+    } else if (opt.files.size() != 1) {
       std::cerr << ERROR_STR << " interleaved input cannot consist of more than one input" << std::endl;
       ret = false;
     }
@@ -712,7 +779,7 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
       }
     }
   }
-  if (opt.trim_only && !opt.outputb_file.empty()) {
+  if (opt.trim_only && !opt.outputb_file.empty() && !opt.remultiplex) {
     std::cerr << ERROR_STR << " Cannot use --outb unless --assign is specified" << std::endl;
     ret = false;
   }
@@ -720,8 +787,12 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
     std::cerr << ERROR_STR << " Cannot use --mapping unless --assign is specified" << std::endl;
     ret = false;
   }
-  if (opt.trim_only && opt.com_names) {
+  if (opt.trim_only && opt.com_names && !opt.remultiplex) {
     std::cerr << ERROR_STR << " Cannot use --com-names unless --assign is specified" << std::endl;
+    ret = false;
+  }
+  if (opt.trim_only && !opt.append_file.empty()) {
+    std::cerr << ERROR_STR << " Cannot use --append unless --assign is specified" << std::endl;
     ret = false;
   }
   opt.output_fastq_specified = output_files_specified;

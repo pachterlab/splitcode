@@ -289,11 +289,13 @@ public:
               std::vector<std::pair<const char*, int>>& seqs,
               std::vector<std::pair<const char*, int>>& names,
               std::vector<std::pair<const char*, int>>& quals,
+              std::vector<uint32_t>& flags,
               int readbatch_id);  
   void writeOutput(std::vector<SplitCode::Results>& rv,
                    std::vector<std::pair<const char*, int>>& seqs,
                    std::vector<std::pair<const char*, int>>& names,
-                   std::vector<std::pair<const char*, int>>& quals);
+                   std::vector<std::pair<const char*, int>>& quals,
+                   std::vector<uint32_t>& flags);
 };
 
 class ReadProcessor {

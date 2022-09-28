@@ -121,6 +121,7 @@ void MasterProcessor::update(int n, std::vector<SplitCode::Results>& rv,
                              std::vector<std::pair<const char*, int>>& seqs,
                              std::vector<std::pair<const char*, int>>& names,
                              std::vector<std::pair<const char*, int>>& quals,
+                             std::vector<uint32_t>& flags,
                              int readbatch_id) {
   // acquire the writer lock
   std::unique_lock<std::mutex> lock(this->writer_lock);
@@ -136,7 +137,7 @@ void MasterProcessor::update(int n, std::vector<SplitCode::Results>& rv,
     while (readbatch_id != curr_readbatch_id && !parallel_read) {
       cv.wait(lock, [this, readbatch_id]{ return readbatch_id == curr_readbatch_id; });
     }
-    writeOutput(rv, seqs, names, quals);
+    writeOutput(rv, seqs, names, quals, flags);
   }
 
   numreads += n;
@@ -148,7 +149,8 @@ void MasterProcessor::update(int n, std::vector<SplitCode::Results>& rv,
 void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
                                   std::vector<std::pair<const char*, int>>& seqs,
                                   std::vector<std::pair<const char*, int>>& names,
-                                  std::vector<std::pair<const char*, int>>& quals) {
+                                  std::vector<std::pair<const char*, int>>& quals,
+                                  std::vector<uint32_t>& flags) {
   // Write out fastq
   int incf, jmax;
   incf = nfiles-1;
@@ -162,7 +164,7 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
   char start_char = opt.output_fasta ? '>' : '@';
   bool include_quals = !opt.output_fasta;
   
-  int readnum = 0;
+  size_t readnum = 0;
   for (int i = 0; i + incf < seqs.size() && readnum < rv.size(); i++, readnum++) {
     auto& r = rv[readnum];
     if (!r.passes_filter) {
@@ -193,6 +195,10 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
       mod_name += (name_modded ? "\t" : " ");
       mod_name += opt.sam_tags[2][0] + std::to_string(sc.getID(r.id));
       //mod_name += "\t" + opt.sam_tags[0][0] + sc.binaryToString(sc.getID(r.id), sc.getBarcodeLength())
+      name_modded = true;
+    } else if (assigned && opt.com_names && opt.remultiplex) { // Add remultiplexed ID to read name
+      mod_name += (name_modded ? "\t" : " ");
+      mod_name += opt.sam_tags[2][0] + std::to_string(sc.getID(flags[readnum]));
       name_modded = true;
     }
     if (assigned && r.subassign_id != -1) {
@@ -225,11 +231,15 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
     if (mod_name == " " || mod_name == "\t") {
       mod_name = "";
     }
-    if (assigned && (write_barcode_separate_fastq_ || use_pipe) && !sc.always_assign && !opt.no_output_barcodes) { // Write out barcode read
+    if (assigned && (write_barcode_separate_fastq_ || use_pipe) && (!sc.always_assign || opt.remultiplex) && !opt.no_output_barcodes) { // Write out barcode read
       std::stringstream o;
       // Write out barcode read
       o << start_char << std::string(names[i].first, names[i].second) << mod_name << "\n";
-      o << sc.binaryToString(sc.getID(r.id), sc.getBarcodeLength()) << "\n";
+      if (!opt.remultiplex) {
+        o << sc.binaryToString(sc.getID(r.id), sc.getBarcodeLength()) << "\n";
+      } else { // Write out remultiplexing barcode
+        o << sc.binaryToString(sc.getID(flags[readnum]), sc.getBarcodeLength()) << "\n";
+      }
       if (include_quals) {
         o << "+" << "\n";
         o << std::string(sc.getBarcodeLength(), sc.QUAL) << "\n";
@@ -313,11 +323,15 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
       int nl = names[i+j].second;
       const char* q = q_[j];
       // Write out read
-      bool embed_final_barcode = assigned && jj == 0 && !write_barcode_separate_fastq_ && !use_pipe && !sc.always_assign && !opt.no_output_barcodes;
+      bool embed_final_barcode = assigned && jj == 0 && !write_barcode_separate_fastq_ && !use_pipe && (!sc.always_assign || opt.remultiplex) && !opt.no_output_barcodes;
       o << start_char;
       o << std::string(n,nl) << mod_name << "\n";
       if (embed_final_barcode) {
-        o << sc.binaryToString(sc.getID(r.id), sc.getBarcodeLength());
+        if (!opt.remultiplex) {
+          o << sc.binaryToString(sc.getID(r.id), sc.getBarcodeLength());
+        } else {
+          o << sc.binaryToString(sc.getID(flags[readnum]), sc.getBarcodeLength());
+        }
       } else if (l == 0 && !opt.empty_read_sequence.empty()) {
         o << opt.empty_read_sequence;
       } else if (l == 0 && opt.empty_remove) {
@@ -434,7 +448,7 @@ void ReadProcessor::operator()() {
 
     // update the results, MP acquires the lock
     int nfiles = mp.nfiles;
-    mp.update(seqs.size() / nfiles, rv, seqs, names, quals, readbatch_id);
+    mp.update(seqs.size() / nfiles, rv, seqs, names, quals, flags, readbatch_id);
     clear();
     if (mp.opt.max_num_reads != 0 && mp.numreads >= mp.opt.max_num_reads) {
       return;
@@ -657,7 +671,7 @@ bool FastqSequenceReader::fetchSequences(char *buf, const int limit, std::vector
         }
 
         numreads++;
-        flags.push_back(numreads-1);
+        flags.push_back(current_file / nfiles); // flags.push_back(numreads-1);
       } else {
         if (interleave_nfiles != 0) {
           std::cerr << "Error: There was an error processing interleaved FASTQ input. Exiting..." << std::endl;
