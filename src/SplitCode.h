@@ -90,7 +90,7 @@ struct SplitCode {
     setRandomReplacement(!disable_n);
   }
   
-  void writeSummary(std::string fname = "") {
+  void writeSummary(std::string call = "", std::string fname = "") {
     fname = fname.empty() ? this->summary_file : fname;
     if (fname.empty()) {
       return;
@@ -144,6 +144,9 @@ struct SplitCode {
     }
     of << "{" << "\n";
     of << "\t" << "\"splitcode_version\": \"" << SPLITCODE_VERSION << "\",\n";
+    if (!call.empty()) {
+      of << "\t" << "\"call\": \"" << call << "\",\n";
+    }
     of << "\t" << "\"barcode_prefix\": \"" << barcode_prefix << "\",\n";
     of << "\t" << "\"n_fastqs\": " << nFiles << ",\n";
     if (num_reads_set) {

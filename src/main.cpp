@@ -45,6 +45,17 @@ void PrintCite() {
        << endl;
 }
 
+std::string argv_to_string(int argc, char *argv[]) {
+  std::string res;
+  for (int i = 0; i < argc; ++i) {
+    res += argv[i];
+    if (i + 1 < argc) {
+      res += " ";
+    }
+  }
+  return res;
+}
+
 void PrintVersion() {
   cout << "splitcode, version " << 	SPLITCODE_VERSION << endl;
 }
@@ -1326,7 +1337,7 @@ int main(int argc, char *argv[]) {
     }
   }
   
-  sc.writeSummary();
+  sc.writeSummary(argv_to_string(argc, argv));
   
   if (opt.max_num_reads != 0 && numreads < opt.max_num_reads) {
     std::cerr << "Note: Number of reads processed is less than --numReads: " << opt.max_num_reads << ", returning 1" << std::endl;
