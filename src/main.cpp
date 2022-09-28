@@ -647,6 +647,7 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
       } else {
         opt.nfiles = num_files;
         opt.select_output_files.resize(opt.nfiles, true);
+        sc.setNFiles(opt.nfiles);
         for (size_t i = 0; i < num_lines; i++) {
           for (size_t j = 0; j < opt.nfiles; j++) {
             opt.files.push_back(f_vec[i*opt.nfiles+j]);
