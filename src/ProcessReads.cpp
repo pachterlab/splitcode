@@ -201,6 +201,15 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
       mod_name += opt.sam_tags[2][0] + std::to_string(sc.getID(flags[readnum]));
       name_modded = true;
     }
+    if (assigned && opt.bc_names && !sc.always_assign) {
+      mod_name += (name_modded ? "\t" : " ");
+      mod_name += opt.sam_tags[4][0] + sc.binaryToString(sc.getID(r.id), sc.getBarcodeLength());
+      name_modded = true;
+    } else if (assigned && opt.bc_names && opt.remultiplex) { // Add remultiplexed ID to read name
+      mod_name += (name_modded ? "\t" : " ");
+      mod_name += opt.sam_tags[4][0] + sc.binaryToString(sc.getID(flags[readnum]), sc.getBarcodeLength());
+      name_modded = true;
+    }
     if (assigned && r.subassign_id != -1) {
       mod_name += (name_modded ? "\t" : " ");
       mod_name += opt.sam_tags[3][0] + std::to_string(r.subassign_id);
@@ -231,7 +240,7 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
     if (mod_name == " " || mod_name == "\t") {
       mod_name = "";
     }
-    if (assigned && (write_barcode_separate_fastq_ || use_pipe) && (!sc.always_assign || opt.remultiplex) && !opt.no_output_barcodes) { // Write out barcode read
+    if (assigned && (write_barcode_separate_fastq_ || use_pipe) && (!sc.always_assign || (opt.remultiplex && assigned2)) && !opt.no_output_barcodes) { // Write out barcode read
       std::stringstream o;
       // Write out barcode read
       o << start_char << std::string(names[i].first, names[i].second) << mod_name << "\n";

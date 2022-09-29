@@ -128,7 +128,7 @@ void usage() {
        << "-X, --sub-assign Assign reads to a secondary sequence ID based on a subset of tags present (must be used with --assign)" << endl
        << "                 (e.g. 0,2 = Generate unique ID based the tags present by subsetting those tags to tag #0 and tag #2 only)" << endl
        << "                 The names of the outputted sequences will be modified to include this secondary sequence ID" << endl
-       << "-M  --sam-tags   Modify the default SAM tags (default: CB:Z:,RX:Z:,BI:i:,SI:i)" << endl
+       << "-M  --sam-tags   Modify the default SAM tags (default: CB:Z:,RX:Z:,BI:i:,SI:i:,BC:Z:)" << endl
        << "Other Options:" << endl
        << "-N, --nFastqs    Number of FASTQ file(s) per run" << endl
        << "                 (default: 1) (specify 2 for paired-end)" << endl
@@ -159,6 +159,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   int no_output_extracted_flag = 0;
   int gzip_flag = 0;
   int mod_names_flag = 0;
+  int bc_names_flag = 0;
   int com_names_flag = 0;
   int seq_names_flag = 0;
   int x_names_flag = 0;
@@ -188,6 +189,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"no-x-out", no_argument, &no_output_extracted_flag, 1},
     {"gzip", no_argument, &gzip_flag, 1},
     {"mod-names", no_argument, &mod_names_flag, 1},
+    {"bc-names", no_argument, &bc_names_flag, 1},
     {"com-names", no_argument, &com_names_flag, 1},
     {"seq-names", no_argument, &seq_names_flag, 1},
     {"x-names", no_argument, &x_names_flag, 1},
@@ -476,7 +478,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
       std::stringstream ss(m);
       std::string s;
       int i = 0;
-      while (std::getline(ss, s, ',') && i < 4) {
+      while (std::getline(ss, s, ',') && i < 5) {
         if (i == 1) { // Allow multiple tags for extraction (default RX:Z:)
           opt.sam_tags[i].clear();
           std::stringstream ss2(s);
@@ -524,6 +526,9 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   }
   if (com_names_flag) {
     opt.com_names = true;
+  }
+  if (bc_names_flag) {
+    opt.bc_names = true;
   }
   if (seq_names_flag) {
     opt.seq_names = true;

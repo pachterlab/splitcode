@@ -26,6 +26,7 @@ struct ProgramOptions {
   bool verbose;
   bool mod_names;
   bool com_names;
+  bool bc_names;
   bool seq_names;
   bool x_names;
   bool x_only;
@@ -97,6 +98,7 @@ struct ProgramOptions {
     verbose(false),
     mod_names(false),
     com_names(false),
+    bc_names(false),
     seq_names(false),
     x_names(false),
     x_only(false),
@@ -113,11 +115,12 @@ struct ProgramOptions {
     keep_fastq_comments(false),
     remultiplex(false)
   {
-    const char* sam_tags_default[4] = {"CB:Z:", "RX:Z:", "BI:i:", "SI:i:"};
+    const char* sam_tags_default[5] = {"CB:Z:", "RX:Z:", "BI:i:", "SI:i:", "BC:Z:"};
     sam_tags.push_back(std::vector<std::string>(1, std::string(sam_tags_default[0])));
     sam_tags.push_back(std::vector<std::string>(1, std::string(sam_tags_default[1])));
     sam_tags.push_back(std::vector<std::string>(1, std::string(sam_tags_default[2])));
     sam_tags.push_back(std::vector<std::string>(1, std::string(sam_tags_default[3])));
+    sam_tags.push_back(std::vector<std::string>(1, std::string(sam_tags_default[4])));
   }
 };
 

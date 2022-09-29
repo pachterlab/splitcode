@@ -327,4 +327,11 @@ CC $test_dir/test.fq $test_dir/test.fq
 DD $test_dir/test_1.fq $test_dir/test_2.fq" > $test_dir/batch.txt
 
 checkcmdoutput "$splitcode --trim-only --remultiplex -t 1 --pipe --com-names $test_dir/batch.txt" cf242391e572712067750d6b4169918d
+cmdexec "$splitcode --trim-only --prefix=G -c $test_dir/splitcode_example_config.txt -m $test_dir/ttmap.txt.gz -O $test_dir/testO.fq.gz -u \"$test_dir/ttu1.fq.gz,$test_dir/ttu2.fq.gz\" -x \"0:0<$test_dir/umix[2]>\" -o \"$test_dir/tt1.fq.gz,$test_dir/tt2.fq.gz\" --remultiplex -t 1 -y <(echo \"DPM,Y,ODD,EVEN,ODD\") --com-names --bc-names $test_dir/batch.txt"
+checkcmdoutput "zcat < $test_dir/ttmap.txt.gz" 46ece172aa60278e06f68e38c41a0497
+checkcmdoutput "zcat < $test_dir/testO.fq.gz" 643001abd6b528f5c629b17977bd1f14
+checkcmdoutput "zcat < $test_dir/ttu2.fq.gz" 51611c4170e95d7787182e54666af4a8
+checkcmdoutput "zcat < $test_dir/umix.fastq.gz" 56654b92926b5edf2f08e9b715c41167
+checkcmdoutput "zcat < $test_dir/tt1.fq.gz" 668abd8a81136052c5ea1be491e23b9a
+
 
