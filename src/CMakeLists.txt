@@ -32,13 +32,6 @@ else()
     message(FATAL_ERROR "zlib not found. Required for reading FASTQ files" )
 endif( ZLIB_FOUND )
 
-if (NOT NO_ZLIBNG)
-    add_definitions(-DSPLITCODE_USE_ZLIB_NG)
-    include_directories(../ext/zlib-ng/build)
-    include_directories(../ext/zlib-ng)
-    target_link_libraries(splitcode ${CMAKE_CURRENT_SOURCE_DIR}/../ext/zlib-ng/build/libz-ng.a)
-endif(NOT NO_ZLIBNG)
-
 if(LINK MATCHES static)
     if (UNIX AND NOT APPLE)
         target_link_libraries(splitcode librt.a)

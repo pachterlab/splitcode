@@ -12,6 +12,8 @@
 
 #include <cstdio>
 
+#include <zlib.h>
+
 #include "common.h"
 #include "ProcessReads.h"
 #include "SplitCode.h"

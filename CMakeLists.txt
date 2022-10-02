@@ -4,7 +4,6 @@ project(splitcode)
 
 include(GNUInstallDirs)
 
-set(EXT_PROJECTS_DIR ${PROJECT_SOURCE_DIR}/ext)
 set(CMAKE_CXX_FLAGS_PROFILE "-g")
 
 if(NOT CMAKE_BUILD_TYPE)
@@ -36,24 +35,4 @@ if (BUILD_FUNCTESTING)
     DEPENDS ./src/splitcode
     )
 endif(BUILD_FUNCTESTING)
-
-include(ExternalProject)
-
-
-if (NOT ZLIBNG)
-    set(NO_ZLIBNG "True")
-endif(NOT ZLIBNG)
-
-
-if (NOT NO_ZLIBNG)
-    message("zlib-ng enabled.")
-    ExternalProject_Add(zlib-ng
-    PREFIX ${PROJECT_SOURCE_DIR}/ext/zlib-ng
-    SOURCE_DIR ${PROJECT_SOURCE_DIR}/ext/zlib-ng
-    BUILD_IN_SOURCE 1
-    CONFIGURE_COMMAND mkdir -p build && cd build && cmake .. -DCMAKE_INSTALL_PREFIX=${PREFIX}
-    BUILD_COMMAND cd build && make
-    INSTALL_COMMAND ""
-    )
-endif(NOT NO_ZLIBNG)
 
