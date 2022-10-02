@@ -506,7 +506,7 @@ void ReadProcessor::processBuffer() {
             << std::fixed << std::setw( 3 ) << std::setprecision( 1 ) << ((100.0*nummapped)/double(mp.numreads))
             << "% assigned)";
         } else {
-          std::cerr << " (running in --trim-only mode)";
+          std::cerr << "         ";
         }
         std::cerr.flush();
       }
