@@ -23,6 +23,7 @@ if(LINK MATCHES static)
     SET_TARGET_PROPERTIES(splitcode splitcode_core PROPERTIES LINK_SEARCH_END_STATIC 1)
 endif(LINK MATCHES static)
 
+if (NOT ZLIBNG)
 find_package( ZLIB REQUIRED )
 
 if ( ZLIB_FOUND )
@@ -31,6 +32,7 @@ if ( ZLIB_FOUND )
 else()
     message(FATAL_ERROR "zlib not found. Required for reading FASTQ files" )
 endif( ZLIB_FOUND )
+endif(NOT ZLIBNG)
 
 if (ZLIBNG)
     add_definitions(-DSPLITCODE_USE_ZLIB_NG)
