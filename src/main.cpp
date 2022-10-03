@@ -126,6 +126,7 @@ void usage() {
        << "-X, --sub-assign Assign reads to a secondary sequence ID based on a subset of tags present (must be used with --assign)" << endl
        << "                 (e.g. 0,2 = Generate unique ID based the tags present by subsetting those tags to tag #0 and tag #2 only)" << endl
        << "                 The names of the outputted sequences will be modified to include this secondary sequence ID" << endl
+       << "-C  --compress   Set the gzip compression level (default: 1) (range: 1-9)" << endl
        << "-M  --sam-tags   Modify the default SAM tags (default: CB:Z:,RX:Z:,BI:i:,SI:i:,BC:Z:)" << endl
        << "Other Options:" << endl
        << "-N, --nFastqs    Number of FASTQ file(s) per run" << endl
@@ -175,7 +176,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   int remultiplex_flag = 0;
   bool trim_only_specified = false;
 
-  const char *opt_string = "t:N:n:b:d:i:l:f:F:e:c:o:O:u:m:k:r:A:L:R:E:g:y:Y:j:J:a:v:z:Z:5:3:w:x:P:q:s:S:M:U:X:Tph";
+  const char *opt_string = "t:N:n:b:d:i:l:f:F:e:c:o:O:u:m:k:r:A:L:R:E:g:y:Y:j:J:a:v:z:Z:5:3:w:x:P:q:s:S:M:U:X:C:Tph";
   static struct option long_options[] = {
     // long args
     {"version", no_argument, &version_flag, 1},
@@ -249,6 +250,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"select", required_argument, 0, 'S'},
     {"sam-tags", required_argument, 0, 'M'},
     {"sub-assign", required_argument, 0, 'X'},
+    {"compress", required_argument, 0, 'C'},
     {0,0,0,0}
   };
   
@@ -454,6 +456,16 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     }
     case 'S': {
       stringstream(optarg) >> opt.select_output_files_str;
+      break;
+    }
+    case 'C': {
+      std::string compress_level;
+      stringstream(optarg) >> compress_level;
+      try {
+        opt.compress_level = std::stoi(compress_level);
+      } catch (std::exception &e) { }
+      if (opt.compress_level < 1) opt.compress_level = 1;
+      if (opt.compress_level > 9) opt.compress_level = 9;
       break;
     }
     case 'X': {

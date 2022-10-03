@@ -117,16 +117,18 @@ public:
     nfiles = opt.input_interleaved_nfiles == 0 ? opt.nfiles : opt.input_interleaved_nfiles;
     const std::string suffix = opt.output_fasta ? ".fasta" : ".fastq";
     const std::string suffix_gz = opt.output_fasta ? ".fasta.gz" : ".fastq.gz";
+    std::string compress_level_str = "wb" + std::to_string(opt.compress_level);
+    const char* gz_out_str = compress_level_str.c_str();
     for (auto f : opt.output_files) {
       if (opt.gzip) {
-        out_gz.push_back(gzopen(f.c_str(), "wb1"));
+        out_gz.push_back(gzopen(f.c_str(), gz_out_str));
       } else {
         out.push_back(fopen(f.c_str(), "wb"));
       }
     }
     for (auto f : opt.unassigned_files) {
       if (opt.gzip) {
-        outu_gz.push_back(gzopen(f.c_str(), "wb1"));
+        outu_gz.push_back(gzopen(f.c_str(), gz_out_str));
       } else {
         outu.push_back(fopen(f.c_str(), "wb"));
       }
@@ -134,7 +136,7 @@ public:
     if (!opt.pipe && !opt.no_x_out && !opt.no_output) {
       for (auto f : sc.umi_names) {
         if (opt.gzip) {
-          outumi_gz.push_back(gzopen((f+suffix_gz).c_str(), "wb1"));
+          outumi_gz.push_back(gzopen((f+suffix_gz).c_str(), gz_out_str));
         } else {
           outumi.push_back(fopen((f+suffix).c_str(), "wb"));
         }
@@ -158,7 +160,7 @@ public:
               out_keep_gz[f.second].push_back(nullptr);
               continue;
             }
-            out_keep_gz[f.second].push_back(gzopen((f.second + "_" + (i == 0 ? "barcodes" : std::to_string(i-1)) + suffix_gz).c_str(), "wb1"));
+            out_keep_gz[f.second].push_back(gzopen((f.second + "_" + (i == 0 ? "barcodes" : std::to_string(i-1)) + suffix_gz).c_str(), gz_out_str));
           }
         }
       } else {
@@ -194,7 +196,7 @@ public:
               out_keep_gz[f.second].push_back(nullptr);
               continue;
             }
-            out_keep_gz[f.second].push_back(gzopen((f.second + "_" + (i == 0 ? "barcodes" : std::to_string(i-1)) + suffix_gz).c_str(), "wb1"));
+            out_keep_gz[f.second].push_back(gzopen((f.second + "_" + (i == 0 ? "barcodes" : std::to_string(i-1)) + suffix_gz).c_str(), gz_out_str));
           }
         }
       } else {
@@ -218,7 +220,7 @@ public:
     write_unassigned_fastq = outu.size() > 0 || outu_gz.size() > 0;
     if (write_barcode_separate_fastq) {
       if (opt.gzip) {
-        outb_gz = gzopen(opt.outputb_file.c_str(), "wb1");
+        outb_gz = gzopen(opt.outputb_file.c_str(), gz_out_str);
       } else {
         outb = fopen(opt.outputb_file.c_str(), "wb");
       }
