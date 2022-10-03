@@ -1,6 +1,11 @@
 *.DS_Store
+*.swp
 
 build/*
+
+ext/zlib-ng/src/
+ext/zlib-ng/build/
+ext/zlib-ng/tmp/
 
 *.pyc
 

@@ -40,12 +40,7 @@ endif(BUILD_FUNCTESTING)
 include(ExternalProject)
 
 
-if (NOT ZLIBNG)
-    set(NO_ZLIBNG "True")
-endif(NOT ZLIBNG)
-
-
-if (NOT NO_ZLIBNG)
+if (ZLIBNG)
     message("zlib-ng enabled.")
     ExternalProject_Add(zlib-ng
     PREFIX ${PROJECT_SOURCE_DIR}/ext/zlib-ng
@@ -55,5 +50,5 @@ if (NOT NO_ZLIBNG)
     BUILD_COMMAND cd build && make
     INSTALL_COMMAND ""
     )
-endif(NOT NO_ZLIBNG)
+endif(ZLIBNG)
 
