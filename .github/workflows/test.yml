@@ -4,20 +4,6 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-windows:
-    name: Build Windows
-    runs-on: windows-2022
-    env:
-      RELEASE_OS: windows
-    steps:
-      - name: checkout branch
-        uses: actions/checkout@master
-      - name: Setup environment
-        id: setup
-        run: echo ::set-output name=RELEASE_VERSION::${GITHUB_REF##*/}
-      - name: make
-        run: |
-          mkdir build && cd build && cmake .. -DZLIBNG=ON && make && make install && cd ..
   build-linux:
     name: Build and test linux
     runs-on: ubuntu-22.04
@@ -31,7 +17,7 @@ jobs:
         run: echo ::set-output name=RELEASE_VERSION::${GITHUB_REF##*/}
       - name: make
         run: |
-          mkdir build && cd build && cmake .. -DBUILD_FUNCTESTING=ON && make && make install && cd ..
+          mkdir build && cd build && cmake .. -DZLIBNG=ON -DBUILD_FUNCTESTING=ON && make && make install && cd ..
       - name: Functional testing
         run: |
           cd build && make test
