@@ -3035,12 +3035,18 @@ struct SplitCode {
           if (tag.trim == left) {
             left_trim = pos+k+tag.trim_offset;
             left_trim = std::min(left_trim, readLength);
+            if (left_trim < 0) {
+              left_trim = 0;
+            }
             results.tag_trimmed_left.resize(jmax, {{0,0}, {0,0}});
             results.tag_trimmed_left[file].first = std::make_pair(tag.name_id, left_trim);
             results.tag_trimmed_left[file].second = std::make_pair(k, error);
           } else if (tag.trim == right && !right_trim_found) {
             right_trim = (readLength-pos)+tag.trim_offset;
             right_trim = std::min(right_trim, readLength);
+            if (right_trim < 0) {
+              right_trim = 0;
+            }
             right_trim_found = true;
             results.tag_trimmed_right.resize(jmax, {{0,0}, {0,0}});
             results.tag_trimmed_right[file].first = std::make_pair(tag.name_id, right_trim);
