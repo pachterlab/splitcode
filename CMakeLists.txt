@@ -25,6 +25,10 @@ ELSE(LINK MATCHES shared)
     message("shared build")
 ENDIF(LINK MATCHES static)
 
+if(EMSCRIPTEN_BUILD)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -s USE_ZLIB=1")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -s USE_ZLIB=1")
+endif()
 
 add_subdirectory(src)
 
@@ -38,7 +42,6 @@ if (BUILD_FUNCTESTING)
 endif(BUILD_FUNCTESTING)
 
 include(ExternalProject)
-
 
 if (ZLIBNG)
     message("zlib-ng enabled.")

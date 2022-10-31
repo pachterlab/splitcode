@@ -174,10 +174,13 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   int assign_flag = 0;
   int keep_com_flag = 0;
   int remultiplex_flag = 0;
+  int webasm_flag = 0;
   bool trim_only_specified = false;
 
+  optind=1; // Reset global variable in case we want to call ParseOptions multiple times
+
   const char *opt_string = "t:N:n:b:d:i:l:f:F:e:c:o:O:u:m:k:r:A:L:R:E:g:y:Y:j:J:a:v:z:Z:5:3:w:x:P:q:s:S:M:U:X:C:Tph";
-  static struct option long_options[] = {
+  /*static*/ struct option long_options[] = { // No static keyword because we may want to call ParseOptions multiple times
     // long args
     {"version", no_argument, &version_flag, 1},
     {"cite", no_argument, &cite_flag, 1},
@@ -204,6 +207,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"keep-com", no_argument, &keep_com_flag, 1},
     {"assign", no_argument, &assign_flag, 1},
     {"remultiplex", no_argument, &remultiplex_flag, 1},
+    {"webasm", no_argument, &webasm_flag, 1},
     // short args
     {"help", no_argument, 0, 'h'},
     {"pipe", no_argument, 0, 'p'},
@@ -259,7 +263,6 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   int num_opts_supplied = 0;
   while (true) {
     c = getopt_long(argc,argv,opt_string, long_options, &option_index);
-
     if (c == -1) {
       break;
     }
@@ -590,6 +593,10 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   }
   if (remultiplex_flag) {
     opt.remultiplex = true;
+  }
+  if (webasm_flag) {
+    opt.threads = 1;
+    opt.webasm = true;
   }
   
   for (int i = optind; i < argc; i++) {

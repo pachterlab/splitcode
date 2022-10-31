@@ -43,6 +43,7 @@ struct ProgramOptions {
   bool phred64;
   bool keep_fastq_comments;
   bool remultiplex;
+  bool webasm;
   std::vector<std::string> files;
   std::vector<std::string> output_files;
   std::string outputb_file;
@@ -115,7 +116,8 @@ struct ProgramOptions {
     quality_trimming_naive(false),
     phred64(false),
     keep_fastq_comments(false),
-    remultiplex(false)
+    remultiplex(false),
+    webasm(false)
   {
     const char* sam_tags_default[5] = {"CB:Z:", "RX:Z:", "BI:i:", "SI:i:", "BC:Z:"};
     sam_tags.push_back(std::vector<std::string>(1, std::string(sam_tags_default[0])));

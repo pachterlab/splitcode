@@ -107,13 +107,18 @@ void MasterProcessor::processReads() {
     }
   }
   
-  for (int i = 0; i < opt.threads; i++) {
-    workers.emplace_back(std::thread(ReadProcessor(opt,*this)));
-  }
-  
-  // let the workers do their thing
-  for (int i = 0; i < opt.threads; i++) {
-    workers[i].join(); //wait for them to finish
+  if (!opt.webasm) {
+    for (int i = 0; i < opt.threads; i++) {
+      workers.emplace_back(std::thread(ReadProcessor(opt,*this)));
+    }
+    
+    // let the workers do their thing
+    for (int i = 0; i < opt.threads; i++) {
+      workers[i].join(); //wait for them to finish
+    }
+  } else { // webasm doesn't seem to work with threads
+    ReadProcessor rp(opt,*this);
+    rp();
   }
 }
 
