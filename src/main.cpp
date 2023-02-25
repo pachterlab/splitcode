@@ -761,6 +761,12 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
     }
   }
   
+  if (opt.no_output && !opt.pipe && opt.output_files.size() == 0 && opt.outputb_file.empty()) {
+    // Override --no-output by replacing it with --pipe (but just don't write to stdout)
+    opt.pipe = true;
+    opt.no_output = false;
+    opt.no_output_ = true;
+  }
   bool output_files_specified = opt.output_files.size() > 0 || opt.unassigned_files.size() > 0 || !opt.outputb_file.empty();
   if (opt.output_files.size() == 0 && output_files_specified && !opt.pipe && !opt.x_only) {
     std::cerr << ERROR_STR << " --output not provided" << std::endl;
