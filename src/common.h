@@ -19,6 +19,7 @@ struct ProgramOptions {
   bool extract_no_chain;
   bool output_fasta;
   bool no_output;
+  bool no_output_; // When --no-output is specified but we want to write other things (unassigned, --keep, etc.), just not --output
   bool no_output_barcodes;
   bool no_x_out;
   bool empty_remove;
@@ -93,6 +94,7 @@ struct ProgramOptions {
     extract_no_chain(false),
     output_fasta(false),
     no_output(false),
+    no_output_(false),
     no_output_barcodes(false),
     no_x_out(false),
     empty_remove(false),
