@@ -838,8 +838,8 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
     ret = false;
   }
   opt.output_fastq_specified = output_files_specified;
-  opt.verbose = !opt.pipe;
-  
+  opt.verbose = !opt.pipe || (opt.pipe && opt.no_output_);
+
   int num_groups = 0;
   if (!opt.barcode_str.empty() && !opt.config_file.empty()) {
     std::cerr << ERROR_STR << " Cannot specify both --tags and --config" << std::endl;
