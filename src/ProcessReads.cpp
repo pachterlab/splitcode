@@ -261,7 +261,7 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
       const std::string& ostr = o.str();
       size_t ostr_len = ostr.length();
       if (use_pipe && !write_barcode_separate_fastq_) {
-        fwrite(ostr.c_str(), 1, ostr_len, stdout);
+        if (!opt.no_output_) fwrite(ostr.c_str(), 1, ostr_len, stdout);
       } else if (opt.gzip) {
         gzwrite(r.ofile.empty() ? outb_gz : out_keep_gz[r.ofile][0], ostr.c_str(), ostr_len);
       } else {
@@ -287,7 +287,7 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
         const std::string& ostr = o.str();
         size_t ostr_len = ostr.length();
         if (use_pipe) {
-          fwrite(ostr.c_str(), 1, ostr_len, stdout);
+          if (!opt.no_output_) fwrite(ostr.c_str(), 1, ostr_len, stdout);
         } else if (opt.gzip) {
           gzwrite(outumi_gz[umi_index], ostr.c_str(), ostr_len);
         } else {
@@ -366,7 +366,7 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
       size_t ostr_len = ostr.length();
       if (assigned2) {
         if (use_pipe) {
-          fwrite(ostr.c_str(), 1, ostr_len, stdout);
+          if (!opt.no_output_) fwrite(ostr.c_str(), 1, ostr_len, stdout);
         } else {
           if (opt.gzip) {
             gzwrite(r.ofile.empty() ? out_gz[jj] : out_keep_gz[r.ofile][j+1], ostr.c_str(), ostr_len);
