@@ -1497,6 +1497,7 @@ struct SplitCode {
       bool exclude = false;
       bool ret = true;
       for (int i = 0; ss >> field; i++) {
+        if (field == "-") field = ""; // - means empty
         if (h[i] == "BARCODES" || h[i] == "TAGS") {
           bc = field;
         } else if (h[i] == "DISTANCES") {
