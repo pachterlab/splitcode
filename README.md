@@ -10,9 +10,9 @@
 
 ## Issues and Pull Requests
 
-For help running splitcode or reporting bugs, please submit a GitHub issue.
+For help running **splitcode** or reporting bugs, please submit a GitHub issue.
 
-Additionally, submit a GitHub issue or a GitHub pull request for feature requests and suggested documentation improvements.
+Additionally, please submit a GitHub issue or a GitHub pull request for feature requests and suggested documentation improvements.
 
 ## Citing splitcode
 
