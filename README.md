@@ -2,6 +2,8 @@
 
 **splitcode** is a tool that enables flexible and efficient preprocessing, parsing, and manipulation of sequencing reads according to a user’s specifications.
 
+![alt text](https://raw.githubusercontent.com/Yenaled/splitcode/main/figures/splitcode_logo.png?raw=true)
+
 ## Manual
 
 For the manual, please visit https://splitcode.readthedocs.io/
