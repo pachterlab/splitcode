@@ -17,7 +17,23 @@
 #include <stack>
 #include <cmath>
 #include <iomanip>
+
+#if defined(_MSVC_LANG)
+#define SPLITCODE_CPP_VERSION _MSVC_LANG
+#else
+#define SPLITCODE_CPP_VERSION __cplusplus
+#endif
+#if SPLITCODE_CPP_VERSION < 201703L
 #include "robin_hood.h"
+#define splitcode_u_map_ robin_hood::unordered_flat_map
+#define splitcode_u_map__ robin_hood::unordered_node_map
+#define splitcode_u_set_ robin_hood::unordered_set
+#else
+#include "unordered_dense.h"
+#define splitcode_u_map_ ankerl::unordered_dense::map
+#define splitcode_u_map__ ankerl::unordered_dense::map
+#define splitcode_u_set_ ankerl::unordered_dense::set
+#endif
 
 struct SplitCode {
   typedef std::pair<uint32_t,short> tval; // first element of pair is tag id, second is mismatch distance
@@ -3674,7 +3690,7 @@ struct SplitCode {
   };
   
   std::vector<SplitCodeTag> tags_vec;
-  robin_hood::unordered_flat_map<SeqString, std::vector<tval>, SeqStringHasher> tags;
+  splitcode_u_map_<SeqString, std::vector<tval>, SeqStringHasher> tags;
   std::vector<std::string> names;
   std::vector<std::string> group_names;
   
@@ -3682,10 +3698,10 @@ struct SplitCode {
   
   std::vector<std::vector<uint32_t>> idmap;
   std::vector<std::vector<uint16_t>> idmap16;
-  robin_hood::unordered_node_map<std::vector<uint32_t>, int, VectorHasher> idmapinv;
-  robin_hood::unordered_node_map<std::vector<uint16_t>, int, VectorHasher> idmapinv16;
-  robin_hood::unordered_node_map<std::vector<uint32_t>, int, VectorHasher> subassign_idmapinv;
-  robin_hood::unordered_node_map<std::vector<uint16_t>, int, VectorHasher> subassign_idmapinv16;
+  splitcode_u_map__<std::vector<uint32_t>, int, VectorHasher> idmapinv;
+  splitcode_u_map__<std::vector<uint16_t>, int, VectorHasher> idmapinv16;
+  splitcode_u_map__<std::vector<uint32_t>, int, VectorHasher> subassign_idmapinv;
+  splitcode_u_map__<std::vector<uint16_t>, int, VectorHasher> subassign_idmapinv16;
   std::vector<uint32_t> idcount;
   std::unordered_map<std::vector<uint32_t>, std::string, VectorHasher> idmapinv_keep;
   std::unordered_map<std::vector<uint32_t>, int, VectorHasher> idmapinv_discard;
