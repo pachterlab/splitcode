@@ -64,6 +64,7 @@ struct SplitCode {
     num_reads_assigned = 0;
     summary_n_reads_filtered = 0;
     summary_n_reads_filtered_assigned = 0;
+    max_seq_len = 0;
     setNFiles(0);
   }
   
@@ -101,6 +102,7 @@ struct SplitCode {
     this->quality_trimming_threshold = quality_trimming_threshold;
     this->phred64 = phred64;
     this->sub_assign_vec = sub_assign_vec;
+    max_seq_len = 0;
     setNFiles(nFiles);
     setTrimOnly(trim_only);
     setRandomReplacement(!disable_n);
@@ -735,18 +737,29 @@ struct SplitCode {
     for (auto& d : decomposed_kmers) { // Put decomposed k-mer strings into the tags map
       SeqString sstr(d.first);
       int k_expanded = d.second;
+      uint32_t mask = 0;
+      if (sstr.length() > max_seq_len) { 
+        // The 20 least significant bits make up the k_expanded value (or the tag id if no expansion)
+        // The 12 most significant bits store additional info
+        // In this case, we store the homopolymers (since those will be of length greater than max_seq_len which doesn't record homopolymer lengths)
+        // assert(sstr is a homopolymer)
+        char homopolymer_char = d.first[0];
+        if (homopolymers.find(homopolymer_char) != homopolymers.end()) {
+          mask = (static_cast<uint32_t>(homopolymers[homopolymer_char])) << 20;
+        }
+      }
       if (tags.find(sstr) != tags.end()) {
         auto& tag_v = tags[sstr];
         if (tag_v.size() > 0 && tag_v[0].second == -1) {
           if (k_expanded < tag_v[0].first) {
             // If encounter duplicate expansions, use the one with the smaller k-mer size
-            tag_v[0].first = k_expanded;
+            tag_v[0].first = k_expanded | mask;
           }
         } else {
-          tag_v.insert(tag_v.begin(), std::make_pair(k_expanded,-1)); // Put expansion at beginning of vector
+          tag_v.insert(tag_v.begin(), std::make_pair(k_expanded | mask,-1)); // Put expansion at beginning of vector
         }
       } else { // String not previously seen in map (vector is empty)
-        tags[sstr].push_back(std::make_pair(k_expanded,-1)); // Put expansion at beginning of vector
+        tags[sstr].push_back(std::make_pair(k_expanded | mask,-1)); // Put expansion at beginning of vector
       }
     }
     // DEBUG: Print out final locations
@@ -1071,6 +1084,7 @@ struct SplitCode {
       return false;
     }
     std::string polymer_str = !seq_is_file ? seq.substr(seq.find(":") + 1) : "";
+    bool is_homopolymer = false; // If we need to process it as a homopolymer
     if (!polymer_str.empty() && seq.find(":") != std::string::npos) { // sequence:range_begin-range_end
       std::string s1 = polymer_str.substr(0, polymer_str.find("-"));
       std::string s2 = polymer_str.substr(polymer_str.find("-") + 1);
@@ -1097,6 +1111,16 @@ struct SplitCode {
         new_seq += s + (i != range_end ? "/" : "");
       }
       seq = new_seq;
+      // Add to homopolymer map if only char is one nucleotide (aka user supplied homopolymer):
+      if (original_seq.length() == 1 && range_begin < range_end) {
+        char seq_char = toupper(original_seq[0]);
+        is_homopolymer = true;
+        if (homopolymers.find(seq_char) != homopolymers.end()) {
+          homopolymers[seq_char] = 0; // If we put multiple homopolymers of same type in, then just set it equal to 0 so we know to ignore it later
+        } else {
+          homopolymers.insert({seq_char, range_end});
+        }
+      }
     } else { // Not a polymer range, let's check if user actually supplied a file as input
       if (!seq_is_file) {
         for (int i = 0; i < seq.size(); i++) {
@@ -1258,7 +1282,7 @@ struct SplitCode {
           // DEBUG:
           // std::cout << seq << ": " << mismatch_seq << " " << error << " | " << total_dist << " " << mm.second << std::endl;
         }
-        addToMap(seq, new_tag_index);
+        addToMap(seq, new_tag_index, 0, !is_homopolymer);
         generate_partial_matches(seq, partial5_min_match, partial5_mismatch_freq, partial3_min_match, partial3_mismatch_freq, new_tag_index, new_tag);
         ++new_tag_index;
       }
@@ -1340,8 +1364,9 @@ struct SplitCode {
     return overlapRegion(tag1.file, tag1.pos_start, tag1.pos_end, tag2.file, tag2.pos_start, tag2.pos_end);
   }
   
-  void addToMap(const std::string& seq, uint32_t index, int dist = 0) {
+  void addToMap(const std::string& seq, uint32_t index, int dist = 0, bool record_len=true) {
     SeqString sstr(seq);
+    if (record_len) max_seq_len = std::max(max_seq_len, seq.length());
     if (tags.find(sstr) != tags.end()) {
       auto& v = tags[sstr];
       for (auto i : v) {
@@ -1594,13 +1619,33 @@ struct SplitCode {
       uint32_t tag_id_curr;
       int curr_k = k_expanded;
       k_expanded = -1;
+      if (pos+curr_k > l) break;
       const auto& it = tags.find(SeqString(seq.c_str()+pos, curr_k));
       if (it == tags.end()) {
         break;
       }
       for (const auto &x : it->second) {
         if (x.second == -1) {
-          k_expanded = x.first;
+          uint32_t mask = 1048575; // The 20 least significant bits, aka ((1 << 20) -1); 
+          if (x.first > mask) {
+            // Homopolymer detection
+            uint32_t homopolymer_range_end = (x.first >> 20);
+            size_t add_to_k = 0;
+            char homopolymer_char = (seq.c_str()+pos)[0];
+            while (curr_k+add_to_k < homopolymer_range_end && pos+curr_k+add_to_k < l) {
+              char check_char = (seq.c_str()+pos+curr_k+add_to_k)[0];
+              if (check_char == homopolymer_char) add_to_k++;
+              else break;
+            }
+            if (add_to_k > 0) {
+              // DEBUG: 
+              // std::cout << homopolymer_char << " add_to_k: " << add_to_k << std::endl;
+              // std::cout << homopolymer_char << " remaining: " << (l-(pos+curr_k+add_to_k)) << std::endl;
+              k_expanded = curr_k+add_to_k;
+              continue;
+            }
+          }
+          k_expanded = x.first & mask;
           continue;
         }
         tag_id_ = x.first;
@@ -3733,6 +3778,8 @@ struct SplitCode {
   size_t num_reads, max_num_reads, num_reads_assigned;
   bool num_reads_set;
   
+  std::unordered_map<char,size_t> homopolymers;
+  
   size_t summary_n_reads_filtered;
   size_t summary_n_reads_filtered_assigned;
   std::vector<size_t> summary_n_bases_total_trimmed_5, summary_n_bases_total_trimmed_3, summary_n_reads_total_trimmed_5, summary_n_reads_total_trimmed_3;
@@ -3770,6 +3817,7 @@ struct SplitCode {
   int n_tag_entries;
   int curr_barcode_mapping_i;
   int curr_umi_id_i;
+  size_t max_seq_len; // Length of longest tag sequence excluding homopolymers
   static const int MAX_K = 32;
   static const size_t FAKE_BARCODE_LEN = 16;
   static const char QUAL = 'K';
