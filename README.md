@@ -4,6 +4,10 @@
 
 ![alt text](https://raw.githubusercontent.com/Yenaled/splitcode/main/figures/splitcode_figure.png?raw=true)
 
+## Graphical User Interface (GUI)
+
+The GUI for **splitcode** is at https://pachterlab.github.io/splitcode/
+
 ## License
 
 **splitcode** is distributed under the BSD-2 license.
