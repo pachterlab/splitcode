@@ -1652,7 +1652,13 @@ struct SplitCode {
         break;
       }
       size_t vcount = it == tags.end() ? 0 : it->second.size();
-      for (const auto &x : it->second) {
+      for (size_t x_i = 0; x_i < fallback_count+vcount; x_i++) {
+      //for (const auto &x : it->second) {
+        const auto &x = (x_i >= fallback_count ? (it->second)[x_i-fallback_count] : tval());
+        const auto &y = (x_i < fallback_count ? fallback[x_i] : std::pair<SeqString,tval>())
+        if (x_i < fallback_count) { // Do stuff with fallback
+          
+        }
         if (x.second == -1) {
           uint32_t mask = 1048575; // The 20 least significant bits, aka ((1 << 20) -1); 
           if (x.first > mask) {
