@@ -1646,9 +1646,12 @@ struct SplitCode {
       k_expanded = -1;
       if (pos+curr_k > l) break;
       const auto& it = tags.find(SeqString(seq.c_str()+pos, curr_k));
-      if (it == tags.end()) {
+      const auto& fallback = !tags_fallback.empty() ? tags_fallback[curr_k] : std::vector<std::pair<SeqString,tval>>();
+      size_t fallback_count = fallback.size();
+      if (it == tags.end() && fallback_count == 0) {
         break;
       }
+      size_t vcount = it == tags.end() ? 0 : it->second.size();
       for (const auto &x : it->second) {
         if (x.second == -1) {
           uint32_t mask = 1048575; // The 20 least significant bits, aka ((1 << 20) -1); 
