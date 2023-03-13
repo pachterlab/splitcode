@@ -1000,7 +1000,9 @@ struct SplitCode {
         std::string s = seq.substr(i);
         size_t l = s.length();
         int mismatch_dist = floor(partial5_mismatch_freq*l);
-        if (l >= partial5_min_match) {
+        if (l >= partial5_min_match && needToFallback(l, mismatch_dist)) {
+          addToFallback(s, new_tag_index, mismatch_dist);
+        } else if (l >= partial5_min_match) {
           addToMap(s, new_tag_index);
           std::unordered_map<std::string,int> mismatches;
           generate_hamming_mismatches(s, mismatch_dist, mismatches, use_N, mismatch_dist+i);
@@ -1024,7 +1026,9 @@ struct SplitCode {
         std::string s = seq.substr(0, i+1);
         size_t l = s.length();
         int mismatch_dist = floor(partial3_mismatch_freq*l);
-        if (l >= partial3_min_match) {
+        if (l >= partial3_min_match && needToFallback(l, mismatch_dist)) {
+          addToFallback(s, new_tag_index, mismatch_dist);
+        } else if (l >= partial3_min_match) {
           addToMap(s, new_tag_index);
           std::unordered_map<std::string,int> mismatches;
           generate_hamming_mismatches(s, mismatch_dist, mismatches, use_N, mismatch_dist+(seq.length()-(i+1)));
@@ -1053,6 +1057,21 @@ struct SplitCode {
       }
     }
     return false;
+  }
+  
+  bool needToFallback(size_t string_len, int mismatch_dist) {
+    return false; // TODO: will update this
+  }
+
+  void addToFallback(const std::string& s, uint32_t tag_id, int mismatch_dist) { // Add string (w/ mismatch dist) to fallback
+    // Note: use_N doesn't apply here; rather the sequences are simply stored as-is and mismatch distance is determined when processing reads
+    size_t slen = s.length();
+    SeqString sstr(s);
+    if (tags_fallback.size() < slen) {
+      tags_fallback.resize(slen);
+    }
+    tags_fallback[slen].push_back({sstr, {tag_id, mismatch_dist}});
+    addToMap(s, tag_id);
   }
   
   bool addTag(std::string seq, std::string name, std::string group_name, int mismatch_dist, int indel_dist, int total_dist,
@@ -1273,14 +1292,20 @@ struct SplitCode {
           return false;
         }
         
-        std::unordered_map<std::string,int> mismatches;
-        generate_indels_hamming_mismatches(seq, mismatch_dist, indel_dist, total_dist, mismatches);
-        for (auto mm : mismatches) {
-          std::string mismatch_seq = mm.first;
-          int error = mm.second; // The number of substitutions, insertions, or deletions
-          addToMap(mismatch_seq, new_tag_index, error);
+        if (!is_homopolymer && indel_dist == 0 && mismatch_dist != 0 && needToFallback(seq.length(), mismatch_dist)) {
+          addToFallback(seq, new_tag_index, mismatch_dist);
           // DEBUG:
-          // std::cout << seq << ": " << mismatch_seq << " " << error << " | " << total_dist << " " << mm.second << std::endl;
+          // std::cout << seq << ": Fallback" << std::endl;
+        } else {
+          std::unordered_map<std::string,int> mismatches;
+          generate_indels_hamming_mismatches(seq, mismatch_dist, indel_dist, total_dist, mismatches);
+          for (auto mm : mismatches) {
+            std::string mismatch_seq = mm.first;
+            int error = mm.second; // The number of substitutions, insertions, or deletions
+            addToMap(mismatch_seq, new_tag_index, error);
+            // DEBUG:
+            // std::cout << seq << ": " << mismatch_seq << " " << error << " | " << total_dist << " " << mm.second << std::endl;
+          }
         }
         addToMap(seq, new_tag_index, 0, !is_homopolymer);
         generate_partial_matches(seq, partial5_min_match, partial5_mismatch_freq, partial3_min_match, partial3_mismatch_freq, new_tag_index, new_tag);
@@ -3738,6 +3763,7 @@ struct SplitCode {
   splitcode_u_map_<SeqString, std::vector<tval>, SeqStringHasher> tags;
   std::vector<std::string> names;
   std::vector<std::string> group_names;
+  std::vector<std::vector<std::pair<SeqString,tval>>> tags_fallback; // Fallback to this for when tags map gets too full (e.g. long string with high mismatch tolerance); index = tag length
   
   std::vector<std::pair<uint32_t,std::pair<bool,std::string>>> before_after_vec;
   
