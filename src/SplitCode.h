@@ -66,13 +66,15 @@ struct SplitCode {
     summary_n_reads_filtered_assigned = 0;
     max_seq_len = 0;
     setNFiles(0);
+    hashmap_limit = 36000;
+    unlimited_hashmap = false;
   }
   
   SplitCode(int nFiles, std::string summary_file = "", bool trim_only = false, bool disable_n = true,
             std::string trim_5_str = "", std::string trim_3_str = "", std::string extract_str = "", bool extract_no_chain = false, std::string barcode_prefix = "",
             std::string filter_length_str = "", bool quality_trimming_5 = false, bool quality_trimming_3 = false,
             bool quality_trimming_pre = false, bool quality_trimming_naive = false, int quality_trimming_threshold = -1, bool phred64 = false,
-            std::vector<size_t> sub_assign_vec = std::vector<size_t>(0)) {
+            std::vector<size_t> sub_assign_vec = std::vector<size_t>(0), bool unlimited_hashmap = false, size_t hashmap_limit = 36000) {
     init = false;
     extract_seq_names = false;
     discard_check = false;
@@ -102,6 +104,8 @@ struct SplitCode {
     this->quality_trimming_threshold = quality_trimming_threshold;
     this->phred64 = phred64;
     this->sub_assign_vec = sub_assign_vec;
+    this->unlimited_hashmap = unlimited_hashmap;
+    this->hashmap_limit = hashmap_limit;
     max_seq_len = 0;
     setNFiles(nFiles);
     setTrimOnly(trim_only);
@@ -896,7 +900,7 @@ struct SplitCode {
   };
   
   
-  void generate_hamming_mismatches(std::string seq, int dist, std::unordered_map<std::string,int>& results, bool use_N = false, int initial_dist = 0, std::vector<size_t> pos = std::vector<size_t>()) {
+  void generate_hamming_mismatches(std::string seq, int dist, splitcode_u_map_<std::string,int>& results, bool use_N = false, int initial_dist = 0, std::vector<size_t> pos = std::vector<size_t>()) {
     if (dist == 0) {
       return;
     }
@@ -923,7 +927,7 @@ struct SplitCode {
     }
   }
   
-  void generate_indels(std::string seq, int dist, std::unordered_map<std::string,int>& results, bool use_N = false, bool do_insertion = true, bool do_deletion = true, int initial_dist = 0) {
+  void generate_indels(std::string seq, int dist, splitcode_u_map_<std::string,int>& results, bool use_N = false, bool do_insertion = true, bool do_deletion = true, int initial_dist = 0) {
     if (dist == 0) {
       return;
     }
@@ -959,7 +963,7 @@ struct SplitCode {
     }
   }
   
-  void generate_indels_hamming_mismatches(std::string seq, int mismatch_dist, int indel_dist, int total_dist, std::unordered_map<std::string,int>& results) {
+  void generate_indels_hamming_mismatches(std::string seq, int mismatch_dist, int indel_dist, int total_dist, splitcode_u_map_<std::string,int>& results) {
     bool use_N = !random_replacement;
     mismatch_dist = std::min(mismatch_dist, total_dist);
     indel_dist = std::min(indel_dist, total_dist);
@@ -967,7 +971,7 @@ struct SplitCode {
       generate_hamming_mismatches(seq, mismatch_dist, results, use_N);
       return;
     }
-    std::unordered_map<std::string,int> indel_results; // Contains the modified string and how many remaining modifications could be applied
+    splitcode_u_map_<std::string,int> indel_results; // Contains the modified string and how many remaining modifications could be applied
     generate_indels(seq, indel_dist, indel_results, use_N);
     results = indel_results;
     generate_hamming_mismatches(seq, mismatch_dist, results, use_N);
@@ -1004,7 +1008,7 @@ struct SplitCode {
           addToFallback(s, new_tag_index, mismatch_dist);
         } else if (l >= partial5_min_match) {
           addToMap(s, new_tag_index);
-          std::unordered_map<std::string,int> mismatches;
+          splitcode_u_map_<std::string,int> mismatches;
           generate_hamming_mismatches(s, mismatch_dist, mismatches, use_N, mismatch_dist+i);
           mismatches.erase(s); // Remove s in case it was generated
           for (auto mm : mismatches) {
@@ -1030,7 +1034,7 @@ struct SplitCode {
           addToFallback(s, new_tag_index, mismatch_dist);
         } else if (l >= partial3_min_match) {
           addToMap(s, new_tag_index);
-          std::unordered_map<std::string,int> mismatches;
+          splitcode_u_map_<std::string,int> mismatches;
           generate_hamming_mismatches(s, mismatch_dist, mismatches, use_N, mismatch_dist+(seq.length()-(i+1)));
           mismatches.erase(s); // Remove s in case it was generated
           for (auto mm : mismatches) {
@@ -1060,6 +1064,7 @@ struct SplitCode {
   }
   
   bool needToFallback(size_t string_len, int mismatch_dist) {
+    if (unlimited_hashmap) return false;
     return false; // TODO: will update this
   }
 
@@ -1297,7 +1302,7 @@ struct SplitCode {
           // DEBUG:
           // std::cout << seq << ": Fallback" << std::endl;
         } else {
-          std::unordered_map<std::string,int> mismatches;
+          splitcode_u_map_<std::string,int> mismatches;
           generate_indels_hamming_mismatches(seq, mismatch_dist, indel_dist, total_dist, mismatches);
           for (auto mm : mismatches) {
             std::string mismatch_seq = mm.first;
@@ -3829,6 +3834,9 @@ struct SplitCode {
   
   bool extract_seq_names;
   UMI extract_seq_names_umi;
+  
+  bool unlimited_hashmap; // Whether we should just dump things into tags hashmap without any reservations
+  size_t hashmap_limit; // The limit to how many mismatches of a tag sequence can go into the hashmap if unlimited_hashmap is false
   
   std::vector<size_t> sub_assign_vec;
   
