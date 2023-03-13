@@ -16,6 +16,7 @@ struct ProgramOptions {
   int quality_trimming_threshold;
   int64_t max_num_reads;
   int compress_level;
+  size_t hashmap_limit;
   bool extract_no_chain;
   bool output_fasta;
   bool no_output;
@@ -43,6 +44,7 @@ struct ProgramOptions {
   bool quality_trimming_naive;
   bool phred64;
   bool keep_fastq_comments;
+  bool unlimited_hashmap;
   bool remultiplex;
   bool webasm;
   std::vector<std::string> files;
@@ -91,6 +93,7 @@ struct ProgramOptions {
     quality_trimming_threshold(-1),
     max_num_reads(0),
     compress_level(1),
+    hashmap_limit(36000),
     extract_no_chain(false),
     output_fasta(false),
     no_output(false),
@@ -118,6 +121,7 @@ struct ProgramOptions {
     quality_trimming_naive(false),
     phred64(false),
     keep_fastq_comments(false),
+    unlimited_hashmap(false),
     remultiplex(false),
     webasm(false)
   {
