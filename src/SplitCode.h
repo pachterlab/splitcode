@@ -17,6 +17,7 @@
 #include <stack>
 #include <cmath>
 #include <iomanip>
+#include <stdexcept>
 
 #if defined(_MSVC_LANG)
 #define SPLITCODE_CPP_VERSION _MSVC_LANG
@@ -871,6 +872,16 @@ struct SplitCode {
     size_t length() const {
       return l_;
     }
+    int hamming(const SeqString& ss, size_t len) const {
+      if (!(l_ == ss.l_ && l_ == len)) throw std::runtime_error("SeqString hamming invalid");
+      const char* ss_p_ = ss.p_ ? ss.p_ : ss.s_.c_str();
+      const char* s_p_ = p_ ? p_ : s_.c_str();
+      int d = 0;
+      for (size_t i = 0; i < l_; ++i) {
+        if (ss_p_[i] != s_p_[i]) d++;
+      }
+      return d;
+    }
   };
   
   struct UMI {
@@ -1065,7 +1076,20 @@ struct SplitCode {
   
   bool needToFallback(size_t string_len, int mismatch_dist) {
     if (unlimited_hashmap) return false;
-    return false; // TODO: will update this
+    if (string_len < mismatch_dist) return false; // Shouldn't happen
+    // Factorial:
+    auto factorial = [](size_t n) {
+      size_t result = 1;
+      for(size_t i = 1; i <= n; ++i) {
+        result *= i;
+      }
+      return result;
+    };
+    size_t size = pow(4, mismatch_dist)*(factorial(string_len))/(factorial(mismatch_dist)*factorial(string_len-mismatch_dist));
+    // DEBUG:
+    // std::cout << "needToFallback: len=" << string_len << " dist=" << mismatch_dist << " size=" << size << " limit=" << hashmap_limit << std::endl;
+    if (size <= hashmap_limit) return false; // TODO: will update this to return true
+    return false;
   }
 
   void addToFallback(const std::string& s, uint32_t tag_id, int mismatch_dist) { // Add string (w/ mismatch dist) to fallback
@@ -1076,6 +1100,7 @@ struct SplitCode {
       tags_fallback.resize(slen);
     }
     tags_fallback[slen].push_back({sstr, {tag_id, mismatch_dist}});
+    fallback_indices.insert(slen);
     addToMap(s, tag_id);
   }
   
@@ -1659,11 +1684,15 @@ struct SplitCode {
       size_t vcount = it == tags.end() ? 0 : it->second.size();
       for (size_t x_i = 0; x_i < fallback_count+vcount; x_i++) {
       //for (const auto &x : it->second) {
-        const auto &y = (x_i < fallback_count ? fallback[x_i] : std::pair<SeqString,tval>());
-        if (x_i < fallback_count) { // Do stuff with fallback
-          if (!(y.first == SeqString(seq.c_str()+pos, curr_k))) continue;
+        bool do_fallback = x_i < fallback_count;
+        const auto &y = (do_fallback ? fallback[x_i] : std::pair<SeqString,tval>());
+        if (do_fallback) { // Do stuff with fallback
+          const auto &fallback_string = y.first;
+          const auto fallback_tag_id = y.second.first;
+          const auto fallback_mismatch = y.second.second;
+          if (fallback_string.hamming(SeqString(seq.c_str()+pos, curr_k), curr_k) > fallback_mismatch) continue;
         }
-        const auto &x = (x_i >= fallback_count ? (it->second)[x_i-fallback_count] : y.second);
+        const auto &x = (!do_fallback ? (it->second)[x_i-fallback_count] : y.second);
         if (x.second == -1) {
           uint32_t mask = 1048575; // The 20 least significant bits, aka ((1 << 20) -1); 
           if (x.first > mask) {
@@ -1685,6 +1714,16 @@ struct SplitCode {
             }
           }
           k_expanded = x.first & mask;
+          int next_fallback_k = 0;
+          if (do_fallback) {
+            auto it_fallback = fallback_indices.find(curr_k);
+            next_fallback_k = ++it_fallback != fallback_indices.end() ? *it_fallback : 0;
+          }
+          // DEBUG:
+          // std::cout << "Expansion: k_expanded=" << k_expanded << " next_fallback_k=" << next_fallback_k << std::endl;
+          if (do_fallback && next_fallback_k != 0 && k_expanded > next_fallback_k) { 
+            k_expanded = next_fallback_k; // We need to check the next fallback; can't go directly to next expansion
+          }
           continue;
         }
         tag_id_ = x.first;
@@ -3778,6 +3817,7 @@ struct SplitCode {
   std::vector<std::string> names;
   std::vector<std::string> group_names;
   std::vector<std::vector<std::pair<SeqString,tval>>> tags_fallback; // Fallback to this for when tags map gets too full (e.g. long string with high mismatch tolerance); index = tag length
+  std::set<int> fallback_indices; // Indices of the tags_fallback vector
   
   std::vector<std::pair<uint32_t,std::pair<bool,std::string>>> before_after_vec;
   
