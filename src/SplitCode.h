@@ -1088,7 +1088,7 @@ struct SplitCode {
     size_t size = pow(4, mismatch_dist)*(factorial(string_len))/(factorial(mismatch_dist)*factorial(string_len-mismatch_dist));
     // DEBUG:
     // std::cout << "needToFallback: len=" << string_len << " dist=" << mismatch_dist << " size=" << size << " limit=" << hashmap_limit << std::endl;
-    if (size <= hashmap_limit) return false; // TODO: will update this to return true
+    if (size > hashmap_limit) return false; // TODO: will update this to return true
     return false;
   }
 
@@ -1097,7 +1097,7 @@ struct SplitCode {
     size_t slen = s.length();
     SeqString sstr(s);
     if (tags_fallback.size() < slen) {
-      tags_fallback.resize(slen);
+      tags_fallback.resize(slen+1);
     }
     tags_fallback[slen].push_back({sstr, {tag_id, mismatch_dist}});
     fallback_indices.insert(slen);
