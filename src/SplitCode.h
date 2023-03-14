@@ -1679,6 +1679,14 @@ struct SplitCode {
       const auto& fallback = !tags_fallback.empty() && curr_k < tags_fallback.size() ? tags_fallback[curr_k] : std::vector<std::pair<SeqString,tval>>();
       size_t fallback_count = fallback.size();
       if (it == tags.end() && fallback_count == 0) {
+        if (!tags_fallback.empty()) { // Let's see if we can expand some more
+          if (curr_k > max_seq_len) break; // OK, we were even past max_seq_len and had no luck, just break
+          k_expanded = curr_k+1;
+          for (auto xx : seqlen_set) {
+            if (xx > curr_k) { k_expanded = xx; break; }
+          }
+          continue; // Essentially, we'll continue until we've tested at least one thing past the max_seq_len
+        }
         break;
       }
       size_t vcount = it == tags.end() ? 0 : it->second.size();
@@ -1689,7 +1697,7 @@ struct SplitCode {
         if (end_of_fallback) {
           k_expanded = curr_k+1;
           for (auto xx : seqlen_set) {
-            if (xx > curr_k || xx > max_seq_len) { k_expanded = xx; break; }
+            if (xx > curr_k) { k_expanded = xx; break; }
           }
         }
         const auto &y = (do_fallback ? fallback[x_i] : std::pair<SeqString,tval>());
