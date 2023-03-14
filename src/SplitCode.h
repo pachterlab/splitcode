@@ -1676,7 +1676,7 @@ struct SplitCode {
       k_expanded = -1;
       if (pos+curr_k > l) break;
       const auto& it = tags.find(SeqString(seq.c_str()+pos, curr_k));
-      const auto& fallback = !tags_fallback.empty() ? tags_fallback[curr_k] : std::vector<std::pair<SeqString,tval>>();
+      const auto& fallback = !tags_fallback.empty() && curr_k < tags_fallback.size() ? tags_fallback[curr_k] : std::vector<std::pair<SeqString,tval>>();
       size_t fallback_count = fallback.size();
       if (it == tags.end() && fallback_count == 0) {
         break;
@@ -1685,6 +1685,8 @@ struct SplitCode {
       for (size_t x_i = 0; x_i < fallback_count+vcount; x_i++) {
       //for (const auto &x : it->second) {
         bool do_fallback = x_i < fallback_count;
+        bool end_of_fallback = do_fallback && vcount == 0 && x_i == fallback_count-1; // When we're at the end of the fallback and there's no non-fallback tag sequences
+        if (end_of_fallback) { k_expanded = curr_k+1; }
         const auto &y = (do_fallback ? fallback[x_i] : std::pair<SeqString,tval>());
         if (do_fallback) { // Do stuff with fallback
           const auto &fallback_string = y.first;
@@ -1695,7 +1697,7 @@ struct SplitCode {
         const auto &x = (!do_fallback ? (it->second)[x_i-fallback_count] : y.second);
         if (x.second == -1) {
           uint32_t mask = 1048575; // The 20 least significant bits, aka ((1 << 20) -1); 
-          if (x.first > mask) {
+          if (x.first > mask) { // only can be true when !do_fallback
             // Homopolymer detection
             uint32_t homopolymer_range_end = (x.first >> 20);
             size_t add_to_k = 0;
@@ -1713,17 +1715,8 @@ struct SplitCode {
               continue;
             }
           }
+          if (k_expanded != -1) continue;
           k_expanded = x.first & mask;
-          int next_fallback_k = 0;
-          if (do_fallback) {
-            auto it_fallback = fallback_indices.find(curr_k);
-            next_fallback_k = ++it_fallback != fallback_indices.end() ? *it_fallback : 0;
-          }
-          // DEBUG:
-          // std::cout << "Expansion: k_expanded=" << k_expanded << " next_fallback_k=" << next_fallback_k << std::endl;
-          if (do_fallback && next_fallback_k != 0 && k_expanded > next_fallback_k) { 
-            k_expanded = next_fallback_k; // We need to check the next fallback; can't go directly to next expansion
-          }
           continue;
         }
         tag_id_ = x.first;
