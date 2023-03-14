@@ -1689,7 +1689,7 @@ struct SplitCode {
         if (end_of_fallback) {
           k_expanded = curr_k+1;
           for (auto xx : seqlen_set) {
-            if (xx > curr_k) { k_expanded = xx; break; }
+            if (xx > curr_k || xx > max_seq_len) { k_expanded = xx; break; }
           }
         }
         const auto &y = (do_fallback ? fallback[x_i] : std::pair<SeqString,tval>());
