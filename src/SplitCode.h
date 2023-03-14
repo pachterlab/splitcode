@@ -1096,7 +1096,7 @@ struct SplitCode {
     // Note: use_N doesn't apply here; rather the sequences are simply stored as-is and mismatch distance is determined when processing reads
     size_t slen = s.length();
     SeqString sstr(s);
-    if (tags_fallback.size() < slen) {
+    if (tags_fallback.size() <= slen) {
       tags_fallback.resize(slen+1);
     }
     tags_fallback[slen].push_back({sstr, {tag_id, mismatch_dist}});
