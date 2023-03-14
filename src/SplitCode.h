@@ -1100,7 +1100,6 @@ struct SplitCode {
       tags_fallback.resize(slen+1);
     }
     tags_fallback[slen].push_back({sstr, {tag_id, mismatch_dist}});
-    fallback_indices.insert(slen);
     addToMap(s, tag_id);
   }
   
@@ -1420,6 +1419,7 @@ struct SplitCode {
   }
   
   void addToMap(const std::string& seq, uint32_t index, int dist = 0, bool record_len=true) {
+    seqlen_set.insert(seq.length());
     SeqString sstr(seq);
     if (record_len) max_seq_len = std::max(max_seq_len, seq.length());
     if (tags.find(sstr) != tags.end()) {
@@ -1686,7 +1686,12 @@ struct SplitCode {
       //for (const auto &x : it->second) {
         bool do_fallback = x_i < fallback_count;
         bool end_of_fallback = do_fallback && vcount == 0 && x_i == fallback_count-1; // When we're at the end of the fallback and there's no non-fallback tag sequences
-        if (end_of_fallback) { k_expanded = curr_k+1; }
+        if (end_of_fallback) {
+          k_expanded = curr_k+1;
+          for (auto xx : seqlen_set) {
+            if (xx > curr_k) { k_expanded = xx; break; }
+          }
+        }
         const auto &y = (do_fallback ? fallback[x_i] : std::pair<SeqString,tval>());
         if (do_fallback) { // Do stuff with fallback
           const auto &fallback_string = y.first;
@@ -3810,7 +3815,7 @@ struct SplitCode {
   std::vector<std::string> names;
   std::vector<std::string> group_names;
   std::vector<std::vector<std::pair<SeqString,tval>>> tags_fallback; // Fallback to this for when tags map gets too full (e.g. long string with high mismatch tolerance); index = tag length
-  std::set<int> fallback_indices; // Indices of the tags_fallback vector
+  std::set<size_t> seqlen_set; // Set of lengths of all sequences in map
   
   std::vector<std::pair<uint32_t,std::pair<bool,std::string>>> before_after_vec;
   
