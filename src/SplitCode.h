@@ -37,7 +37,7 @@
 #endif
 
 struct SplitCode {
-  typedef std::pair<uint32_t,short> tval; // first element of pair is tag id, second is mismatch distance
+  typedef std::pair<uint32_t,signed char> tval; // first element of pair is tag id, second is mismatch distance
   enum dir {left, right, nodir};
   
   SplitCode() {
