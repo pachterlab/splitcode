@@ -1018,10 +1018,11 @@ struct SplitCode {
         if (l >= partial5_min_match && needToFallback(l, mismatch_dist)) {
           addToFallback(s, new_tag_index, mismatch_dist);
         } else if (l >= partial5_min_match) {
-          addToMap(s, new_tag_index);
           splitcode_u_map_<std::string,int> mismatches;
           generate_hamming_mismatches(s, mismatch_dist, mismatches, use_N, mismatch_dist+i);
           mismatches.erase(s); // Remove s in case it was generated
+          tags.reserve(tags.size()+mismatches.size()+1);
+          addToMap(s, new_tag_index);
           for (auto mm : mismatches) {
             std::string mismatch_seq = mm.first;
             int error = mm.second;
@@ -1044,10 +1045,11 @@ struct SplitCode {
         if (l >= partial3_min_match && needToFallback(l, mismatch_dist)) {
           addToFallback(s, new_tag_index, mismatch_dist);
         } else if (l >= partial3_min_match) {
-          addToMap(s, new_tag_index);
           splitcode_u_map_<std::string,int> mismatches;
           generate_hamming_mismatches(s, mismatch_dist, mismatches, use_N, mismatch_dist+(seq.length()-(i+1)));
           mismatches.erase(s); // Remove s in case it was generated
+          tags.reserve(tags.size()+mismatches.size()+1);
+          addToMap(s, new_tag_index);
           for (auto mm : mismatches) {
             std::string mismatch_seq = mm.first;
             int error = mm.second;
@@ -1113,6 +1115,7 @@ struct SplitCode {
       tags_fallback.resize(slen+1);
     }
     tags_fallback[slen].push_back({sstr, {tag_id, mismatch_dist}});
+    tags.reserve(tags.size()+1);
     addToMap(s, tag_id);
   }
   
@@ -1341,6 +1344,7 @@ struct SplitCode {
         } else {
           splitcode_u_map_<std::string,int> mismatches;
           generate_indels_hamming_mismatches(seq, mismatch_dist, indel_dist, total_dist, mismatches);
+          tags.reserve(tags.size()+mismatches.size()+1);
           for (auto mm : mismatches) {
             std::string mismatch_seq = mm.first;
             int error = mm.second; // The number of substitutions, insertions, or deletions
