@@ -1074,21 +1074,34 @@ struct SplitCode {
     return false;
   }
   
-  bool needToFallback(size_t string_len, int mismatch_dist) {
+  int needToFallback(size_t string_len, int mismatch_dist, std::set<int> range = std::set<int>()) {
     if (unlimited_hashmap) return false;
     if (string_len < mismatch_dist) return false; // Shouldn't happen
-    // Factorial:
-    auto factorial = [](size_t n) {
-      size_t result = 1;
-      for(size_t i = 1; i <= n; ++i) {
-        result *= i;
+    // Note: We take extra care to avoid overflow
+    auto n_choose_r = [](uint64_t n, uint64_t r) -> uint64_t {
+      if (r == 0) return 1;
+      uint64_t result = 1; 
+      for (int i = 1; i <= r; ++i) {
+        result *= n - i + 1;
+        result /= i;
       }
       return result;
     };
-    size_t size = pow(4, mismatch_dist)*(factorial(string_len))/(factorial(mismatch_dist)*factorial(string_len-mismatch_dist));
-    // DEBUG:
-    // std::cout << "needToFallback: len=" << string_len << " dist=" << mismatch_dist << " size=" << size << " limit=" << hashmap_limit << std::endl;
-    if (size > hashmap_limit) return false; // TODO: will update this to return true
+    for (int i = 0; i <= mismatch_dist; i++) {
+      uint64_t size = 0;
+      uint64_t multiplier = pow(4,mismatch_dist);
+      bool ret = false;
+      size = n_choose_r(string_len, mismatch_dist);
+      if (size > hashmap_limit || multiplier > hashmap_limit) ret = true;
+      else if (size*multiplier > hashmap_limit) ret = true;
+      if (ret) {
+        // DEBUG: 
+        // std::cout << "OVER LIMIT: size=" << size*multiplier << " hashmap_limit=" << hashmap_limit << " string_len=" << string_len << " mismatch_dist=" << mismatch_dist << std::endl;
+        return true;
+      }   
+    }
+    // DEBUG: 
+    // std::cout << "NOT OVER LIMIT: limit=" << hashmap_limit << " string_len=" << string_len << " mismatch_dist=" << mismatch_dist << std::endl;
     return false;
   }
 
