@@ -93,7 +93,7 @@ struct ProgramOptions {
     quality_trimming_threshold(-1),
     max_num_reads(0),
     compress_level(1),
-    hashmap_limit(350000),
+    hashmap_limit(320000),
     extract_no_chain(false),
     output_fasta(false),
     no_output(false),

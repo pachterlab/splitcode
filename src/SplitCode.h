@@ -67,7 +67,7 @@ struct SplitCode {
     summary_n_reads_filtered_assigned = 0;
     max_seq_len = 0;
     setNFiles(0);
-    hashmap_limit = 350000;
+    hashmap_limit = 320000;
     unlimited_hashmap = false;
   }
   
@@ -75,7 +75,7 @@ struct SplitCode {
             std::string trim_5_str = "", std::string trim_3_str = "", std::string extract_str = "", bool extract_no_chain = false, std::string barcode_prefix = "",
             std::string filter_length_str = "", bool quality_trimming_5 = false, bool quality_trimming_3 = false,
             bool quality_trimming_pre = false, bool quality_trimming_naive = false, int quality_trimming_threshold = -1, bool phred64 = false,
-            std::vector<size_t> sub_assign_vec = std::vector<size_t>(0), bool unlimited_hashmap = false, size_t hashmap_limit = 350000) {
+            std::vector<size_t> sub_assign_vec = std::vector<size_t>(0), bool unlimited_hashmap = false, size_t hashmap_limit = 320000) {
     init = false;
     extract_seq_names = false;
     discard_check = false;
