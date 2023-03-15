@@ -175,12 +175,11 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   int keep_com_flag = 0;
   int remultiplex_flag = 0;
   int webasm_flag = 0;
-  int unlimited_flag = 0;
   bool trim_only_specified = false;
 
   optind=1; // Reset global variable in case we want to call ParseOptions multiple times
 
-  const char *opt_string = "t:N:n:b:d:i:l:f:F:e:c:o:O:u:m:k:r:A:L:R:E:g:y:Y:j:J:a:v:z:Z:5:3:w:x:P:q:s:S:M:U:X:C:7:Tph";
+  const char *opt_string = "t:N:n:b:d:i:l:f:F:e:c:o:O:u:m:k:r:A:L:R:E:g:y:Y:j:J:a:v:z:Z:5:3:w:x:P:q:s:S:M:U:X:C:Tph";
   /*static*/ struct option long_options[] = { // No static keyword because we may want to call ParseOptions multiple times
     // long args
     {"version", no_argument, &version_flag, 1},
@@ -207,7 +206,6 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"phred64", no_argument, &phred64_flag, 1},
     {"keep-com", no_argument, &keep_com_flag, 1},
     {"assign", no_argument, &assign_flag, 1},
-    {"unlimited", no_argument, &unlimited_flag, 1},
     {"remultiplex", no_argument, &remultiplex_flag, 1},
     {"webasm", no_argument, &webasm_flag, 1},
     // short args
@@ -257,7 +255,6 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"sam-tags", required_argument, 0, 'M'},
     {"sub-assign", required_argument, 0, 'X'},
     {"compress", required_argument, 0, 'C'},
-    {"map-limit", required_argument, 0, '7'},
     {0,0,0,0}
   };
   
@@ -440,10 +437,6 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
       stringstream(optarg) >> opt.trim_3_str;
       break;
     }
-    case '7': {
-      stringstream(optarg) >> opt.hashmap_limit;
-      break;
-    }
     case 'w': {
       stringstream(optarg) >> opt.filter_length_str;
       break;
@@ -597,9 +590,6 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   }
   if (assign_flag && !trim_only_specified) {
     opt.trim_only = false;
-  }
-  if (unlimited_flag) {
-    opt.unlimited_hashmap = true;
   }
   if (remultiplex_flag) {
     opt.remultiplex = true;
@@ -1296,7 +1286,7 @@ int main(int argc, char *argv[]) {
   ProgramOptions opt;
   ParseOptions(argc,argv,opt);
   SplitCode sc(opt.nfiles, opt.summary_file, opt.trim_only, opt.disable_n, opt.trim_5_str, opt.trim_3_str, opt.extract_str, opt.extract_no_chain, opt.barcode_prefix, opt.filter_length_str,
-               opt.quality_trimming_5, opt.quality_trimming_3, opt.quality_trimming_pre, opt.quality_trimming_naive, opt.quality_trimming_threshold, opt.phred64, opt.sub_assign_vec, opt.unlimited_hashmap, opt.hashmap_limit);
+               opt.quality_trimming_5, opt.quality_trimming_3, opt.quality_trimming_pre, opt.quality_trimming_naive, opt.quality_trimming_threshold, opt.phred64, opt.sub_assign_vec);
   bool checkopts = CheckOptions(opt, sc);
   if (!checkopts) {
     usage();
