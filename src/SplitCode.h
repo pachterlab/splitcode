@@ -292,7 +292,10 @@ struct SplitCode {
       of << "\t\t" << "\"num_elements_in_tags_map\": " << getMapSize(false) << ",\n";
       of << "\t\t" << "\"assign_id_map_size\": " << idmap_getsize() << ",\n";
       of << "\t\t" << "\"sub_assign_id_map_size\": " << idmap_getsize(true) << ",\n";
-      of << "\t\t" << "\"always_assign\": " << always_assign << "\n";
+      of << "\t\t" << "\"always_assign\": " << always_assign << ",\n";
+      size_t fallback_num = 0;
+      for (auto ff : tags_fallback) fallback_num += sizeof(ff);
+      of << "\t\t" << "\"fallback_size\": " << fallback_num << "\n";
     of << "\t" << "}" << "\n";
     of << "}" << std::endl;
     of.close();
@@ -1015,7 +1018,8 @@ struct SplitCode {
         std::string s = seq.substr(i);
         size_t l = s.length();
         int mismatch_dist = floor(partial5_mismatch_freq*l);
-        if (l >= partial5_min_match && needToFallback(l, mismatch_dist)) {
+        bool use_fallback = s > 12 && mismatch_dist > 1;
+        if (use_fallback || (l >= partial5_min_match && needToFallback(l, mismatch_dist))) {
           addToFallback(s, new_tag_index, mismatch_dist);
         } else if (l >= partial5_min_match) {
           splitcode_u_map_<std::string,int> mismatches;
@@ -1042,7 +1046,8 @@ struct SplitCode {
         std::string s = seq.substr(0, i+1);
         size_t l = s.length();
         int mismatch_dist = floor(partial3_mismatch_freq*l);
-        if (l >= partial3_min_match && needToFallback(l, mismatch_dist)) {
+        bool use_fallback = s > 12 && mismatch_dist > 1;
+        if (use_fallback || (l >= partial3_min_match && needToFallback(l, mismatch_dist))) {
           addToFallback(s, new_tag_index, mismatch_dist);
         } else if (l >= partial3_min_match) {
           splitcode_u_map_<std::string,int> mismatches;
