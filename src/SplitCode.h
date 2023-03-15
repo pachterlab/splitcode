@@ -1018,7 +1018,7 @@ struct SplitCode {
         std::string s = seq.substr(i);
         size_t l = s.length();
         int mismatch_dist = floor(partial5_mismatch_freq*l);
-        bool use_fallback = s > 12 && mismatch_dist > 1;
+        bool use_fallback = l > 12 && mismatch_dist > 1;
         if (use_fallback || (l >= partial5_min_match && needToFallback(l, mismatch_dist))) {
           addToFallback(s, new_tag_index, mismatch_dist);
         } else if (l >= partial5_min_match) {
@@ -1046,7 +1046,7 @@ struct SplitCode {
         std::string s = seq.substr(0, i+1);
         size_t l = s.length();
         int mismatch_dist = floor(partial3_mismatch_freq*l);
-        bool use_fallback = s > 12 && mismatch_dist > 1;
+        bool use_fallback = l > 12 && mismatch_dist > 1;
         if (use_fallback || (l >= partial3_min_match && needToFallback(l, mismatch_dist))) {
           addToFallback(s, new_tag_index, mismatch_dist);
         } else if (l >= partial3_min_match) {
