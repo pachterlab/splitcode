@@ -20,4 +20,4 @@ Additionally, please submit a GitHub issue or a GitHub pull request for feature 
 
 ## Citing splitcode
 
-Sullivan DK, Pachter L. (2023) *splitcode*. http://github.com/pachterlab/splitcode.
+Sullivan DK, Pachter L. (2023). Flexible parsing and preprocessing of technical sequences with splitcode. *bioRxiv 2023.03.20.533521*. https://doi.org/10.1101/2023.03.20.533521
