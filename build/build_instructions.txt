@@ -1,0 +1,3 @@
+emcmake cmake .. -DEMSCRIPTEN_BUILD=ON
+emmake make
+emcc -s USE_ZLIB=1 -s INVOKE_RUN=0 -s EXIT_RUNTIME=0 -s FORCE_FILESYSTEM=1 -s ALLOW_MEMORY_GROWTH=1 ./src/libsplitcode_core.a -o splitcode.html --shell-file helper_template.html
