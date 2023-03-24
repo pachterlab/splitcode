@@ -655,17 +655,29 @@ function callUpdate(new_strand, reversed_dna, j, end) {
 		        text += "\t";
 		      }
 		      if (columns[col] == "groups") {
-		        text += groupname;
+		        if (groupname != "") {
+		          text += groupname;
+		        } else {
+		          text += "-";
+		        }
 		      } else if (columns[col] == "tags") {
 		        if (initiator_checked) {
 		          text += "*";
 		        }
-		        text += tagseq;
+		        if (tagseq != "") {
+		          text += tagseq;
+		        } else {
+		          text += "-";
+		        }
 		        if (terminator_checked) {
 		          text += "*";
 		        }
 		      } else if (columns[col] == "ids") {
-		        text += tagname;
+		        if (tagname != "") {
+		          text += tagname;
+		        } else {
+		          text += "-";
+		        }
 		      } else if (columns[col] == "distances") {
 		        var d_subs = $("#d_substitutions_" + j).val();
 		        var d_indels = $("#d_indels_" + j).val();
@@ -730,6 +742,8 @@ function callUpdate(new_strand, reversed_dna, j, end) {
 		          text += "{{" + selection_next_text + "}}";
 		        } else if (selection_next_val >= 0) {
 		          text += "{" + selection_next_text + "}";
+		        } else {
+		          text += "-";
 		        }
 		      } else if (columns[col] == "previous") {
 		        var selection_previous_val = $("#select_tags_previous_" + j).val();
@@ -738,10 +752,16 @@ function callUpdate(new_strand, reversed_dna, j, end) {
 		          text += "{{" + selection_previous_text + "}}";
 		        } else if (selection_previous_val >= 0) {
 		          text += "{" + selection_previous_text + "}";
+		        } else {
+		          text += "-";
 		        }
 		      } else if (columns[col] == "subs") {
 		        var sub_seq = $("#substitution_sequence_" + j).val().trim();
-		        text += sub_seq;
+		        if (sub_seq != "") {
+		          text += sub_seq;
+		        } else {
+		          text += "-";
+		        }
 		      } else if (columns[col] == "partial5") {
 		        var partial5_min_match = $("#partial5_min_match_" + j).val();
 		        var partial5_mismatch_freq = $("#partial5_mismatch_freq_" + j).val();
@@ -830,6 +850,7 @@ function callUpdate(new_strand, reversed_dna, j, end) {
 			        <ul class="checkbox_menu" id="config_menu_1" style="display: none">
 			          <li><input type="checkbox" id="out_opt_pipe" /> <label for="out_opt_pipe">Interleave and stream to standard output instead of separate FASTQ files (--pipe)</label></li>
 			          <li><input type="checkbox" id="out_opt_mod_names" /> <label for="out_opt_mod_names">Put identified tag names in sequence identifier (--mod-names)</label></li>
+			          <li><input type="checkbox" id="out_opt_x_names" /> <label for="out_opt_x_names">Put extractions names in sequence identifier (--x-names)</label></li>
 			        </ul>
 			      </div>
 			    </div>
@@ -909,7 +930,7 @@ function callUpdate(new_strand, reversed_dna, j, end) {
 		</div>
 		</div>
 		<div id="footer">
-			Site designed by Delaney Sullivan
+			Sullivan DK, Pachter L. (2023) splitcode. http://github.com/pachterlab/splitcode.
 		</div>
 	</div>
 	
@@ -1021,6 +1042,9 @@ if ($('#out_opt_pipe').is(':checked')) {
 if ($('#out_opt_mod_names').is(':checked')) {
   argoptions.push('--mod-names');
 }
+if ($('#out_opt_x_names').is(':checked')) {
+  argoptions.push('--x-names'); 
+}                               
 mainfiles = [];
 var ret_false = false;
 if (last_full == -1) {
