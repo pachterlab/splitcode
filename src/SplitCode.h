@@ -1,7 +1,7 @@
 #ifndef SPLITCODE_H
 #define SPLITCODE_H
 
-#define SPLITCODE_VERSION "0.28.0"
+#define SPLITCODE_VERSION "0.28.1"
 
 #include <string>
 #include <iostream>
@@ -66,6 +66,7 @@ struct SplitCode {
     summary_n_reads_filtered_assigned = 0;
     max_seq_len = 0;
     setNFiles(0);
+    early_termination_maxFindsG = -1;
   }
   
   SplitCode(int nFiles, std::string summary_file = "", bool trim_only = false, bool disable_n = true,
@@ -102,6 +103,7 @@ struct SplitCode {
     this->quality_trimming_threshold = quality_trimming_threshold;
     this->phred64 = phred64;
     this->sub_assign_vec = sub_assign_vec;
+    early_termination_maxFindsG = -1;
     max_seq_len = 0;
     setNFiles(nFiles);
     setTrimOnly(trim_only);
@@ -1071,11 +1073,11 @@ struct SplitCode {
     uint32_t new_tag_index = tags_vec.size();
     ++n_tag_entries;
 
-    if (!seq_is_file && seq.length() > 0 && seq[0] == '*') {
+    if (seq.length() > 0 && seq[0] == '*') {
       new_tag.initiator = true;
       seq.erase(0,1);
     }
-    if (!seq_is_file && seq.length() > 0 && seq[seq.size()-1] == '*') {
+    if (seq.length() > 0 && seq[seq.size()-1] == '*') {
       new_tag.terminator = true;
       seq.erase(seq.end()-1);
     }
@@ -2125,6 +2127,10 @@ struct SplitCode {
       }
       min_finds_group_map[i] = min_finds;
     }
+    early_termination_maxFindsG = 0;
+    for (const auto &x : max_finds_group_map) {
+      early_termination_maxFindsG += x.second;
+    }
     return true;
   }
   
@@ -2922,6 +2928,7 @@ struct SplitCode {
     auto max_finds = max_finds_map; // copy
     auto min_finds_group = min_finds_group_map; // copy
     auto max_finds_group = max_finds_group_map; // copy
+    auto early_termination_G = early_termination_maxFindsG; // copy
     bool check_group = keep_check_group || discard_check_group;
     auto it_umi_loc = umi_loc_map.begin();
     std::vector<uint32_t> group_v(0);
@@ -3026,9 +3033,10 @@ struct SplitCode {
             continue;
           }
           if (search_extra_after2 != 0 && pos-search_after_start >= search_extra_after2) {
-            continue; // Could break here?
+            break;
           }
         }
+        if (early_termination_G == 0) { break;} // Depleted max finds group, so just break
         uint32_t tag_id;
         int error;
         if (getTag(seq, tag_id, file, pos, k, error, readLength, look_for_initiator, 
@@ -3048,6 +3056,7 @@ struct SplitCode {
             }
           }
           if (max_finds_group.find(tag.group) != max_finds_group.end()) {
+            early_termination_G--;
             if (max_finds_group[tag.group]-- <= 0) {
               continue; // maxFindsG exceeded; just continue
             }
@@ -3758,6 +3767,7 @@ struct SplitCode {
   std::unordered_map<uint32_t,int> min_finds_group_map;
   std::unordered_map<uint32_t,int> max_finds_group_map;
   std::vector<bool> initiator_files;
+  int early_termination_maxFindsG;
   
   std::unordered_map<uint32_t,std::vector<UMI>> umi_name_map;
   std::unordered_map<uint32_t,std::vector<UMI>> umi_group_map;
