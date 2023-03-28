@@ -602,10 +602,10 @@ struct SplitCode {
     for (int i = 0; i < tags_vec.size(); i++) { // Set up minFinds and maxFinds and initiators
       auto& tag = tags_vec[i];
       if (tag.min_finds != 0) {
-        min_finds_map[i] = tag.min_finds;
+        min_finds_map[tag.name_id] = tag.min_finds;
       }
       if (tag.max_finds != 0) {
-        max_finds_map[i] = tag.max_finds;
+        max_finds_map[tag.name_id] = tag.max_finds;
       }
       if (tag.initiator && (tag.file < initiator_files.size() || tag.file == -1)) {
         if (tag.file == -1) {
@@ -1220,6 +1220,8 @@ struct SplitCode {
       } else {
         group_name_id = itgnames - group_names.begin();
       }
+    } else {
+      early_termination_maxFindsG = -2;
     }
     
     std::transform(seq.begin(), seq.end(), seq.begin(), ::toupper);
@@ -2127,9 +2129,12 @@ struct SplitCode {
       }
       min_finds_group_map[i] = min_finds;
     }
-    early_termination_maxFindsG = 0;
-    for (const auto &x : max_finds_group_map) {
-      early_termination_maxFindsG += x.second;
+    if (max_finds == 0) early_termination_maxFindsG = -2; // -2 means we can't use early termination (either an entry doesn't have a maxFindsG or an entry doesn't belong to a group)
+    if (early_termination_maxFindsG != -2) {
+      early_termination_maxFindsG = 0;
+      for (const auto &x : max_finds_group_map) {
+        early_termination_maxFindsG += x.second;
+      }
     }
     return true;
   }
@@ -3045,18 +3050,18 @@ struct SplitCode {
           look_for_initiator = false;
           const auto& tag = tags_vec[tag_id];
           if (tag.min_finds > 0) {
-            min_finds[tag_id]--;
+            min_finds[tag.name_id]--;
           }
           if (min_finds_group.find(tag.group) != min_finds_group.end()) {
             min_finds_group[tag.group]--;
           }
           if (tag.max_finds > 0) {
-            if (max_finds[tag_id]-- <= 0) {
+            if (max_finds[tag.name_id]-- <= 0) {
               continue; // maxFinds exceeded; just continue
             }
           }
           if (max_finds_group.find(tag.group) != max_finds_group.end()) {
-            early_termination_G--;
+            if (early_termination_maxFindsG > 0) early_termination_G--;
             if (max_finds_group[tag.group]-- <= 0) {
               continue; // maxFindsG exceeded; just continue
             }
