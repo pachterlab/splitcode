@@ -1036,6 +1036,7 @@ if (config_text == "") {
 // Prepare command args
 var argoptions = ['--webasm', '-c config.txt', '-N ' + $("#nFastqs").val()];
 var use_pipe = false;
+var use_outb = false;
 if ($('#out_opt_pipe').is(':checked')) {
   argoptions.push('--pipe');
   use_pipe = true;
@@ -1049,6 +1050,10 @@ if ($('#out_opt_x_names').is(':checked')) {
 if ($("#assign_checkbox").is(':checked')) {
   argoptions.push('--assign');
   argoptions.push('--mapping=mapping.txt');
+  if (!use_pipe) {
+    argoptions.push('--outb=final_barcodes.fastq');
+    use_outb = true;
+  }
 }
 mainfiles = [];
 var ret_false = false;
@@ -1128,11 +1133,18 @@ if (!use_pipe) {
   } else {
     l = mainfiles.length;
   }
+  if (use_outb) {
+    out += '<label for="output_outb">Output: ' + "final_barcodes.fastq" + '</label>';
+    out += '<textarea class="emscripten" id="output_outb" rows="8" readonly="readonly"></textarea>';
+  }
   for (var i = 0; i < l; i++) {
     out += '<label for="output_' + i + '">Output: ' + "out_" + mainfiles[i] + '</label>';
     out += '<textarea class="emscripten" id="output_' + i + '" rows="8" readonly="readonly"></textarea>';
   }
   $("#output_file_output").html(out);
+  if (use_outb) {
+    $("#output_outb").val(FS.readFile("final_barcodes.fastq", { encoding: 'utf8' }));
+  }
   for (var i = 0; i < l; i++) {
     $("#output_" + i).val(FS.readFile("out_" + mainfiles[i], { encoding: 'utf8' }));
   }
