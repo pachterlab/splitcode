@@ -2,3 +2,5 @@ emcmake cmake .. -DEMSCRIPTEN_BUILD=ON
 emmake make
 emcc -s USE_ZLIB=1 -s INVOKE_RUN=0 -s EXIT_RUNTIME=0 -s FORCE_FILESYSTEM=1 -s ALLOW_MEMORY_GROWTH=1 ./src/libsplitcode_core.a -o splitcode.html --shell-file helper_template.html
 mv splitcode.html index.html
+
+(Note: Instead of using helper_template.html to generate a new HTML file, just use the index.html in the root directory of the repo -- that's the file that will always be up to date with the latest changes).
