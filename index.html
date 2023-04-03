@@ -452,7 +452,7 @@ function callUpdate(new_strand, reversed_dna, j, end) {
 		        return ["The following name does not exist: \"" + tag_extract_name + "\""];
 		      }
 		    }
-                    if (name == "final_barcodes") {
+                    if (name == "final_barcodes" || name.startsWith("out_file_")) {
 		      success = false;
 		      return ["The following name is not permitted: \"" + name + "\""];
 		    }
@@ -1162,6 +1162,11 @@ if (!use_pipe) {
   $("#output_file_output").html(out);
   if (use_outb) {
     $("#output_outb").val(FS.readFile("final_barcodes.fastq", { encoding: 'utf8' }));
+  }
+  if (x_exists) {
+    for (var i = 0; i < xfiles.length; i++) {
+      $("#outputx_" + i).val(FS.readFile(xfiles[i] + '.fastq', { encoding: 'utf8' }));
+    }
   }
   for (var i = 0; i < l; i++) {
     $("#output_" + i).val(FS.readFile("out_" + mainfiles[i], { encoding: 'utf8' }));
