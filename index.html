@@ -1181,6 +1181,14 @@ if (!use_pipe) {
     $("#output_" + "mapping").val(FS.readFile("mapping.txt", { encoding: 'utf8' }));
   }
   $("#output_file_output").show();
+} else { // use pipe
+  if (use_finalbarcodes) {
+    var out = "";
+    out += '<label for="output_mapping">Output: ' + "mapping.txt" + '</label>';
+    out += '<textarea class="emscripten" id="output_mapping" rows="4" readonly="readonly"></textarea>';
+    $("#output_file_output").html(out);
+    $("#output_file_output").show();
+  }
 }
 }
 </script>
