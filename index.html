@@ -1041,6 +1041,7 @@ if (config_text == "") {
 var argoptions = ['--webasm', '-c config.txt', '-N ' + $("#nFastqs").val()];
 var use_pipe = false;
 var use_outb = false;
+var use_finalbarcodes = false;
 if ($('#out_opt_pipe').is(':checked')) {
   argoptions.push('--pipe');
   use_pipe = true;
@@ -1054,6 +1055,7 @@ if ($('#out_opt_x_names').is(':checked')) {
 if ($("#assign_checkbox").is(':checked')) {
   argoptions.push('--assign');
   argoptions.push('--mapping=mapping.txt');
+  use_finalbarcodes = true;
   if (!use_pipe) {
     argoptions.push('--outb=final_barcodes.fastq');
     use_outb = true;
@@ -1159,6 +1161,10 @@ if (!use_pipe) {
     out += '<label for="output_' + i + '">Output: ' + "out_" + mainfiles[i] + '</label>';
     out += '<textarea class="emscripten" id="output_' + i + '" rows="8" readonly="readonly"></textarea>';
   }
+  if (use_finalbarcodes) {
+    out += '<label for="output_mapping">Output: ' + "mapping.txt" + '</label>';
+    out += '<textarea class="emscripten" id="output_mapping" rows="4" readonly="readonly"></textarea>';
+  }
   $("#output_file_output").html(out);
   if (use_outb) {
     $("#output_outb").val(FS.readFile("final_barcodes.fastq", { encoding: 'utf8' }));
@@ -1170,6 +1176,9 @@ if (!use_pipe) {
   }
   for (var i = 0; i < l; i++) {
     $("#output_" + i).val(FS.readFile("out_" + mainfiles[i], { encoding: 'utf8' }));
+  }
+  if (use_finalbarcodes) {
+    $("#output_" + "mapping").val(FS.readFile("mapping.txt", { encoding: 'utf8' }));
   }
   $("#output_file_output").show();
 }
