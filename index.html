@@ -1142,6 +1142,19 @@ if (!use_pipe) {
     out += '<textarea class="emscripten" id="output_outb" rows="8" readonly="readonly"></textarea>';
   }
   var xfiles = getExtractFiles();
+  var x_exists = false;
+  if (xfiles.length > 1) {
+    x_exists = true;
+    xfiles.shift();
+    xfiles = xfiles.reduce(function(a,b){
+        if (a.indexOf(b) < 0 ) a.push(b);
+        return a;
+      },[]);
+    for (var i = 0; i < xfiles.length; i++) {
+      out += '<label for="outputx_' + i + '">Output: ' + xfiles[i] + '.fastq' + '</label>';
+      out += '<textarea class="emscripten" id="outputx_' + i + '" rows="8" readonly="readonly"></textarea>';
+    }
+  }
   for (var i = 0; i < l; i++) {
     out += '<label for="output_' + i + '">Output: ' + "out_" + mainfiles[i] + '</label>';
     out += '<textarea class="emscripten" id="output_' + i + '" rows="8" readonly="readonly"></textarea>';
