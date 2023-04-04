@@ -225,6 +225,21 @@ public:
         outb = fopen(opt.outputb_file.c_str(), "wb");
       }
     }
+    
+    if (opt.remultiplex) {
+      std::unordered_map<std::string,int> batch_map;
+      batch_id_mapping.resize(opt.batch_ids.size());
+      int j = 0;
+      for (int i = 0; i < opt.batch_ids.size(); i++) {
+        if (batch_map.find(opt.batch_ids[i]) == batch_map.end()) {
+          batch_id_mapping[i] = j;
+          batch_map.insert(std::make_pair(opt.batch_ids[i], j));
+          j++;
+        } else {
+          batch_id_mapping[i] = batch_map[opt.batch_ids[i]];
+        }
+      }
+    }
   }
   
   ~MasterProcessor() {
@@ -286,6 +301,7 @@ public:
   std::unordered_map<std::string, std::vector<gzFile>> out_keep_gz;
   std::vector<FILE*> outumi;
   std::vector<gzFile> outumi_gz;
+  std::vector<int> batch_id_mapping; // minimal perfect mapping of batch ID
   bool write_output_fastq;
   bool write_barcode_separate_fastq;
   bool write_unassigned_fastq;

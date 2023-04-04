@@ -123,6 +123,7 @@ void usage() {
        << "    --seq-names  Modify names of outputted sequences to include the sequences of identified tags" << endl
        << "    --x-names    Modify names of outputted sequences to include extracted UMI-like sequences" << endl
        << "    --x-only     Only output extracted UMI-like sequences" << endl
+       << "    --bc-names   Modify names of outputted sequences to include final barcode sequence string" << endl
        << "-X, --sub-assign Assign reads to a secondary sequence ID based on a subset of tags present (must be used with --assign)" << endl
        << "                 (e.g. 0,2 = Generate unique ID based the tags present by subsetting those tags to tag #0 and tag #2 only)" << endl
        << "                 The names of the outputted sequences will be modified to include this secondary sequence ID" << endl

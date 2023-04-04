@@ -203,7 +203,7 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
       name_modded = true;
     } else if (assigned && opt.com_names && opt.remultiplex) { // Add remultiplexed ID to read name
       mod_name += (name_modded ? "\t" : " ");
-      mod_name += opt.sam_tags[2][0] + std::to_string(sc.getID(flags[readnum]));
+      mod_name += opt.sam_tags[2][0] + std::to_string(sc.getID(batch_id_mapping[flags[readnum]]));
       name_modded = true;
     }
     if (assigned && opt.bc_names && !sc.always_assign) {
@@ -212,7 +212,7 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
       name_modded = true;
     } else if (assigned && opt.bc_names && opt.remultiplex) { // Add remultiplexed ID to read name
       mod_name += (name_modded ? "\t" : " ");
-      mod_name += opt.sam_tags[4][0] + sc.binaryToString(sc.getID(flags[readnum]), sc.getBarcodeLength());
+      mod_name += opt.sam_tags[4][0] + sc.binaryToString(sc.getID(batch_id_mapping[flags[readnum]]), sc.getBarcodeLength());
       name_modded = true;
     }
     if (assigned && r.subassign_id != -1) {
@@ -252,7 +252,7 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
       if (!opt.remultiplex) {
         o << sc.binaryToString(sc.getID(r.id), sc.getBarcodeLength()) << "\n";
       } else { // Write out remultiplexing barcode
-        o << sc.binaryToString(sc.getID(flags[readnum]), sc.getBarcodeLength()) << "\n";
+        o << sc.binaryToString(sc.getID(batch_id_mapping[flags[readnum]]), sc.getBarcodeLength()) << "\n";
       }
       if (include_quals) {
         o << "+" << "\n";
@@ -344,7 +344,7 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
         if (!opt.remultiplex) {
           o << sc.binaryToString(sc.getID(r.id), sc.getBarcodeLength());
         } else {
-          o << sc.binaryToString(sc.getID(flags[readnum]), sc.getBarcodeLength());
+          o << sc.binaryToString(sc.getID(batch_id_mapping[flags[readnum]]), sc.getBarcodeLength());
         }
       } else if (l == 0 && !opt.empty_read_sequence.empty()) {
         o << opt.empty_read_sequence;
