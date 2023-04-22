@@ -121,6 +121,7 @@ void usage() {
        << "    --mod-names  Modify names of outputted sequences to include identified tag names" << endl
        << "    --com-names  Modify names of outputted sequences to include final barcode sequence ID" << endl
        << "    --seq-names  Modify names of outputted sequences to include the sequences of identified tags" << endl
+       << "    --loc-names  Modify names of outputted sequences to include found tag names and locations" << endl
        << "    --x-names    Modify names of outputted sequences to include extracted UMI-like sequences" << endl
        << "    --x-only     Only output extracted UMI-like sequences" << endl
        << "    --bc-names   Modify names of outputted sequences to include final barcode sequence string" << endl
@@ -128,7 +129,7 @@ void usage() {
        << "                 (e.g. 0,2 = Generate unique ID based the tags present by subsetting those tags to tag #0 and tag #2 only)" << endl
        << "                 The names of the outputted sequences will be modified to include this secondary sequence ID" << endl
        << "-C  --compress   Set the gzip compression level (default: 1) (range: 1-9)" << endl
-       << "-M  --sam-tags   Modify the default SAM tags (default: CB:Z:,RX:Z:,BI:i:,SI:i:,BC:Z:)" << endl
+       << "-M  --sam-tags   Modify the default SAM tags (default: CB:Z:,RX:Z:,BI:i:,SI:i:,BC:Z:,LX:Z:)" << endl
        << "Other Options:" << endl
        << "-N, --nFastqs    Number of FASTQ file(s) per run" << endl
        << "                 (default: 1) (specify 2 for paired-end)" << endl
@@ -162,6 +163,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   int bc_names_flag = 0;
   int com_names_flag = 0;
   int seq_names_flag = 0;
+  int loc_names_flag = 0;
   int x_names_flag = 0;
   int x_only_flag = 0;
   int empty_remove_flag = 0;
@@ -195,6 +197,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"bc-names", no_argument, &bc_names_flag, 1},
     {"com-names", no_argument, &com_names_flag, 1},
     {"seq-names", no_argument, &seq_names_flag, 1},
+    {"loc-names", no_argument, &loc_names_flag, 1},
     {"x-names", no_argument, &x_names_flag, 1},
     {"x-only", no_argument, &x_only_flag, 1},
     {"empty-remove", no_argument, &empty_remove_flag, 1},
@@ -492,7 +495,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
       std::stringstream ss(m);
       std::string s;
       int i = 0;
-      while (std::getline(ss, s, ',') && i < 5) {
+      while (std::getline(ss, s, ',') && i <= 5) {
         if (i == 1) { // Allow multiple tags for extraction (default RX:Z:)
           opt.sam_tags[i].clear();
           std::stringstream ss2(s);
@@ -546,6 +549,9 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   }
   if (seq_names_flag) {
     opt.seq_names = true;
+  }
+  if (loc_names_flag) {
+    opt.write_locations = true;
   }
   if (x_names_flag) {
     opt.x_names = true;
@@ -1287,7 +1293,7 @@ int main(int argc, char *argv[]) {
   ProgramOptions opt;
   ParseOptions(argc,argv,opt);
   SplitCode sc(opt.nfiles, opt.summary_file, opt.trim_only, opt.disable_n, opt.trim_5_str, opt.trim_3_str, opt.extract_str, opt.extract_no_chain, opt.barcode_prefix, opt.filter_length_str,
-               opt.quality_trimming_5, opt.quality_trimming_3, opt.quality_trimming_pre, opt.quality_trimming_naive, opt.quality_trimming_threshold, opt.phred64, opt.sub_assign_vec);
+               opt.quality_trimming_5, opt.quality_trimming_3, opt.quality_trimming_pre, opt.quality_trimming_naive, opt.quality_trimming_threshold, opt.phred64, opt.write_locations, opt.sub_assign_vec);
   bool checkopts = CheckOptions(opt, sc);
   if (!checkopts) {
     usage();

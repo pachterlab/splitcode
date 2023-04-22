@@ -44,6 +44,7 @@ struct ProgramOptions {
   bool phred64;
   bool keep_fastq_comments;
   bool remultiplex;
+  bool write_locations;
   bool webasm;
   std::vector<std::string> files;
   std::vector<std::string> output_files;
@@ -119,14 +120,16 @@ struct ProgramOptions {
     phred64(false),
     keep_fastq_comments(false),
     remultiplex(false),
+    write_locations(false),
     webasm(false)
   {
-    const char* sam_tags_default[5] = {"CB:Z:", "RX:Z:", "BI:i:", "SI:i:", "BC:Z:"};
+    const char* sam_tags_default[6] = {"CB:Z:", "RX:Z:", "BI:i:", "SI:i:", "BC:Z:", "LX:Z:"};
     sam_tags.push_back(std::vector<std::string>(1, std::string(sam_tags_default[0])));
     sam_tags.push_back(std::vector<std::string>(1, std::string(sam_tags_default[1])));
     sam_tags.push_back(std::vector<std::string>(1, std::string(sam_tags_default[2])));
     sam_tags.push_back(std::vector<std::string>(1, std::string(sam_tags_default[3])));
     sam_tags.push_back(std::vector<std::string>(1, std::string(sam_tags_default[4])));
+    sam_tags.push_back(std::vector<std::string>(1, std::string(sam_tags_default[5])));
   }
 };
 

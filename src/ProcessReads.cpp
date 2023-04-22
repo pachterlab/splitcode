@@ -220,6 +220,14 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
       mod_name += opt.sam_tags[3][0] + std::to_string(r.subassign_id);
       name_modded = true;
     }
+    if (opt.write_locations && !r.tag_locations.empty()) {
+      mod_name += (name_modded ? "\t" : " ");
+      mod_name += opt.sam_tags[5][0];
+      for (int ri = 0; ri < r.tag_locations.size(); ri++) {
+        mod_name +=  + (ri == 0 ? "" : ",") + r.tag_locations[ri];
+      }
+      name_modded = true;
+    }
     if (assigned2 && opt.x_names && !sc.umi_names.empty()) {
       std::string mod_name2 = (name_modded ? "\t" : " ");
       mod_name2 += opt.sam_tags[1][0];

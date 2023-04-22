@@ -58,6 +58,7 @@ struct SplitCode {
     quality_trimming_3 = false;
     quality_trimming_pre = false;
     quality_trimming_naive = false;
+    write_tag_location_information = false;
     quality_trimming_threshold = -1;
     phred64 = false;
     num_reads_set = false;
@@ -73,7 +74,7 @@ struct SplitCode {
             std::string trim_5_str = "", std::string trim_3_str = "", std::string extract_str = "", bool extract_no_chain = false, std::string barcode_prefix = "",
             std::string filter_length_str = "", bool quality_trimming_5 = false, bool quality_trimming_3 = false,
             bool quality_trimming_pre = false, bool quality_trimming_naive = false, int quality_trimming_threshold = -1, bool phred64 = false,
-            std::vector<size_t> sub_assign_vec = std::vector<size_t>(0)) {
+            bool write_tag_location_information = false, std::vector<size_t> sub_assign_vec = std::vector<size_t>(0)) {
     init = false;
     extract_seq_names = false;
     discard_check = false;
@@ -102,6 +103,7 @@ struct SplitCode {
     this->quality_trimming_naive = quality_trimming_naive;
     this->quality_trimming_threshold = quality_trimming_threshold;
     this->phred64 = phred64;
+    this->write_tag_location_information = write_tag_location_information;
     this->sub_assign_vec = sub_assign_vec;
     early_termination_maxFindsG = -1;
     max_seq_len = 0;
@@ -839,6 +841,7 @@ struct SplitCode {
     std::vector<std::pair<int,std::pair<int,int>>> modtrim;
     std::vector<std::pair<int,std::pair<int,std::pair<std::string,int>>>> modsubs;
     std::vector<int32_t> og_len;
+    std::vector<std::string> tag_locations;
     std::vector<int32_t> modified_len;
     std::vector<int32_t> modified_pos;
     std::vector<int32_t> n_bases_qual_trimmed_5;
@@ -3073,6 +3076,9 @@ struct SplitCode {
           name_id_curr = tag.name_id;
           group_curr = tag.group;
           search_after_start = pos+k; // aka end_pos_curr
+          if (write_tag_location_information) {
+            results.tag_locations.push_back(names[tag.name_id] + ":" + std::to_string(file) + "," + std::to_string(pos) + "-" + std::to_string(pos+k));
+          }
           if (tag.has_after) {
             if (tag.has_after_group) {
               search_group_after = true;
@@ -3827,6 +3833,7 @@ struct SplitCode {
   bool quality_trimming_pre;
   bool quality_trimming_naive;
   bool phred64;
+  bool write_tag_location_information;
   int quality_trimming_threshold;
   int nFiles;
   int n_tag_entries;
