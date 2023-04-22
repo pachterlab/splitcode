@@ -852,6 +852,7 @@ struct SplitCode {
     int subassign_id;
     bool discard;
     bool passes_filter;
+    bool ofile_keep; // Necessary, otherwise ofile may come from "keep" and would be non-empty and therefore would overwrite --pipe
     std::string ofile;
     std::string identified_tags_seqs;
     std::string identified_tags_seqs_; // In case we want to store the actual read sequence (via use_read_sequence) or the substitution sequence (via use_sub)
@@ -2932,6 +2933,7 @@ struct SplitCode {
     results.subassign_id = -1;
     results.discard = false;
     results.passes_filter = true;
+    results.ofile_keep = false;
     auto min_finds = min_finds_map; // copy
     auto max_finds = max_finds_map; // copy
     auto min_finds_group = min_finds_group_map; // copy
@@ -3227,6 +3229,7 @@ struct SplitCode {
         return;
       }
       results.ofile = it->second;
+      results.ofile_keep = true;
     }
     if (discard_check && idmapinv_discard.find(u) != idmapinv_discard.end()) {
       results.discard = true;
@@ -3240,6 +3243,7 @@ struct SplitCode {
       }
       if (results.ofile.empty()) { // We prioritize name IDs over groups for user-specified output files
         results.ofile = it->second;
+        results.ofile_keep = true;
       }
     }
     if (discard_check_group && groupmapinv_discard.find(group_v) != groupmapinv_discard.end()) {
