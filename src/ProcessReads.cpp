@@ -179,7 +179,7 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
     auto& umi_vec = r.umi_data;
     bool assigned = sc.isAssigned(r); // Note: r.discard and assigned will both true be in the case of sc.always_assign==true but the read doesn't pass our keep/discard filter (if !sc.always_assign, assigned will be false if r.discard is false)
     bool assigned2 = sc.isAssigned(r, true); // Unlike assigned, assigned2 is false if sc.always_assign==true but the read doesn't pass the keep/discard filter; basically, it's equivalent to: (assigned && !r.discard)
-    bool use_pipe = opt.pipe && (r.ofile.empty() || r.ofile_keep); // Conditions under which we'll write to stdout
+    bool use_pipe = opt.pipe && (r.ofile.empty() || (!r.ofile.empty() && !r.ofile_keep)); // Conditions under which we'll write to stdout
     // Conditions under which we'll write to separate barcode file (either write_barcode_separate_fastq specified previously or we need to write reads out to r.ofile even though user specified --pipe):
     bool write_barcode_separate_fastq_ = write_barcode_separate_fastq || (!r.ofile.empty() && (opt.pipe && !opt.no_output_barcodes));
     bool name_modded = false;
@@ -296,9 +296,9 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
         size_t ostr_len = ostr.length();
         if (use_pipe) {
           if (!opt.no_output_) fwrite(ostr.c_str(), 1, ostr_len, stdout);
-        } else if (opt.gzip) {
+        } else if (opt.gzip && !outumi_gz.empty()) {
           gzwrite(outumi_gz[umi_index], ostr.c_str(), ostr_len);
-        } else {
+        } else if (!outumi.empty()) {
           fwrite(ostr.c_str(), 1, ostr_len, outumi[umi_index]);
         }
       }
