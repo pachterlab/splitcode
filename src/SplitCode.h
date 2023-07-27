@@ -1,7 +1,7 @@
 #ifndef SPLITCODE_H
 #define SPLITCODE_H
 
-#define SPLITCODE_VERSION "0.28.4"
+#define SPLITCODE_VERSION "0.28.5"
 
 #include <string>
 #include <iostream>
@@ -3206,12 +3206,14 @@ struct SplitCode {
     for (auto& it : min_finds) {
       if (it.second > 0) {
         results.name_ids.clear(); // minFinds not met
+        if (always_assign) results.discard = true; // Don't write it out, even if we're not using --assign
         break;
       }
     }
     for (auto& it : min_finds_group) {
       if (it.second > 0) {
         results.name_ids.clear(); // minFindsG not met
+        if (always_assign) results.discard = true; // Don't write it out, even if we're not using --assign
         break;
       }
     }
