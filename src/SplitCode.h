@@ -686,7 +686,7 @@ struct SplitCode {
             e.kmer_size = kmer_size;
             e.kmer_size_2 = kmer_size_2;
             e.start_pos = actual_start_pos;
-            e.start_pos_2 = actual_start_pos_2;
+            e.start_pos_2 = start_pos_2 == -1 ? -1 : actual_start_pos_2;
             e.file = i;
             emap[kmer_size_2].push_back(e);
             if (!(smallest_kmer_unbound == e.kmer_size_2 && start_pos_2 == -1)) {
