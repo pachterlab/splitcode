@@ -62,7 +62,7 @@ checkcmdoutput "$splitcode -t 1 -y <(echo "Y,ODD,EVEN,LIGTAG") -N 2 -c $test_dir
 
 # Testing files supplied in config file
 
-checkcmdoutput "$splitcode -t 1 --pipe -c $test_dir/configb.txt --pipe --mod-names $test_dir/b.fastq" 86479a52fd7d35a1d0fcb62c5dbde424
+checkcmdoutput "$splitcode -t 1 -m /dev/null -c $test_dir/configb.txt --pipe --mod-names $test_dir/b.fastq" 86479a52fd7d35a1d0fcb62c5dbde424
 cat $test_dir/splitcode_example_config_4.txt > $test_dir/splitcode_example_config_4_.txt
 echo "EVEN"$'\t'"Even2Bo"$'\t'"${test_dir}/even.txt\$"$'\t'"2"$'\t'"1:30"$'\t'"1"$'\t'"{{ODD}}6-12
 ODD"$'\t'"Odd2Bo"$'\t'"${test_dir}/odd.txt\$"$'\t'"2"$'\t'"1:15"$'\t'"2"$'\t'"{{EVEN}}6-12" >> $test_dir/splitcode_example_config_4_.txt
