@@ -1,0 +1,5 @@
+groups	ids	tags	distances	locations	previous	minFindsG
+xx	xxx	AAAAAAAAAAAAAAAAA	0	0:-90:0	-
+2Pbc	2Pbc_3prime_1	GTGACTGGAGTTCAGAC	0	0:30:120	-
+2Pbc	2Pbc_3prime_2	GTGTGCTCTTCCGATCT	0	0:43:145	-
+2Puni	2Puni_3prime_2_rc	GATCGGAAGAGCGTCG	0	-	{2Pbc_3prime_2}
