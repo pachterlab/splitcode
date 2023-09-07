@@ -1,7 +1,7 @@
 #ifndef SPLITCODE_H
 #define SPLITCODE_H
 
-#define SPLITCODE_VERSION "0.28.5"
+#define SPLITCODE_VERSION "0.28.6"
 
 #include <string>
 #include <iostream>
