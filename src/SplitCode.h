@@ -1340,7 +1340,7 @@ struct SplitCode {
     if (pos_start_1 < 0) { // If we have to calculate start position from the right-hand side of read
       pos_start_1 = l+pos_start_1;
       if (pos_start_1 < 0) {
-        return false; // Length of read sequence too short to get start position from right-hand side of read
+        return true; // Length of read sequence too short to get start position from right-hand side of read
       }
     }
     if (pos_start_2 < pos_start_1) {
