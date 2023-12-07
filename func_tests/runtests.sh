@@ -338,4 +338,23 @@ checkcmdoutput "zcat < $test_dir/ttu2.fq.gz" 51611c4170e95d7787182e54666af4a8
 checkcmdoutput "zcat < $test_dir/umix.fastq.gz" 56654b92926b5edf2f08e9b715c41167
 checkcmdoutput "zcat < $test_dir/tt1.fq.gz" 668abd8a81136052c5ea1be491e23b9a
 
+# Testing boundaries
+
+echo "@read1
+ATGAGT
++
+FFFFFF
+@read2
+ACACTT
++
+FFFFFF" > $test_dir/test_bound.fq
+
+checkcmdoutput "$splitcode --trim-only -b GAG -p --mod-names -l "0:-40:0" -R 1 -x \"0:1<umi[4]>\" $test_dir/test_bound.fq" 4e32e75c064c7e4c7b2edf277ee839e1
+
+# Some additional tests
+
+checkcmdoutput "$splitcode --trim-only -b AT,TT --loc-names -d 1 -p --mod-names $test_dir/test_bound.fq" 432d31a38782e90fc8129c0d72e92d16
+checkcmdoutput "$splitcode --trim-only -b AT,TT,GGGGG -i a,a,b --loc-names -d 1 -p --mod-names $test_dir/test_bound.fq" ca97fa58494f66bd3395ac329e5a95cf
+checkcmdoutput "$splitcode --trim-only -b AT,TT,GGGGG -i a,a,a --loc-names -d 1 -p --mod-names $test_dir/test_bound.fq" ca97fa58494f66bd3395ac329e5a95cf
+
 
