@@ -357,4 +357,13 @@ checkcmdoutput "$splitcode --trim-only -b AT,TT --loc-names -d 1 -p --mod-names 
 checkcmdoutput "$splitcode --trim-only -b AT,TT,GGGGG -i a,a,b --loc-names -d 1 -p --mod-names $test_dir/test_bound.fq" ca97fa58494f66bd3395ac329e5a95cf
 checkcmdoutput "$splitcode --trim-only -b AT,TT,GGGGG -i a,a,a --loc-names -d 1 -p --mod-names $test_dir/test_bound.fq" ca97fa58494f66bd3395ac329e5a95cf
 
+# Allow multiple extracts in config file
+
+echo "@extract 0:0<x[2]>,0:2<x[2]>" > $test_dir/config_mult_extracts.txt
+echo "@trim-5 1" >> $test_dir/config_mult_extracts.txt
+echo "@extract 0:3<x[1]>" >> $test_dir/config_mult_extracts.txt
+
+checkcmdoutput "$splitcode --trim-only -c $test_dir/config_mult_extracts.txt --x-only -p $test_dir/test_bound.fq" aec8f4f4691db99827b80a0f21140848
+
+
 
