@@ -1461,10 +1461,12 @@ struct SplitCode {
           this->sub_assign_vec.erase(std::unique(this->sub_assign_vec.begin(), this->sub_assign_vec.end()), this->sub_assign_vec.end());
         } else if (field == "@extract") {
           if (!this->extract_str.empty()) {
-            std::cerr << "Error: The file \"" << config_file << "\" specifies @extract which was already previously set" << std::endl;
-            return false;
+            this->extract_str = this->extract_str + "," + value; // Append to existing extraction string
+            //std::cerr << "Error: The file \"" << config_file << "\" specifies @extract which was already previously set" << std::endl;
+            //return false;
+          } else {
+            this->extract_str = value;
           }
-          this->extract_str = value;
         } else if (field == "@filter-len") {
           if (!this->filter_length_str.empty()) {
             std::cerr << "Error: The file \"" << config_file << "\" specifies @filter-len which was already previously set" << std::endl;
