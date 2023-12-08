@@ -115,7 +115,7 @@ void usage() {
        << "    --gzip       Output compressed gzip'ed FASTQ files" << endl
        << "    --out-fasta  Output in FASTA format rather than FASTQ format" << endl
        << "    --keep-com   Preserve the comments of the read names of the input FASTQ file(s)" << endl
-       << "    --no-output  Don't output any sequences (output statistics only)" << endl
+       << "    --no-output  Don't output any sequences" << endl
        << "    --no-outb    Don't output final barcode sequences" << endl
        << "    --no-x-out   Don't output extracted UMI-like sequences (should be used with --x-names)" << endl
        << "    --mod-names  Modify names of outputted sequences to include identified tag names" << endl
@@ -1281,6 +1281,10 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
     /*std::cerr << ERROR_STR << " No tags found" << std::endl;
     ret = false;*/
     sc.checkInit();
+    if (!opt.trim_only && !opt.no_output) {
+      std::cerr << "Error: No tags found even though --assign specified" << std::endl;
+      ret = false;
+    }
   }
   
   return ret;
