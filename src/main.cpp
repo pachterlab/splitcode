@@ -1281,7 +1281,7 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
     /*std::cerr << ERROR_STR << " No tags found" << std::endl;
     ret = false;*/
     sc.checkInit();
-    if (!opt.trim_only && !opt.no_output) {
+    if (!opt.trim_only && !(opt.no_output || opt.no_output_)) {
       std::cerr << "Error: No tags found even though --assign specified" << std::endl;
       ret = false;
     }
