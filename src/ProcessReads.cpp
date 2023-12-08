@@ -666,7 +666,8 @@ bool FastqSequenceReader::fetchSequences(char *buf, const int limit, std::vector
 
           if (full && !comments) {
             pi = buf + bufpos;
-            memcpy(pi, seq[i]->qual.s,l[i]+1);
+            if (seq[i]->qual.l != 0) memcpy(pi, seq[i]->qual.s,l[i]+1);
+            else { std::string placeholder(seq[i]->seq.l, 'K'); memcpy(pi, placeholder.c_str(),l[i]+1); } // FASTA format, no quality (default to K)
             bufpos += l[i]+1;
             quals.emplace_back(pi,l[i]);
             pi = buf + bufpos;
@@ -675,7 +676,8 @@ bool FastqSequenceReader::fetchSequences(char *buf, const int limit, std::vector
             names.emplace_back(pi, nl[i]);
           } else if (full && comments) {
             pi = buf + bufpos;
-            memcpy(pi, seq[i]->qual.s,l[i]+1);
+            if (seq[i]->qual.l != 0) memcpy(pi, seq[i]->qual.s,l[i]+1);
+            else { std::string placeholder(seq[i]->seq.l, 'K'); memcpy(pi, placeholder.c_str(),l[i]+1); } // FASTA format, no quality (default to K)
             bufpos += l[i]+1;
             quals.emplace_back(pi,l[i]);
             pi = buf + bufpos;
