@@ -357,6 +357,18 @@ checkcmdoutput "$splitcode --trim-only -b AT,TT --loc-names -d 1 -p --mod-names 
 checkcmdoutput "$splitcode --trim-only -b AT,TT,GGGGG -i a,a,b --loc-names -d 1 -p --mod-names $test_dir/test_bound.fq" ca97fa58494f66bd3395ac329e5a95cf
 checkcmdoutput "$splitcode --trim-only -b AT,TT,GGGGG -i a,a,a --loc-names -d 1 -p --mod-names $test_dir/test_bound.fq" ca97fa58494f66bd3395ac329e5a95cf
 
+# Try them with FASTA file
+
+echo ">read1
+ATGAGT
+>read2
+ACACTT" > $test_dir/test_bound.fa
+
+checkcmdoutput "$splitcode --trim-only -b AT,TT --loc-names -d 1 -p --mod-names $test_dir/test_bound.fa" ec7150e2b71fcf683ed80a3013e7c203
+checkcmdoutput "$splitcode --trim-only -b AT,TT,GGGGG -i a,a,b --loc-names -d 1 -p --mod-names $test_dir/test_bound.fa" 8d701ebb09497ab0a3031e22b3ebf8a0
+checkcmdoutput "$splitcode --trim-only --out-fasta -b AT,TT --loc-names -d 1 -p --mod-names $test_dir/test_bound.fa" 3458061c02f7a942a1b4eddf47d5bd7a
+checkcmdoutput "$splitcode --trim-only --out-fasta -b AT,TT,GGGGG -i a,a,b --loc-names -d 1 -p --mod-names $test_dir/test_bound.fa" 5295712caa2eab75f1464c3a6da88be8
+
 # Allow multiple extracts in config file
 
 echo "@extract 0:0<x[2]>,0:2<x[2]>" > $test_dir/config_mult_extracts.txt
