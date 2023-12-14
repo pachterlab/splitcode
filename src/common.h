@@ -16,6 +16,7 @@ struct ProgramOptions {
   int quality_trimming_threshold;
   int64_t max_num_reads;
   int compress_level;
+  int bclen;
   bool extract_no_chain;
   bool output_fasta;
   bool no_output;
@@ -92,6 +93,7 @@ struct ProgramOptions {
     quality_trimming_threshold(-1),
     max_num_reads(0),
     compress_level(1),
+    bclen(0),
     extract_no_chain(false),
     output_fasta(false),
     no_output(false),

@@ -143,6 +143,7 @@ void usage() {
        << "-s, --summary    File where summary statistics will be written to" << endl
        << "-h, --help       Displays usage information" << endl
        << "    --assign     Assign reads to a final barcode sequence identifier based on tags present" << endl
+       << "    --bclen      The length of the final barcode sequence identifier (default: 16)" << endl
        << "    --inleaved   Specifies that input is an interleaved FASTQ file" << endl
        << "    --remultiplex  Turn on remultiplexing mode" << endl
        << "    --version    Prints version number" << endl
@@ -259,6 +260,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"sam-tags", required_argument, 0, 'M'},
     {"sub-assign", required_argument, 0, 'X'},
     {"compress", required_argument, 0, 'C'},
+    {"bclen", required_argument, 0, '9'},
     {0,0,0,0}
   };
   
@@ -439,6 +441,10 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     }
     case '3': {
       stringstream(optarg) >> opt.trim_3_str;
+      break;
+    }
+    case '9': {
+      stringstream(optarg) >> opt.bclen;
       break;
     }
     case 'w': {
@@ -623,6 +629,16 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
       cerr << "Warning: you asked for " << opt.threads
            << ", but only " << n << " cores on the machine" << endl;
     }    
+  }
+  if (opt.bclen != 0) {
+    if (!opt.barcode_prefix.empty()) {
+      cerr << ERROR_STR << " Cannot specify --prefix with --bclen" << endl;
+      ret = false;
+    }
+    if (opt.bclen >= 32 || opt.bclen < 2) {
+      cerr << ERROR_STR << " --bclen must have value between 2 and 32 " << endl;
+      ret = false;
+    }
   }
   if (opt.remultiplex && opt.files.size() != 1) {
     cerr << ERROR_STR << " A single batch file must be supplied (for remultiplexing)" << endl;
@@ -1297,7 +1313,7 @@ int main(int argc, char *argv[]) {
   ProgramOptions opt;
   ParseOptions(argc,argv,opt);
   SplitCode sc(opt.nfiles, opt.summary_file, opt.trim_only, opt.disable_n, opt.trim_5_str, opt.trim_3_str, opt.extract_str, opt.extract_no_chain, opt.barcode_prefix, opt.filter_length_str,
-               opt.quality_trimming_5, opt.quality_trimming_3, opt.quality_trimming_pre, opt.quality_trimming_naive, opt.quality_trimming_threshold, opt.phred64, opt.write_locations, opt.sub_assign_vec);
+               opt.quality_trimming_5, opt.quality_trimming_3, opt.quality_trimming_pre, opt.quality_trimming_naive, opt.quality_trimming_threshold, opt.phred64, opt.write_locations, opt.sub_assign_vec, opt.bclen);
   bool checkopts = CheckOptions(opt, sc);
   if (!checkopts) {
     usage();

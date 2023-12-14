@@ -357,6 +357,10 @@ checkcmdoutput "$splitcode --trim-only -b AT,TT --loc-names -d 1 -p --mod-names 
 checkcmdoutput "$splitcode --trim-only -b AT,TT,GGGGG -i a,a,b --loc-names -d 1 -p --mod-names $test_dir/test_bound.fq" ca97fa58494f66bd3395ac329e5a95cf
 checkcmdoutput "$splitcode --trim-only -b AT,TT,GGGGG -i a,a,a --loc-names -d 1 -p --mod-names $test_dir/test_bound.fq" ca97fa58494f66bd3395ac329e5a95cf
 
+# Shorten assigned final barcode 
+                
+checkcmdoutput "$splitcode -m /dev/null -b AT,TT -d 1 -p --mod-names --bclen=15 --bc-names $test_dir/test_bound.fq" 9e7b7980f24349c5c334e1fc02950af8
+
 # Try them with FASTA file
 
 echo ">read1

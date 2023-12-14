@@ -1,7 +1,7 @@
 #ifndef SPLITCODE_H
 #define SPLITCODE_H
 
-#define SPLITCODE_VERSION "0.29.0"
+#define SPLITCODE_VERSION "0.29.1"
 
 #include <string>
 #include <iostream>
@@ -66,6 +66,7 @@ struct SplitCode {
     summary_n_reads_filtered = 0;
     summary_n_reads_filtered_assigned = 0;
     max_seq_len = 0;
+    fake_bc_len_offset = 0;
     setNFiles(0);
     early_termination_maxFindsG = -1;
   }
@@ -74,7 +75,7 @@ struct SplitCode {
             std::string trim_5_str = "", std::string trim_3_str = "", std::string extract_str = "", bool extract_no_chain = false, std::string barcode_prefix = "",
             std::string filter_length_str = "", bool quality_trimming_5 = false, bool quality_trimming_3 = false,
             bool quality_trimming_pre = false, bool quality_trimming_naive = false, int quality_trimming_threshold = -1, bool phred64 = false,
-            bool write_tag_location_information = false, std::vector<size_t> sub_assign_vec = std::vector<size_t>(0)) {
+            bool write_tag_location_information = false, std::vector<size_t> sub_assign_vec = std::vector<size_t>(0), int fake_bc_len_override = 0) {
     init = false;
     extract_seq_names = false;
     discard_check = false;
@@ -102,6 +103,10 @@ struct SplitCode {
     this->quality_trimming_pre = quality_trimming_pre;
     this->quality_trimming_naive = quality_trimming_naive;
     this->quality_trimming_threshold = quality_trimming_threshold;
+    this->fake_bc_len_offset = 0;
+    if (fake_bc_len_override != 0) {
+      this->fake_bc_len_offset = fake_bc_len_override-((int)FAKE_BARCODE_LEN);
+    }
     this->phred64 = phred64;
     this->write_tag_location_information = write_tag_location_information;
     this->sub_assign_vec = sub_assign_vec;
@@ -3630,7 +3635,7 @@ struct SplitCode {
   }
   
   int getBarcodeLength() {
-    return FAKE_BARCODE_LEN+barcode_prefix.length();
+    return (FAKE_BARCODE_LEN+fake_bc_len_offset)+barcode_prefix.length();
   }
   
   void setNumReads(size_t num_reads, size_t max_num_reads = 0) {
@@ -3848,6 +3853,7 @@ struct SplitCode {
   int curr_barcode_mapping_i;
   int curr_umi_id_i;
   size_t max_seq_len; // Length of longest tag sequence excluding homopolymers
+  int fake_bc_len_offset;
   static const int MAX_K = 32;
   static const size_t FAKE_BARCODE_LEN = 16;
   static const char QUAL = 'K';
