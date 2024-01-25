@@ -65,7 +65,7 @@ int64_t ProcessReads(MasterProcessor& MP, const  ProgramOptions& opt) {
   std::cerr << std::endl << "done " << std::endl;
   }
   
-  int nummapped = MP.sc.getNumMapped();
+  int64_t nummapped = MP.sc.getNumMapped();
 
   if (MP.verbose) {
     std::cerr << "* processed " << pretty_num(numreads) << " reads";
@@ -511,7 +511,7 @@ void ReadProcessor::processBuffer() {
 
     if (numreads > 0 && numreads % 1000000 == 0 && mp.verbose) { 
         numreads = 0; // reset counter
-        int nummapped = mp.sc.getNumMapped();
+        int64_t nummapped = mp.sc.getNumMapped();
 
         std::cerr << '\r' << (mp.numreads/1000000) << "M reads processed";
         if (!mp.sc.always_assign) {

@@ -381,5 +381,18 @@ echo "@extract 0:3<x[1]>" >> $test_dir/config_mult_extracts.txt
 
 checkcmdoutput "$splitcode --trim-only -c $test_dir/config_mult_extracts.txt --x-only -p $test_dir/test_bound.fq" aec8f4f4691db99827b80a0f21140848
 
+echo "@no-chain" >> $test_dir/config_mult_extracts.txt
+checkcmdoutput "$splitcode --trim-only -c $test_dir/config_mult_extracts.txt --x-only -p $test_dir/test_bound.fq" fad7c4fa3cb392c57255d2a8139d4ba0
+
+
+echo "@extract 0:0<y[1]>" >> $test_dir/config_mult_extracts.txt
+echo "@extract 0:3<y[1]>" >> $test_dir/config_mult_extracts.txt
+echo "@no-chain y" >> $test_dir/config_mult_extracts.txt
+
+checkcmdoutput "$splitcode --trim-only -c $test_dir/config_mult_extracts.txt --x-only -p $test_dir/test_bound.fq" 3bbf54b385da42b516117a9b1d0bc25d
+
+echo "@no-chain x,y" >> $test_dir/config_mult_extracts.txt
+
+checkcmdoutput "$splitcode --trim-only -c $test_dir/config_mult_extracts.txt --x-only -p $test_dir/test_bound.fq" 676235664622f341a6fcb6b2035642f2
 
 

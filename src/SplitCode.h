@@ -1,13 +1,14 @@
 #ifndef SPLITCODE_H
 #define SPLITCODE_H
 
-#define SPLITCODE_VERSION "0.29.1"
+#define SPLITCODE_VERSION "0.29.2"
 
 #include <string>
 #include <iostream>
 #include <vector>
 #include <map>
 #include <unordered_map>
+#include <unordered_set>
 #include <set>
 #include <algorithm>
 #include <sstream>
@@ -1428,7 +1429,26 @@ struct SplitCode {
         std::string field;
         std::string value;
         ss >> field >> value;
-        if (value.empty()) {
+        if (field == "@qtrim-5") {
+          this->quality_trimming_5 = true;
+        } else if (field == "@qtrim-3") {
+          this->quality_trimming_3 = true;
+        } else if (field == "@qtrim-pre") {
+          this->quality_trimming_pre = true;
+        } else if (field == "@qtrim-naive") {
+          this->quality_trimming_naive = true;
+        } else if (field == "@phred64") {
+          this->phred64 = true;
+        } else if (field == "@no-chain") {
+          this->extract_no_chain = true;
+          if (!value.empty()) {
+            std::stringstream ss(value);
+            std::string extract_val;
+            while (std::getline(ss, extract_val, ',')) {
+              this->extract_no_chain_set.insert(extract_val);
+            }
+          }
+        } else if (value.empty()) {
           std::cerr << "Error: The file \"" << config_file << "\" contains an invalid line starting with @" << std::endl;
           return false;
         }
@@ -1493,18 +1513,6 @@ struct SplitCode {
             std::cerr << "Error: The file \"" << config_file << "\" specifies an invalid value for @qtrim" << std::endl;
             return false;
           }
-        } else if (field == "@qtrim-5") {
-          this->quality_trimming_5 = true;
-        } else if (field == "@qtrim-3") {
-          this->quality_trimming_3 = true;
-        } else if (field == "@qtrim-pre") {
-          this->quality_trimming_pre = true;
-        } else if (field == "@qtrim-naive") {
-          this->quality_trimming_naive = true;
-        } else if (field == "@phred64") {
-          this->phred64 = true;
-        } else if (field == "@no-chain") {
-          this->extract_no_chain = true;
         }
         continue;
       }
@@ -1762,8 +1770,8 @@ struct SplitCode {
     }
   }
   
-  int getNumMapped() {
-    int nummapped = 0;
+  int64_t getNumMapped() {
+    int64_t nummapped = 0;
     for (auto& n : idcount) {
       nummapped += n;
     }
@@ -2564,6 +2572,8 @@ struct SplitCode {
   void doUMIExtraction(std::string& seq, int pos, int k, int file, int readLength, std::map<int16_t, std::vector<int32_t>>& umi_seen, std::map<int16_t, std::vector<int32_t>>& umi_seen_copy,
                        std::vector<std::string>& umi_data, uint32_t tag_name_id, uint32_t tag_group_id, std::pair<int16_t,int32_t> location = std::make_pair(-1,-1), int64_t tag_id_ = -1) {
     auto extract_no_chain = this->extract_no_chain;
+    auto& extract_no_chain_set = this->extract_no_chain_set;
+    auto& umi_names = this->umi_names;
     auto revcomp = [](const std::string s) {
       std::string r(s);
       std::transform(s.rbegin(), s.rend(), r.begin(), [](char c) {
@@ -2578,8 +2588,15 @@ struct SplitCode {
       });
       return r;
     };
-    auto addToUmiData = [extract_no_chain, &umi_data, &revcomp](const UMI& u, const std::string& extracted_umi) {
-      umi_data[u.name_id] += extract_no_chain && !umi_data[u.name_id].empty() ? "" : (!u.rev_comp ? extracted_umi : revcomp(extracted_umi));
+    auto addToUmiData = [extract_no_chain, &extract_no_chain_set, &umi_names, &umi_data, &revcomp](const UMI& u, const std::string& extracted_umi) {
+      bool extract_no_chain_ = extract_no_chain;
+      if (extract_no_chain_ && !extract_no_chain_set.empty()) {
+        extract_no_chain_ = false;
+        if (extract_no_chain_set.find(umi_names[u.name_id]) != extract_no_chain_set.end()) {
+          extract_no_chain_ = true;
+        }
+      }
+      umi_data[u.name_id] += extract_no_chain_ && !umi_data[u.name_id].empty() ? "" : (!u.rev_comp ? extracted_umi : revcomp(extracted_umi));
     };
 
     const auto& umi_vec_name = umi_name_map.find(tag_name_id) != umi_name_map.end() ? umi_name_map[tag_name_id] : std::vector<UMI>(0);
@@ -2838,6 +2855,8 @@ struct SplitCode {
   
   void doUMIExtractionSeqNames(const std::string& identified_tags_seq, std::vector<std::string>& umi_data) {
     auto extract_no_chain = this->extract_no_chain;
+    auto& extract_no_chain_set = this->extract_no_chain_set;
+    auto& umi_names = this->umi_names;
     auto revcomp = [](const std::string s) {
       std::string r(s);
       std::transform(s.rbegin(), s.rend(), r.begin(), [](char c) {
@@ -2852,8 +2871,15 @@ struct SplitCode {
       });
       return r;
     };
-    auto addToUmiData = [extract_no_chain, &umi_data, &revcomp](const UMI& u, const std::string& extracted_umi) {
-      umi_data[u.name_id] += extract_no_chain && !umi_data[u.name_id].empty() ? "" : (!u.rev_comp ? extracted_umi : revcomp(extracted_umi));
+    auto addToUmiData = [extract_no_chain, &extract_no_chain_set, &umi_names, &umi_data, &revcomp](const UMI& u, const std::string& extracted_umi) {
+      bool extract_no_chain_ = extract_no_chain;
+      if (extract_no_chain_ && !extract_no_chain_set.empty()) {
+        extract_no_chain_ = false;
+        if (extract_no_chain_set.find(umi_names[u.name_id]) != extract_no_chain_set.end()) {
+          extract_no_chain_ = true;
+        }
+      }
+      umi_data[u.name_id] += extract_no_chain_ && !umi_data[u.name_id].empty() ? "" : (!u.rev_comp ? extracted_umi : revcomp(extracted_umi));
     };
     const auto &u = extract_seq_names_umi;
     auto extract_min_len = u.length_range_start;
@@ -3780,7 +3806,7 @@ struct SplitCode {
   splitcode_u_map__<std::vector<uint16_t>, int, VectorHasher> idmapinv16;
   splitcode_u_map__<std::vector<uint32_t>, int, VectorHasher> subassign_idmapinv;
   splitcode_u_map__<std::vector<uint16_t>, int, VectorHasher> subassign_idmapinv16;
-  std::vector<uint32_t> idcount;
+  std::vector<int64_t> idcount;
   std::unordered_map<std::vector<uint32_t>, std::string, VectorHasher> idmapinv_keep;
   std::unordered_map<std::vector<uint32_t>, int, VectorHasher> idmapinv_discard;
   std::unordered_map<std::vector<uint32_t>, std::string, VectorHasher> groupmapinv_keep;
@@ -3803,6 +3829,7 @@ struct SplitCode {
   std::string barcode_prefix;
   std::string trim_5_str, trim_3_str;
   std::string extract_str;
+  std::unordered_set<std::string> extract_no_chain_set;
   std::string filter_length_str;
   std::vector<std::pair<int,int>> trim_5_3_vec;
   std::vector<std::pair<int,int>> filter_length_vec;
