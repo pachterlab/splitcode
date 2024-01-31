@@ -307,102 +307,101 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
       break;
     }
     case 'b': {
-      stringstream(optarg) >> opt.barcode_str;
+      opt.barcode_str = optarg;
       break;
     }
     case 'd': {
-      stringstream(optarg) >> opt.distance_str;
+      opt.distance_str = optarg;
       break;
     }
     case 'l': {
-      stringstream(optarg) >> opt.location_str;
+      opt.location_str = optarg;
       break;
     }
     case 'i': {
-      stringstream(optarg) >> opt.barcode_identifiers_str;
+      opt.barcode_identifiers_str = optarg;
       break;
     }
     case 'g': {
-      stringstream(optarg) >> opt.group_identifiers_str;
+      opt.group_identifiers_str = optarg;
       break;
     }
     case 'F': {
-      stringstream(optarg) >> opt.max_finds_str;
+      opt.max_finds_str = optarg;
       break;
     }
     case 'f': {
-      stringstream(optarg) >> opt.min_finds_str;
+      opt.min_finds_str = optarg;
       break;
     }
     case 'J': {
-      stringstream(optarg) >> opt.max_finds_group_str;
+      opt.max_finds_group_str = optarg;
       break;
     }
     case 'j': {
-      stringstream(optarg) >> opt.min_finds_group_str;
+      opt.min_finds_group_str = optarg;
       break;
     }
     case 'e': {
-      stringstream(optarg) >> opt.exclude_str;
+      opt.exclude_str = optarg;
       break;
     }
     case 'L': {
-      stringstream(optarg) >> opt.left_str;
+      opt.left_str = optarg;
       break;
     }
     case 'R': {
-      stringstream(optarg) >> opt.right_str;
+      opt.right_str = optarg;
       break;
     }
     case 'a': {
-      stringstream(optarg) >> opt.after_str;
+      opt.after_str = optarg;
       break;
     }
     case 'v': {
-      stringstream(optarg) >> opt.before_str;
+      opt.before_str = optarg;
       break;
     }
     case 'U': {
-      stringstream(optarg) >> opt.subs_str;
+      opt.subs_str = optarg;
       break;
     }
     case 'z': {
-      stringstream(optarg) >> opt.partial5_str;
+      opt.partial5_str = optarg;
       break;
     }
     case 'Z': {
-      stringstream(optarg) >> opt.partial3_str;
+      opt.partial3_str = optarg;
       break;
     }
     case 'c': {
-      stringstream(optarg) >> opt.config_file;
+      opt.config_file = optarg;
       break;
     }
     case 'm': {
-      stringstream(optarg) >> opt.mapping_file;
+      opt.mapping_file = optarg;
       break;
     }
     case 'k': {
-      stringstream(optarg) >> opt.keep_file;
+      opt.keep_file = optarg;
       break;
     }
     case 'r': {
       opt.discard = true;
-      stringstream(optarg) >> opt.keep_file;
+      opt.keep_file = optarg;
       break;
     }
     case 'y': {
-      stringstream(optarg) >> opt.keep_group_file;
+      opt.keep_group_file = optarg;
       break;
     }
     case 'Y': {
       opt.discard_group = true;
-      stringstream(optarg) >> opt.keep_group_file;
+      opt.keep_group_file = optarg;
       break;
     }
     case 'o': {
-      std::string files;
-      stringstream(optarg) >> files;
+      std::string files = optarg;
       std::stringstream ss(files);
       std::string filename;
       while (std::getline(ss, filename, ',')) { 
@@ -411,23 +410,22 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
       break;
     }
     case 'O': {
-      stringstream(optarg) >> opt.outputb_file;
+      opt.outputb_file = optarg;
       break;
     }
     case 'A': {
-      stringstream(optarg) >> opt.append_file;
+      opt.append_file = optarg;
       break;
     }
     case 'E': {
-      stringstream(optarg) >> opt.empty_read_sequence;
+      opt.empty_read_sequence = optarg;
       for (auto& c: opt.empty_read_sequence) {
         c = toupper(c);
       }
       break;
     }
     case 'u': {
-      std::string files;
-      stringstream(optarg) >> files;
+      std::string files = optarg;
       std::stringstream ss(files);
       std::string filename;
       while (std::getline(ss, filename, ',')) { 
@@ -436,11 +434,11 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
       break;
     }
     case '5': {
-      stringstream(optarg) >> opt.trim_5_str;
+      opt.trim_5_str = optarg;
       break;
     }
     case '3': {
-      stringstream(optarg) >> opt.trim_3_str;
+      opt.trim_3_str = optarg;
       break;
     }
     case '9': {
@@ -448,15 +446,15 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
       break;
     }
     case 'w': {
-      stringstream(optarg) >> opt.filter_length_str;
+      opt.filter_length_str = optarg;
       break;
     }
     case 'x': {
-      stringstream(optarg) >> opt.extract_str;
+      opt.extract_str = optarg;
       break;
     }
     case 'P': {
-      stringstream(optarg) >> opt.barcode_prefix;
+      opt.barcode_prefix = optarg;
       break;
     }
     case 'q': {
@@ -464,11 +462,11 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
       break;
     }
     case 's': {
-      stringstream(optarg) >> opt.summary_file;
+      opt.summary_file = optarg;
       break;
     }
     case 'S': {
-      stringstream(optarg) >> opt.select_output_files_str;
+      opt.select_output_files_str = optarg;
       break;
     }
     case 'C': {
@@ -482,8 +480,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
       break;
     }
     case 'X': {
-      std::string subset_n;
-      stringstream(optarg) >> subset_n;
+      std::string subset_n = optarg;
       std::stringstream ss(subset_n);
       while (std::getline(ss, subset_n, ',')) { 
         try {
@@ -495,8 +492,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
       break;
     }
     case 'M': {
-      std::string m;
-      stringstream(optarg) >> m;
+      std::string m = optarg;
       m.erase(remove(m.begin(),m.end(),' '),m.end()); // remove spaces from string
       std::stringstream ss(m);
       std::string s;
