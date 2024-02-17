@@ -114,6 +114,7 @@ void usage() {
        << "-S, --select     Select which FASTQ files to output (comma-separated) (e.g. 0,1,3 = Output files #0, #1, #3)" << endl
        << "    --gzip       Output compressed gzip'ed FASTQ files" << endl
        << "    --out-fasta  Output in FASTA format rather than FASTQ format" << endl
+       << "    --out-bam    Output a BAM file rather than FASTQ files (enter the output BAM file name to -o or --output)" << endl
        << "    --keep-com   Preserve the comments of the read names of the input FASTQ file(s)" << endl
        << "    --no-output  Don't output any sequences" << endl
        << "    --no-outb    Don't output final barcode sequences" << endl
@@ -156,6 +157,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   int cite_flag = 0;
   int no_chain_flag = 0;
   int output_fasta_flag = 0;
+  int output_bam_flag = 0;
   int no_output_flag = 0;
   int no_output_barcodes_flag = 0;
   int no_output_extracted_flag = 0;
@@ -190,6 +192,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"cite", no_argument, &cite_flag, 1},
     {"no-chain", no_argument, &no_chain_flag, 1},
     {"out-fasta", no_argument, &output_fasta_flag, 1},
+    {"out-bam", no_argument, &output_bam_flag, 1},
     {"no-output", no_argument, &no_output_flag, 1},
     {"no-outb", no_argument, &no_output_barcodes_flag, 1},
     {"no-x-out", no_argument, &no_output_extracted_flag, 1},
@@ -537,6 +540,11 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   if (output_fasta_flag) {
     opt.output_fasta = true;
   }
+  if (output_bam_flag) {
+    opt.outbam = true;
+    if (opt.pipe) opt.outbampipe = true; // Write BAM to stdout
+    opt.pipe = true; // Always pretend there's a pipe (b/c outputting a BAM is similar to having piped output where only one thing is outputted)
+  }
   if (no_output_flag) {
     opt.no_output = true;
   }
@@ -616,6 +624,31 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
 
 bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
   bool ret = true;
+
+  if (opt.outbam) { // BAM options
+#ifdef NO_HTSLIB
+    std::cerr << ERROR_STR << " BAM files not supported because splitcode was compiled without BAM file support" << std::endl;
+    return false;
+#endif
+    opt.pipe = true;
+    opt.gzip = false;
+    if (!opt.outbampipe) {
+      if (opt.output_files.size() == 0) {
+        std::cerr << ERROR_STR << " Must supply an output BAM file name to --output" << std::endl;
+        ret = false;
+      } else if (opt.output_files.size() > 1) {
+        std::cerr << ERROR_STR << " Cannot supply multiple BAM file names to --output" << std::endl;
+        ret = false;
+      }
+      opt.outbamfile = opt.output_files[0];
+      opt.output_files.clear();
+    }
+    if (opt.phred64) {
+      std::cerr << ERROR_STR << " --phred64 incompatible with writing BAM files" << std::endl;
+    }
+    if (!ret) return ret;
+  }
+
   if (opt.threads <= 0) {
     cerr << "Error: invalid number of threads " << opt.threads << endl;
     ret = false;
@@ -1339,7 +1372,7 @@ int main(int argc, char *argv[]) {
         }
       }
     }
-    if (use_gz) {
+    if (use_gz && !opt.outbam) {
       std::cerr << "* Forcing --gzip because all output file names end in .gz" << std::endl;
       opt.gzip = true;
     }

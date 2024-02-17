@@ -240,6 +240,25 @@ public:
         }
       }
     }
+  
+#ifndef NO_HTSLIB
+    bamfp = nullptr;
+    if (opt.outbam) { // Open up BAM file for writing
+      if (opt.outbampipe) {
+        bamfp = sam_open("-", "wb");
+      } else {
+        bamfp = sam_open(opt.outbamfile.c_str(), "wb");
+      }
+      hdr = bam_hdr_init();
+      std::string header = "@HD\tVN:1.6\tSO:unknown\n@PG\tID:splitcode\tPN:splitcode\tVN:";
+      header += SPLITCODE_VERSION;
+      header += "\n";
+      hdr->text = strdup(header.c_str());
+      hdr->l_text = (uint32_t) strlen(hdr->text);
+      hdr->n_targets = 0;
+      sam_hdr_write(bamfp, hdr);
+    }
+#endif
   }
   
   ~MasterProcessor() {
@@ -283,6 +302,12 @@ public:
       }
     }
     delete SR;
+#ifndef NO_HTSLIB
+    if (bamfp != nullptr) {
+      free(hdr->text);
+      sam_close(bamfp);
+    }
+#endif
   }
   
   std::mutex reader_lock;
@@ -301,6 +326,10 @@ public:
   std::unordered_map<std::string, std::vector<gzFile>> out_keep_gz;
   std::vector<FILE*> outumi;
   std::vector<gzFile> outumi_gz;
+#ifndef NO_HDF5
+  samFile* bamfp;
+  bam_hdr_t *hdr;
+#endif
   std::vector<int> batch_id_mapping; // minimal perfect mapping of batch ID
   bool write_output_fastq;
   bool write_barcode_separate_fastq;
@@ -329,6 +358,7 @@ public:
                    std::vector<std::pair<const char*, int>>& names,
                    std::vector<std::pair<const char*, int>>& quals,
                    std::vector<uint32_t>& flags);
+  void writeBam(const std::string& s);
 };
 
 class ReadProcessor {

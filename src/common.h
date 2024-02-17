@@ -54,6 +54,7 @@ struct ProgramOptions {
   bool write_locations;
   bool webasm;
   bool outbam;
+  bool outbampipe;
   std::vector<std::string> files;
   std::vector<std::string> output_files;
   std::string outputb_file;
@@ -88,6 +89,7 @@ struct ProgramOptions {
   std::string summary_file;
   std::string subs_str;
   std::string select_output_files_str;
+  std::string outbamfile;
   std::vector<bool> select_output_files;
   std::vector<std::vector<std::string> > sam_tags;
   std::vector<size_t> sub_assign_vec;
@@ -131,7 +133,8 @@ struct ProgramOptions {
     remultiplex(false),
     write_locations(false),
     webasm(false),
-    outbam(false)
+    outbam(false),
+    outbampipe(false)
   {
     const char* sam_tags_default[6] = {"CB:Z:", "RX:Z:", "BI:i:", "SI:i:", "BC:Z:", "LX:Z:"};
     sam_tags.push_back(std::vector<std::string>(1, std::string(sam_tags_default[0])));

@@ -373,7 +373,9 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
       const std::string& ostr = o.str();
       size_t ostr_len = ostr.length();
       if (assigned2) {
-        if (use_pipe) {
+        if (opt.outbam) {
+          writeBam(ostr);
+        } else if (use_pipe) {
           if (!opt.no_output_) fwrite(ostr.c_str(), 1, ostr_len, stdout);
         } else {
           if (opt.gzip) {
@@ -392,6 +394,71 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
       }
     }
     i += incf;
+  }
+}
+
+void MasterProcessor::writeBam(const std::string& ostr) {
+  std::istringstream iss(ostr);
+  std::string read_header;
+  std::string read_sequence;
+  std::string separator;
+  std::string quality_sequence;
+  std::getline(iss, read_header, '\n');
+  std::getline(iss, read_sequence, '\n');
+  if (std::getline(iss, separator, '\n')) {
+    std::getline(iss, quality_sequence, '\n');
+  }
+  // TODO: Handle paired-endness (nfastqs)
+  const char* name = read_header.c_str()+1;
+  int nlen = strlen(name);
+  const char* seq = read_sequence.c_str();
+  int slen = strlen(seq);
+  const char* qual = quality_sequence.c_str();
+  int qlen = strlen(qual);
+  
+  // TODO: Maybe have RNAME be the --mod-names?
+  
+  static char buf1[32768];
+  static char buf2[32768];
+  bam1_t b1;
+  bam1_core_t core1;
+  core1.tid = -1;
+  core1.pos = -1;
+  core1.bin = 4680; // magic bin for unmapped reads
+  core1.qual = 0;
+  core1.mtid = -1;
+  core1.mpos = -1;
+  core1.isize = 0;
+  core1.n_cigar = 0;
+  core1.l_qname = nlen;
+  core1.l_qseq = slen;
+  core1.flag = BAM_FUNMAP | BAM_FMUNMAP; // TODO: BAM_FPAIRED | BAM_FREAD1 // BAM_FPAIRED | BAM_FREAD2
+  b1.core = std::move(core1);
+  int auxlen = 3; // TODO:
+  uint8_t* buf = (uint8_t*)&buf1[0];
+  memcpy(buf, name, nlen);
+  int p = core1.l_qname;
+  // copy the sequence
+  int lseq = (slen+1)>>1;
+  uint8_t *seqp = (uint8_t *) (buf+p);
+  memset(seqp,0,lseq);
+  for (int i = 0; i < slen; ++i) {
+    seqp[i>>1] |= seq_nt16_table[(int)seq[i]] << ((~i&1)<<2);
+  }
+  p += lseq;
+  // copy qual
+  for (int i = 0; i < qlen; i++) {
+    buf[p+i] = qual[i] - 33;
+  }
+  p += qlen;
+  b1.l_data = p;
+  b1.m_data = core1.l_qname + ((core1.l_qseq+2)>>1) + core1.l_qseq + auxlen;
+  b1.data = buf; // structure: qname-cigar-seq-qual-aux
+  int ret = 0;
+  ret = sam_write1(bamfp, hdr, &b1);
+  if (ret < 0) {
+    std::cerr << "Error writing to BAM file... exiting" << std::endl;
+    exit(1);
   }
 }
 
