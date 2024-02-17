@@ -9,6 +9,12 @@
 typedef unsigned int uint;
 #endif
 
+#ifndef NO_HTSLIB
+#include <htslib/sam.h>
+#include <htslib/hts.h>
+#include <htslib/bgzf.h>
+#endif
+
 struct ProgramOptions {
   int threads;
   int nfiles;
@@ -47,6 +53,7 @@ struct ProgramOptions {
   bool remultiplex;
   bool write_locations;
   bool webasm;
+  bool outbam;
   std::vector<std::string> files;
   std::vector<std::string> output_files;
   std::string outputb_file;
@@ -123,7 +130,8 @@ struct ProgramOptions {
     keep_fastq_comments(false),
     remultiplex(false),
     write_locations(false),
-    webasm(false)
+    webasm(false),
+    outbam(false)
   {
     const char* sam_tags_default[6] = {"CB:Z:", "RX:Z:", "BI:i:", "SI:i:", "BC:Z:", "LX:Z:"};
     sam_tags.push_back(std::vector<std::string>(1, std::string(sam_tags_default[0])));

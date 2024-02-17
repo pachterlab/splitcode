@@ -25,9 +25,15 @@ ELSE(LINK MATCHES shared)
     message("shared build")
 ENDIF(LINK MATCHES static)
 
+set(USE_HTSLIB "ON")
+if (NO_HTSLIB)
+    set(USE_HTSLIB OFF)
+endif()
+
 if(EMSCRIPTEN_BUILD)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -s USE_ZLIB=1")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -s USE_ZLIB=1")
+    set(USE_HTSLIB OFF)
 endif()
 
 add_subdirectory(src)
@@ -54,4 +60,22 @@ if (ZLIBNG)
     INSTALL_COMMAND ""
     )
 endif(ZLIBNG)
+
+if (USE_HTSLIB)
+    message("using htslib")
+    ExternalProject_Add(htslib
+    PREFIX ${PROJECT_SOURCE_DIR}/ext/htslib
+    SOURCE_DIR ${PROJECT_SOURCE_DIR}/ext/htslib
+    BUILD_IN_SOURCE 1
+    CONFIGURE_COMMAND ""
+    BUILD_COMMAND make lib-static
+    INSTALL_COMMAND ""
+    )
+else()
+    set(NO_HTSLIB "ON")
+    add_compile_definitions("NO_HTSLIB=ON")
+    message("not using htslib")
+endif()
+
+
 
