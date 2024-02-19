@@ -55,6 +55,7 @@ struct ProgramOptions {
   bool webasm;
   bool outbam;
   bool outbampipe;
+  bool mod_names_bam;
   std::vector<std::string> files;
   std::vector<std::string> output_files;
   std::string outputb_file;
@@ -134,15 +135,17 @@ struct ProgramOptions {
     write_locations(false),
     webasm(false),
     outbam(false),
-    outbampipe(false)
+    outbampipe(false),
+    mod_names_bam(false)
   {
-    const char* sam_tags_default[6] = {"CB:Z:", "RX:Z:", "BI:i:", "SI:i:", "BC:Z:", "LX:Z:"};
+    const char* sam_tags_default[7] = {"CB:Z:", "RX:Z:", "BI:i:", "SI:i:", "BC:Z:", "LX:Z:", "YM:Z:"};
     sam_tags.push_back(std::vector<std::string>(1, std::string(sam_tags_default[0])));
     sam_tags.push_back(std::vector<std::string>(1, std::string(sam_tags_default[1])));
     sam_tags.push_back(std::vector<std::string>(1, std::string(sam_tags_default[2])));
     sam_tags.push_back(std::vector<std::string>(1, std::string(sam_tags_default[3])));
     sam_tags.push_back(std::vector<std::string>(1, std::string(sam_tags_default[4])));
     sam_tags.push_back(std::vector<std::string>(1, std::string(sam_tags_default[5])));
+    sam_tags.push_back(std::vector<std::string>(1, std::string(sam_tags_default[6])));
   }
 };
 

@@ -358,7 +358,7 @@ public:
                    std::vector<std::pair<const char*, int>>& names,
                    std::vector<std::pair<const char*, int>>& quals,
                    std::vector<uint32_t>& flags);
-  void writeBam(const std::string& s);
+  void writeBam(const std::string& s, int readNameLen=0, int readPair=0);
 };
 
 class ReadProcessor {

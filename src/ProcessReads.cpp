@@ -268,15 +268,17 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
       }
       const std::string& ostr = o.str();
       size_t ostr_len = ostr.length();
-      if (use_pipe && !write_barcode_separate_fastq_) {
-        if (!opt.no_output_) fwrite(ostr.c_str(), 1, ostr_len, stdout);
-      } else if (opt.gzip) {
-        gzwrite(r.ofile.empty() ? outb_gz : out_keep_gz[r.ofile][0], ostr.c_str(), ostr_len);
-      } else {
-        fwrite(ostr.c_str(), 1, ostr_len, r.ofile.empty() ? outb : out_keep[r.ofile][0]);
+      if (!opt.outbam || !r.ofile.empty()) { // Only write barcode read if we're not writing BAM files (or we're writing BAM files but we need to write the current read into a FASTQ file for the "keep" demultiplexing)
+        if (use_pipe && !write_barcode_separate_fastq_) {
+          if (!opt.no_output_) fwrite(ostr.c_str(), 1, ostr_len, stdout);
+        } else if (opt.gzip) {
+          gzwrite(r.ofile.empty() ? outb_gz : out_keep_gz[r.ofile][0], ostr.c_str(), ostr_len);
+        } else {
+          fwrite(ostr.c_str(), 1, ostr_len, r.ofile.empty() ? outb : out_keep[r.ofile][0]);
+        }
       }
     }
-    if (!sc.umi_names.empty() && assigned2 && !opt.no_x_out) { // Write out extracted UMIs as needed
+    if (!sc.umi_names.empty() && assigned2 && !opt.no_x_out && !opt.outbam) { // Write out extracted UMIs as needed
       for (int umi_index = 0; umi_index < sc.umi_names.size(); umi_index++) { // Iterate through vector of all UMI names
         std::string curr_umi = umi_vec[umi_index];
         if (curr_umi.empty()) {
@@ -373,9 +375,9 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
       const std::string& ostr = o.str();
       size_t ostr_len = ostr.length();
       if (assigned2) {
-        if (opt.outbam) {
-          writeBam(ostr);
-        } else if (use_pipe) {
+        if (opt.outbam && r.ofile.empty()) {
+          writeBam(ostr, nl, jmax == 2 ? jj+1 : 0);
+        } else if (use_pipe && !opt.outbam) {
           if (!opt.no_output_) fwrite(ostr.c_str(), 1, ostr_len, stdout);
         } else {
           if (opt.gzip) {
@@ -397,7 +399,7 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
   }
 }
 
-void MasterProcessor::writeBam(const std::string& ostr) {
+void MasterProcessor::writeBam(const std::string& ostr, int readNameLen, int readPair) {
   std::istringstream iss(ostr);
   std::string read_header;
   std::string read_sequence;
@@ -408,7 +410,6 @@ void MasterProcessor::writeBam(const std::string& ostr) {
   if (std::getline(iss, separator, '\n')) {
     std::getline(iss, quality_sequence, '\n');
   }
-  // TODO: Handle paired-endness (nfastqs)
   const char* name = read_header.c_str()+1;
   int nlen = strlen(name);
   const char* seq = read_sequence.c_str();
@@ -416,8 +417,48 @@ void MasterProcessor::writeBam(const std::string& ostr) {
   const char* qual = quality_sequence.c_str();
   int qlen = strlen(qual);
   
-  // TODO: Maybe have RNAME be the --mod-names?
-  
+  if (opt.keep_fastq_comments) { // We want to preserve FASTQ comments from before (and we'll add them as BAM tags)
+    readNameLen = 0;
+    for (int i = 0; name[i] != '\0' && name[i] != '\t' && name[i] != ' '; i++) {
+      readNameLen++;
+    }
+  }
+
+  std::vector<std::string> bam_tags;
+  std::string rname; // This is where we store the --mod-names
+  int rname_original_len = 0; // The length of the original --mod-names in the read header
+  int start_bam_tags = readNameLen+1; // Start position of the BAM tags in the read header
+  if (nlen > readNameLen) {
+    if (name[readNameLen] == ':' && name[readNameLen+1] == ':') { // We have :: (--mod-names)
+      int i;
+      rname_original_len = 2;
+      for (i = readNameLen+2; i < nlen; i++, rname_original_len++) {
+        if (name[i] == ' ') break; // Encountered a space so we end it
+        if (name[i] != '[' && name[i] != ']') { // Skip these characters since BAM files don't allow these
+          rname += name[i];
+        } else if (name[i] == ']') {
+          rname += ":"; // We'll use a colon as a separator between tag names
+        }
+      }
+      rname.pop_back(); // Remove final ] from read name
+      rname = opt.sam_tags[6][0] + rname;
+      bam_tags.push_back(rname);
+      start_bam_tags = i+1;
+    }
+  }
+  if (start_bam_tags < nlen) { // position number 2 implies a string of length 3 or more (length 2: 0,1)
+    std::string read_header_bam_tags(name+start_bam_tags);
+    std::stringstream ss(read_header_bam_tags);
+    std::string curr_tag;
+    while (ss >> curr_tag) {
+      bam_tags.push_back(curr_tag);
+    }
+  }
+  nlen = readNameLen;
+  if (opt.mod_names_bam) {
+    nlen += rname_original_len; // Add the original --mod-names back in if --mod-names-bam is specified
+  }
+
   static char buf1[32768];
   static char buf2[32768];
   bam1_t b1;
@@ -432,9 +473,13 @@ void MasterProcessor::writeBam(const std::string& ostr) {
   core1.n_cigar = 0;
   core1.l_qname = nlen;
   core1.l_qseq = slen;
-  core1.flag = BAM_FUNMAP | BAM_FMUNMAP; // TODO: BAM_FPAIRED | BAM_FREAD1 // BAM_FPAIRED | BAM_FREAD2
+  core1.flag = BAM_FUNMAP | BAM_FMUNMAP;
+  if (readPair == 1) {
+    core1.flag |= BAM_FPAIRED | BAM_FREAD1;
+  } else if (readPair == 2) {
+    core1.flag |= BAM_FPAIRED | BAM_FREAD2;
+  }
   b1.core = std::move(core1);
-  int auxlen = 3; // TODO:
   uint8_t* buf = (uint8_t*)&buf1[0];
   memcpy(buf, name, nlen);
   int p = core1.l_qname;
@@ -452,8 +497,26 @@ void MasterProcessor::writeBam(const std::string& ostr) {
   }
   p += qlen;
   b1.l_data = p;
-  b1.m_data = core1.l_qname + ((core1.l_qseq+2)>>1) + core1.l_qseq + auxlen;
+  b1.m_data = core1.l_qname + ((core1.l_qseq+2)>>1) + core1.l_qseq;
   b1.data = buf; // structure: qname-cigar-seq-qual-aux
+  for (auto& bam_tag: bam_tags) { // XX:X:XXXX
+    if (bam_tag.length() < 5) continue;
+    b1.data[b1.l_data] = bam_tag[0];
+    b1.data[b1.l_data+1] = bam_tag[1];
+    if (bam_tag[2] != ':') continue;
+    if (bam_tag[4] != ':') continue;
+    b1.data[b1.l_data+2] = bam_tag[3];
+    if (bam_tag[3] == 'Z') { // The value of our BAM tag is a string
+      memcpy(b1.data + b1.l_data + 3, bam_tag.c_str()+5, bam_tag.length()+1-5);
+      b1.l_data += 3+bam_tag.length()+1-5;
+      b1.m_data += 3+bam_tag.length()+1-5;
+    } else if (bam_tag[3] == 'i') { // The value of our BAM tag is an integer
+      int val = std::atoi(bam_tag.c_str()+5);
+      memcpy(b1.data + b1.l_data + 3, &val, 4);
+      b1.l_data += 7;
+      b1.m_data += 7;
+    }
+  }
   int ret = 0;
   ret = sam_write1(bamfp, hdr, &b1);
   if (ret < 0) {
@@ -710,7 +773,7 @@ bool FastqSequenceReader::fetchSequences(char *buf, const int limit, std::vector
       // fits into the buffer
       if (full) {
         for (int i = 0; i < nfiles; i++) {
-          nl[i] = seq[i]->name.l + (comments ? seq[i]->comment.l+1 : 0);
+          nl[i] = seq[i]->name.l + (comments && seq[i]->comment.l != 0 ? seq[i]->comment.l+1 : 0);
           bufadd += l[i] + nl[i]; // includes name and qual
         }
         bufadd += 2*pad;
@@ -748,16 +811,22 @@ bool FastqSequenceReader::fetchSequences(char *buf, const int limit, std::vector
             bufpos += l[i]+1;
             quals.emplace_back(pi,l[i]);
             pi = buf + bufpos;
-            memcpy(pi, seq[i]->name.s, (nl[i]-(seq[i]->comment.l+1)));
-            names.emplace_back(pi, nl[i]);
-            bufpos += (nl[i]-(seq[i]->comment.l+1));
-            pi = buf + bufpos;
-            const char* blank_space = " ";
-            memcpy(pi, blank_space, 1);
-            bufpos += 1;
-            pi = buf + bufpos;
-            memcpy(pi, seq[i]->comment.s, seq[i]->comment.l+1);
-            bufpos += seq[i]->comment.l+1;
+            if (seq[i]->comment.l == 0) {
+              memcpy(pi, seq[i]->name.s, nl[i]+1);
+              names.emplace_back(pi, nl[i]);
+              bufpos += nl[i]+1;
+            } else {
+              memcpy(pi, seq[i]->name.s, (nl[i]-(seq[i]->comment.l+1)));
+              names.emplace_back(pi, nl[i]);
+              bufpos += (nl[i]-(seq[i]->comment.l+1));
+              pi = buf + bufpos;
+              const char* blank_space = " ";
+              memcpy(pi, blank_space, 1);
+              bufpos += 1;
+              pi = buf + bufpos;
+              memcpy(pi, seq[i]->comment.s, seq[i]->comment.l+1);
+              bufpos += seq[i]->comment.l+1;
+            }
           }
         }
 
@@ -770,7 +839,7 @@ bool FastqSequenceReader::fetchSequences(char *buf, const int limit, std::vector
         }
         return true; // read it next time
       }
-
+      
       // read for the next one
       for (int i = 0; i < nfiles; i++) {
         l[i] = kseq_read(seq[i]);
