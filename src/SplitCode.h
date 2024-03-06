@@ -1433,19 +1433,45 @@ struct SplitCode {
     std::string line;
     bool header_read = false;
     std::vector<std::string> h;
+    bool _keep = false;
+    bool _keep_grp = false;
+    bool _remove = false;
+    bool _remove_grp = false;
     while (std::getline(cfile,line)) {
       if (line.size() == 0) {
+        _keep = false;
+        _keep_grp = false;
+        _remove = false;
+        _remove_grp = false;
         continue;
       }
       if (line[0] == '#') {
         continue;
       }
-      if (line[0] == '@') {
+      if (line[0] == '@' || (_keep || _keep_grp || _remove || _remove_grp)) {
         std::stringstream ss(line);
         std::string field;
         std::string value;
         ss >> field >> value;
-        if (field == "@qtrim-5") {
+        if (_keep || _keep_grp || _remove || _remove_grp) { // Read continuous multi-line value (until an empty line)
+          std::string sline = field + " " + value;
+          while (ss >> value) {
+            sline = " " + value;
+          }
+          value = sline + "\n";
+          if (_keep) _keep_str += value;
+          if (_keep_grp) _keep_grp_str += value;
+          if (_remove) _remove_str += value;
+          if (_remove_grp) _remove_grp_str += value;
+        } else if (field == "@keep:") {
+          _keep = true;
+        } else if (field == "@keep-grp:") {
+          _keep_grp = true;
+        } else if (field == "@remove:") {
+          _remove = true;
+        } else if (field == "@remove-grp:") {
+          _remove_grp = true;
+        } else if (field == "@qtrim-5") {
           this->quality_trimming_5 = true;
         } else if (field == "@qtrim-3") {
           this->quality_trimming_3 = true;
@@ -1643,6 +1669,13 @@ struct SplitCode {
         }
       }
     }
+    
+    // Do some final processing: i.e. if the keep/discard text corpus were provided in the config file, process them now
+    if (!_keep_str.empty()) addFilterList(_keep_str, false, true);
+    if (!_remove_str.empty()) addFilterList(_remove_str, true, true);
+    if (!_keep_grp_str.empty()) addFilterListGroup(_keep_grp_str, false, true);
+    if (!_remove_grp_str.empty()) addFilterListGroup(_remove_grp_str, true, true);
+    
     checkInit();
     return true;
   }
@@ -2096,16 +2129,25 @@ struct SplitCode {
     return true;
   }
   
-  bool addFilterList(std::string keep_file, bool discard=false) {
+  bool addFilterList(std::string keep_file, bool discard=false, bool is_text_corpus = false) {
     struct stat stFileInfo;
     auto intstat = stat(keep_file.c_str(), &stFileInfo);
-    if (intstat != 0) {
-      std::cerr << "Error: file not found " << keep_file << std::endl;
-      return false;
+    if (!is_text_corpus) {
+      if (intstat != 0) {
+        std::cerr << "Error: file not found " << keep_file << std::endl;
+        return false;
+      }
     }
     std::ifstream kfile(keep_file);
+    std::istringstream textStream(keep_file);
+    
+    if (is_text_corpus) return processFilterList(textStream, discard, "");
+    else return processFilterList(kfile, discard, keep_file);
+  }
+  
+  bool processFilterList(std::istream& input, bool discard, std::string keep_file) {
     std::string line;
-    while (std::getline(kfile,line)) {
+    while (std::getline(input,line)) {
       std::string ofile = "";
       if (line.size() == 0) {
         continue;
@@ -2129,7 +2171,8 @@ struct SplitCode {
         }
         const auto& itnames = std::find(names.begin(), names.end(), name);
         if (itnames == names.end()) {
-          std::cerr << "Error: File " << keep_file << " contains the name \"" << name << "\" which does not exist" << std::endl;
+          if (!keep_file.empty()) std::cerr << "Error: File " << keep_file << " contains the name \"" << name << "\" which does not exist" << std::endl;
+          else std::cerr << "Name \"" << name << "\" does not exist" << std::endl;
           return false;
         }
         u.push_back(itnames - names.begin());
@@ -2137,10 +2180,12 @@ struct SplitCode {
       auto it1 = idmapinv_keep.find(u);
       auto it2 = idmapinv_discard.find(u);
       if (it1 != idmapinv_keep.end() || it2 != idmapinv_discard.end()) {
-        std::cerr << "Error: In file " << keep_file << ", the following line is duplicated: " << line << std::endl;
+        if (!keep_file.empty()) std::cerr << "Error: In file " << keep_file << ", the following line is duplicated: " << line << std::endl;
+        else std::cerr << "Error: the following line is duplicated: " << line << std::endl;
         return false;
       } else if (discard && idmap_find(u) != -1) {
-        std::cerr << "Error: In file " << keep_file << ", the following line cannot be used: " << line << std::endl;
+        if (!keep_file.empty()) std::cerr << "Error: In file " << keep_file << ", the following line cannot be used: " << line << std::endl;
+        else std::cerr << "Cannot use the following line: " << line << std::endl;
         return false;
       }
       if (discard) {
@@ -2154,16 +2199,25 @@ struct SplitCode {
     return true;
   }
   
-  bool addFilterListGroup(std::string keep_file, bool discard=false) {
+  bool addFilterListGroup(std::string keep_file, bool discard=false, bool is_text_corpus = false) {
     struct stat stFileInfo;
-    auto intstat = stat(keep_file.c_str(), &stFileInfo);
-    if (intstat != 0) {
-      std::cerr << "Error: file not found " << keep_file << std::endl;
-      return false;
+    if (!is_text_corpus) {
+      auto intstat = stat(keep_file.c_str(), &stFileInfo);
+      if (intstat != 0) {
+        std::cerr << "Error: file not found " << keep_file << std::endl;
+        return false;
+      }
     }
     std::ifstream kfile(keep_file);
+    std::istringstream textStream(keep_file);
+
+    if (is_text_corpus) return processFilterListGroup(textStream, discard, "");
+    else return processFilterListGroup(kfile, discard, keep_file);
+  }
+  
+  bool processFilterListGroup(std::istream& input, bool discard, std::string keep_file) {
     std::string line;
-    while (std::getline(kfile,line)) {
+    while (std::getline(input,line)) {
       std::string ofile = "";
       if (line.size() == 0) {
         continue;
@@ -2187,7 +2241,8 @@ struct SplitCode {
         }
         const auto& itnames = std::find(group_names.begin(), group_names.end(), name);
         if (itnames == group_names.end()) {
-          std::cerr << "Error: File " << keep_file << " contains the group name \"" << name << "\" which does not exist" << std::endl;
+          if (!keep_file.empty()) std::cerr << "Error: File " << keep_file << " contains the group name \"" << name << "\" which does not exist" << std::endl;
+          else std::cerr << "Group name \"" << name << "\" does not exist" << std::endl;
           return false;
         }
         u.push_back(itnames - group_names.begin());
@@ -2195,7 +2250,8 @@ struct SplitCode {
       auto it1 = groupmapinv_keep.find(u);
       auto it2 = groupmapinv_discard.find(u);
       if (it1 != groupmapinv_keep.end() || it2 != groupmapinv_discard.end()) {
-        std::cerr << "Error: In file " << keep_file << ", the following line is duplicated: " << line << std::endl;
+        if (!keep_file.empty()) std::cerr << "Error: In file " << keep_file << ", the following line is duplicated: " << line << std::endl;
+        else std::cerr << "The following line is duplicated: " << line << std::endl;
         return false;
       }
       if (discard) {
@@ -3939,6 +3995,8 @@ struct SplitCode {
   UMI extract_seq_names_umi;
   
   std::vector<size_t> sub_assign_vec;
+  
+  std::string _keep_str, _keep_grp_str, _remove_str, _remove_grp_str;
   
   bool init;
   bool discard_check;
