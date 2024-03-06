@@ -1480,7 +1480,7 @@ struct SplitCode {
             return false;
           }
           this->trim_3_str = value;
-        } else if (field == "@min-diff") {
+        } else if (field == "@min-delta") {
           if (this->min_delta != -1) {
             std::cerr << "Error: The file \"" << config_file << "\" specifies @min-delta which was already previously set" << std::endl;
             return false;
@@ -1747,7 +1747,7 @@ struct SplitCode {
         }
       }
       if (min_delta != -1 && !deltas.empty()) { // Handle min-delta stuff
-        std::vector<std::pair<uint32_t, std::string>> tag_strings_with_zero_error; // Set of all strings (of the tags we identified) with zero errors; first element in pair is tag id
+        /*std::vector<std::pair<uint32_t, std::string>> tag_strings_with_zero_error; // Set of all strings (of the tags we identified) with zero errors; first element in pair is tag id
         for (auto x : deltas) {
           auto deltas_tag_id = x.first;
           for (auto& u : tags) { // Iterate through the sequence:vector<tval> unordered map of *all* tags
@@ -1758,10 +1758,19 @@ struct SplitCode {
               }
             }
           }
-        }
+        }*/
         // Now we have the original tag sequences, let's iterate through them and find the maximum mismatch between any two sequences
-        int max_dist = -1;
-        for (const auto& x : tag_strings_with_zero_error) {
+        int max_dist = -1; // Technically speaking, this is the min_dist
+        for (const auto& x : deltas) {
+          for (const auto& y : deltas) {
+            if (x.first == y.first || names[tags_vec[x.first].name_id] == names[tags_vec[y.first].name_id]) continue; // Ignore because same tag id or tag name
+            int dist = x.second - y.second > 0 ? x.second - y.second : y.second - x.second;
+              // Debug:
+              // std::cout << x.second << " " << y.second << " " << dist << " : " << x.first << " " << y.first << " " << names[tags_vec[x.first].name_id]  << " " << names[tags_vec[y.first].name_id]<< std::endl;
+              if (dist > max_dist || max_dist == -1) max_dist = dist;
+          }
+        }
+        /*for (const auto& x : tag_strings_with_zero_error) {
           for (const auto& y : tag_strings_with_zero_error) {
             if (x.first == y.first || names[tags_vec[x.first].name_id] == names[tags_vec[y.first].name_id]) continue; // Ignore because same tag id or tag name
             if (x.second.length() == y.second.length() && x.second.length() == curr_k) { // Just making sure...
@@ -1771,7 +1780,8 @@ struct SplitCode {
               if (dist < max_dist || max_dist == -1) max_dist = dist;
             }
           }
-        }
+        }*/
+        //std::cout << max_dist << std::endl;
         if (max_dist == -1 || max_dist > min_delta) {
           found_curr = true; // OK, we're good; now determine best match based on query sequence
           int min_error = -1;

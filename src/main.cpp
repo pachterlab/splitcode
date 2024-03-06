@@ -98,7 +98,7 @@ void usage() {
        << "    --qtrim-naive Perform quality trimming using a naive algorithm (i.e. trim until a base that meets the quality threshold is encountered)" << endl
        << "    --phred64    Use phred+64 encoded quality scores" << endl
        << "-P, --prefix     Bases that will prefix each final barcode sequence (useful for merging separate experiments)" << endl
-       << "-D, --min-diff   When matching tags error-tolerantly, specifies the allowable difference between the next best match and the best match" << endl
+       << "-D, --min-delta  When matching tags error-tolerantly, specifies how much worse the next best match must be than the best match" << endl
        << "Options (configurations supplied in a file):" << endl
        << "-c, --config     Configuration file" << endl
        << "Output Options:" << endl
@@ -228,7 +228,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"numReads", required_argument, 0, 'n'},
     {"tags", required_argument, 0, 'b'},
     {"distances", required_argument, 0, 'd'},
-    {"min-diff", required_argument, 0, 'D'},
+    {"min-delta", required_argument, 0, 'D'},
     {"locations", required_argument, 0, 'l'},
     {"ids", required_argument, 0, 'i'},
     {"groups", required_argument, 0, 'g'},
