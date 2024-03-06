@@ -359,17 +359,17 @@ checkcmdoutput "$splitcode --trim-only -b AT,TT,GGGGG -i a,a,a --loc-names -d 1 
 
 # Testing --min-delta
 
-checkcmdoutput "$splitcode --trim-only -b AGG,ACC -d 2 --min-delta=2 -p --mod-names $test_dir/test_bound.fq" 08a1669f62d83b7726d562be030f44b4
+checkcmdoutput "$splitcode --trim-only -b AGG,ACC -d 2 --min-delta=1 -p --mod-names $test_dir/test_bound.fq" 08a1669f62d83b7726d562be030f44b4
 
-checkcmdoutput "$splitcode --trim-only -b AGG,ACC -d 2 --min-delta=3 -p --mod-names $test_dir/test_bound.fq" af972eebe3b6e9366dacda3c0902af82
+checkcmdoutput "$splitcode --trim-only -b AGG,ACC -d 2 --min-delta=2 -p --mod-names $test_dir/test_bound.fq" af972eebe3b6e9366dacda3c0902af82
 
-checkcmdoutput "$splitcode --trim-only -b ATGAGA,GGGGGG,ATGACC -d 2 --min-delta=2 -p --mod-names $test_dir/test_bound.fq" decb5f9ccbd1300e9b89a78b52fc9228
+checkcmdoutput "$splitcode --trim-only -b ATGAGA,GGGGGG,ATGACC -d 2 --min-delta=1 -p --mod-names $test_dir/test_bound.fq" decb5f9ccbd1300e9b89a78b52fc9228
 
-checkcmdoutput "$splitcode --trim-only -b ATGAGA,GGGGGG,ATGACC -d 2 --min-delta=3 -p --mod-names $test_dir/test_bound.fq" 40e7d95afa0ffa0fc483fc87f0c8a998
+checkcmdoutput "$splitcode --trim-only -b ATGAGA,GGGGGG,ATGACC -d 2 --min-delta=2 -p --mod-names $test_dir/test_bound.fq" 40e7d95afa0ffa0fc483fc87f0c8a998
 
-checkcmdoutput "$splitcode --trim-only -b TGAGC,TGAGA,TGAGG -d 1 --min-delta=1 --mod-names -p $test_dir/test_bound.fq" 518192091bde3a94691b73e54ab9f2aa
+checkcmdoutput "$splitcode --trim-only -b TGAGC,TGAGA,TGAGG -d 1 --min-delta=0 --mod-names -p $test_dir/test_bound.fq" 518192091bde3a94691b73e54ab9f2aa
 
-checkcmdoutput "$splitcode --trim-only -b TGAGC,TGAGA,TGAGG -d 1 --min-delta=2 --mod-names -p $test_dir/test_bound.fq" 40e7d95afa0ffa0fc483fc87f0c8a998
+checkcmdoutput "$splitcode --trim-only -b TGAGC,TGAGA,TGAGG -d 1 --min-delta=1 --mod-names -p $test_dir/test_bound.fq" 40e7d95afa0ffa0fc483fc87f0c8a998
 
 # Shorten assigned final barcode 
                 
