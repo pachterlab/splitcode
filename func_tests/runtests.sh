@@ -369,7 +369,7 @@ checkcmdoutput "$splitcode --trim-only -b ATGAGA,GGGGGG,ATGACC -d 2 --min-diff=2
 
 checkcmdoutput "$splitcode --trim-only -b TGAGC,TGAGA,TGAGG -d 1 --min-diff=0 --mod-names -p $test_dir/test_bound.fq" 518192091bde3a94691b73e54ab9f2aa
 
-checkcmdoutput "$splitcode --trim-only -b TGAGC,TGAGA,TGAGG -d 1 --min-dif =1 --mod-names -p $test_dir/test_bound.fq" 40e7d95afa0ffa0fc483fc87f0c8a998
+checkcmdoutput "$splitcode --trim-only -b TGAGC,TGAGA,TGAGG -d 1 --min-diff=1 --mod-names -p $test_dir/test_bound.fq" 40e7d95afa0ffa0fc483fc87f0c8a998
 
 # Shorten assigned final barcode 
                 
