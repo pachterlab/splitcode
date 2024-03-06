@@ -147,6 +147,7 @@ void usage() {
        << "    --assign     Assign reads to a final barcode sequence identifier based on tags present" << endl
        << "    --bclen      The length of the final barcode sequence identifier (default: 16)" << endl
        << "    --inleaved   Specifies that input is an interleaved FASTQ file" << endl
+       << "    --keep-r1-r2 Use R1.fastq, R2.fastq, etc. file name formats when demultiplexing using --keep or --keep-grp" << endl
        << "    --remultiplex  Turn on remultiplexing mode" << endl
        << "    --version    Prints version number" << endl
        << "    --cite       Prints citation information" << endl;
@@ -182,6 +183,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   int assign_flag = 0;
   int keep_com_flag = 0;
   int remultiplex_flag = 0;
+  int keep_r1_r2_flag = 0;
   int webasm_flag = 0;
   bool trim_only_specified = false;
 
@@ -218,6 +220,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"keep-com", no_argument, &keep_com_flag, 1},
     {"assign", no_argument, &assign_flag, 1},
     {"remultiplex", no_argument, &remultiplex_flag, 1},
+    {"keep-r1-r2", no_argument, &keep_r1_r2_flag, 1},
     {"webasm", no_argument, &webasm_flag, 1},
     // short args
     {"help", no_argument, 0, 'h'},
@@ -624,6 +627,9 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   }
   if (remultiplex_flag) {
     opt.remultiplex = true;
+  }
+  if (keep_r1_r2_flag) {
+    opt.keep_r1_r2 = true;
   }
   if (webasm_flag) {
     opt.threads = 1;

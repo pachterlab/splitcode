@@ -57,6 +57,7 @@ struct ProgramOptions {
   bool outbam;
   bool outbampipe;
   bool mod_names_bam;
+  bool keep_r1_r2;
   std::vector<std::string> files;
   std::vector<std::string> output_files;
   std::string outputb_file;
@@ -138,7 +139,8 @@ struct ProgramOptions {
     webasm(false),
     outbam(false),
     outbampipe(false),
-    mod_names_bam(false)
+    mod_names_bam(false),
+    keep_r1_r2(false)
   {
     const char* sam_tags_default[7] = {"CB:Z:", "RX:Z:", "BI:i:", "SI:i:", "BC:Z:", "LX:Z:", "YM:Z:"};
     sam_tags.push_back(std::vector<std::string>(1, std::string(sam_tags_default[0])));

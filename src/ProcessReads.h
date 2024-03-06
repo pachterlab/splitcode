@@ -160,7 +160,7 @@ public:
               out_keep_gz[f.second].push_back(nullptr);
               continue;
             }
-            out_keep_gz[f.second].push_back(gzopen((f.second + "_" + (i == 0 ? "barcodes" : std::to_string(i-1)) + suffix_gz).c_str(), gz_out_str));
+            out_keep_gz[f.second].push_back(gzopen((f.second + "_" + (i == 0 ? "barcodes" : (opt.keep_r1_r2 ? "R" + std::to_string(i) : std::to_string(i-1))) + suffix_gz).c_str(), gz_out_str));
           }
         }
       } else {
@@ -175,7 +175,7 @@ public:
               out_keep[f.second].push_back(nullptr);
               continue;
             }
-            out_keep[f.second].push_back(fopen((f.second + "_" + (i == 0 ? "barcodes" : std::to_string(i-1)) + suffix).c_str(), "wb"));
+            out_keep[f.second].push_back(fopen((f.second + "_" + (i == 0 ? "barcodes" : (opt.keep_r1_r2 ? "R" + std::to_string(i) : std::to_string(i-1))) + suffix).c_str(), "wb"));
           }
         }
       }
@@ -196,7 +196,8 @@ public:
               out_keep_gz[f.second].push_back(nullptr);
               continue;
             }
-            out_keep_gz[f.second].push_back(gzopen((f.second + "_" + (i == 0 ? "barcodes" : std::to_string(i-1)) + suffix_gz).c_str(), gz_out_str));
+            
+            out_keep_gz[f.second].push_back(gzopen((f.second + "_" + (i == 0 ? "barcodes" : (opt.keep_r1_r2 ? "R" + std::to_string(i) : std::to_string(i-1))) + suffix_gz).c_str(), gz_out_str));
           }
         }
       } else {
@@ -211,7 +212,7 @@ public:
               out_keep[f.second].push_back(nullptr);
               continue;
             }
-            out_keep[f.second].push_back(fopen((f.second + "_" + (i == 0 ? "barcodes" : std::to_string(i-1)) + suffix).c_str(), "wb"));
+            out_keep[f.second].push_back(fopen((f.second + "_" + (i == 0 ? "barcodes" : (opt.keep_r1_r2 ? "R" + std::to_string(i) : std::to_string(i-1))) + suffix).c_str(), "wb"));
           }
         }
       }
