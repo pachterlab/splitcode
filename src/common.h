@@ -20,6 +20,7 @@ struct ProgramOptions {
   int nfiles;
   int input_interleaved_nfiles;
   int quality_trimming_threshold;
+  int min_delta;
   int64_t max_num_reads;
   int compress_level;
   int bclen;
@@ -101,6 +102,7 @@ struct ProgramOptions {
     nfiles(1),
     input_interleaved_nfiles(0),
     quality_trimming_threshold(-1),
+    min_delta(-1),
     max_num_reads(0),
     compress_level(1),
     bclen(0),

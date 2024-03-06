@@ -76,7 +76,7 @@ struct SplitCode {
             std::string trim_5_str = "", std::string trim_3_str = "", std::string extract_str = "", bool extract_no_chain = false, std::string barcode_prefix = "",
             std::string filter_length_str = "", bool quality_trimming_5 = false, bool quality_trimming_3 = false,
             bool quality_trimming_pre = false, bool quality_trimming_naive = false, int quality_trimming_threshold = -1, bool phred64 = false,
-            bool write_tag_location_information = false, std::vector<size_t> sub_assign_vec = std::vector<size_t>(0), int fake_bc_len_override = 0) {
+            bool write_tag_location_information = false, std::vector<size_t> sub_assign_vec = std::vector<size_t>(0), int fake_bc_len_override = 0, int min_delta = -1) {
     init = false;
     extract_seq_names = false;
     discard_check = false;
@@ -111,6 +111,7 @@ struct SplitCode {
     this->phred64 = phred64;
     this->write_tag_location_information = write_tag_location_information;
     this->sub_assign_vec = sub_assign_vec;
+    this->min_delta = min_delta;
     early_termination_maxFindsG = -1;
     max_seq_len = 0;
     setNFiles(nFiles);
@@ -303,6 +304,18 @@ struct SplitCode {
     of.close();
   }
   
+  int hammingDistance(const std::string& str1, const std::string& str2) {
+    // Ensure both strings are of equal length
+    int distance = 0; // Initialize distance counter
+    // Loop through the strings and compare each character
+    for (size_t i = 0; i < str1.length(); ++i) {
+      if (str1[i] != str2[i]) {
+        ++distance; // Increment the distance for each difference
+      }
+    }
+    return distance; // Return the calculated distance
+  }
+  
   void setNFiles(int nFiles) {
     if (init) {
       return;
@@ -456,7 +469,7 @@ struct SplitCode {
         group = true;
         const auto& itnames = std::find(group_names.begin(), group_names.end(), name);
         if (itnames == group_names.end()) {
-          std::cerr << "Error: Could process \"" << s << "\" because \"" << name << "\" does not exist" << std::endl;
+          std::cerr << "Error: Could not process \"" << s << "\" because \"" << name << "\" does not exist" << std::endl;
           exit(1);
         } else {
           id = itnames - group_names.begin();
@@ -465,7 +478,7 @@ struct SplitCode {
         name = s.substr(1,s.find_first_of('}')-1);
         const auto& itnames = std::find(names.begin(), names.end(), name);
         if (itnames == names.end()) {
-          std::cerr << "Error: Could process \"" << s << "\" because \"" << name << "\" does not exist" << std::endl;
+          std::cerr << "Error: Could not process \"" << s << "\" because \"" << name << "\" does not exist" << std::endl;
           exit(1);
         } else {
           id = itnames - names.begin();
@@ -879,6 +892,9 @@ struct SplitCode {
     size_t length() const {
       return l_;
     }
+    std::string toString() {
+      return p_ ? std::string(p_) : s_;
+    }
   };
   
   struct UMI {
@@ -979,7 +995,7 @@ struct SplitCode {
       generate_hamming_mismatches(seq, mismatch_dist, results, use_N);
       return;
     }
-    std::unordered_map<std::string,int> indel_results; // Contains the modified string and how many remaining modifications could be applied
+    std::unordered_map<std::string,int> indel_results; // Contains the modified string and how many remaining modifications  be applied
     generate_indels(seq, indel_dist, indel_results, use_N);
     results = indel_results;
     generate_hamming_mismatches(seq, mismatch_dist, results, use_N);
@@ -1464,6 +1480,13 @@ struct SplitCode {
             return false;
           }
           this->trim_3_str = value;
+        } else if (field == "@min-delta") {
+          if (this->min_delta != -1) {
+            std::cerr << "Error: The file \"" << config_file << "\" specifies @min-delta which was already previously set" << std::endl;
+            return false;
+          }
+          std::stringstream ss(value);
+          ss >> this->min_delta;
         } else if (field == "@prefix") {
           if (!this->barcode_prefix.empty()) {
             std::cerr << "Error: The file \"" << config_file << "\" specifies @prefix which was already previously set" << std::endl;
@@ -1634,6 +1657,7 @@ struct SplitCode {
     int updated_k;
     int updated_error;
     bool found = false;
+    std::vector<tval> deltas;
     while (k_expanded != -1) {
       bool found_curr = false;
       uint32_t tag_id_;
@@ -1703,6 +1727,12 @@ struct SplitCode {
         }
         if (containsRegion(tag.file, tag.pos_start, tag.pos_end, file, pos, pos+curr_k, l)) {
           if (!look_for_initiator || (look_for_initiator && tags_vec[tag_id_].initiator)) {
+            
+            if (min_delta != -1) { // Do min-delta
+              deltas.push_back(x);
+              continue;
+            }
+            
             if (found_curr && tag.name_id != name_id_curr) {
               found_curr = false; // seq of length curr_k maps to multiple tags of different names
               break;
@@ -1715,6 +1745,40 @@ struct SplitCode {
             found_curr = true;
           }
         }
+      }
+      if (min_delta != -1 && !deltas.empty()) { // Handle min-delta stuff
+        std::vector<std::pair<uint32_t, std::string>> tag_strings_with_zero_error; // Set of all strings (of the tags we identified) with zero errors; first element in pair is tag id
+        for (auto x : deltas) {
+          auto deltas_tag_id = x.first;
+          for (auto& u : tags) { // Iterate through the sequence:vector<tval> unordered map of *all* tags
+            const auto& tvals_associated_with_tag = u.second; // Get the vector of tag_id:error tvals associated with tag u
+            for (const auto &tval_value : tvals_associated_with_tag) { // Iterate through all tag_id:error tvals and select the ones with a matching tag ID and with error of zero
+              if (tval_value.second == 0 && tval_value.first == deltas_tag_id) {
+                tag_strings_with_zero_error.push_back(std::make_pair(deltas_tag_id, u.first.toString())); // Insert a zero-error tag string (that matches a tag ID within the deltas set) into set
+              }
+            }
+          }
+        }
+        // TODO: prevent tag ID and name ID from overlapping (i.e. get tag IDs from deltas, store in pair with tag_strings_with_zero_error, and check if same tag)
+        // Now we have the original tag sequences, let's iterate through them and find the maximum mismatch between any two sequences
+        int max_dist = -1;
+        for (const auto& x : tag_strings_with_zero_error) {
+          for (const auto& y : tag_strings_with_zero_error) {
+            if (x.first == y.first || names[tags_vec[x.first].name_id] == names[tags_vec[y.first].name_id]) continue; // Ignore because same tag id or tag name
+            if (x.second.length() == y.second.length() && x.second.length() == curr_k) { // Just making sure...
+              int dist = hammingDistance(x.second, y.second);
+              // Debug:
+              // std::cout << x.second << " " << y.second << " " << dist << " : " << x.first << " " << y.first << " " << names[tags_vec[x.first].name_id]  << " " << names[tags_vec[y.first].name_id]<< std::endl;
+              if (dist < max_dist || max_dist == -1) max_dist = dist;
+            }
+          }
+        }
+        if (max_dist == -1 || max_dist >= min_delta) {
+          found_curr = true; // OK, we're good
+        } else {
+          found_curr = false; // Nope, there's a collision because two barcodes were too close
+        }
+        deltas.clear();
       }
       // Algorithm works as follows:
       // // for a given k, remove that k from consideration if there are multiple tag.name_id's for that k
@@ -3879,6 +3943,7 @@ struct SplitCode {
   int n_tag_entries;
   int curr_barcode_mapping_i;
   int curr_umi_id_i;
+  int min_delta;
   size_t max_seq_len; // Length of longest tag sequence excluding homopolymers
   int fake_bc_len_offset;
   static const int MAX_K = 32;

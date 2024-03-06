@@ -98,6 +98,7 @@ void usage() {
        << "    --qtrim-naive Perform quality trimming using a naive algorithm (i.e. trim until a base that meets the quality threshold is encountered)" << endl
        << "    --phred64    Use phred+64 encoded quality scores" << endl
        << "-P, --prefix     Bases that will prefix each final barcode sequence (useful for merging separate experiments)" << endl
+       << "-D, --min-delta  When matching tags error-tolerantly, specifies how much worse the next best match must be than the best match" << endl
        << "Options (configurations supplied in a file):" << endl
        << "-c, --config     Configuration file" << endl
        << "Output Options:" << endl
@@ -186,7 +187,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
 
   optind=1; // Reset global variable in case we want to call ParseOptions multiple times
 
-  const char *opt_string = "t:N:n:b:d:i:l:f:F:e:c:o:O:u:m:k:r:A:L:R:E:g:y:Y:j:J:a:v:z:Z:5:3:w:x:P:q:s:S:M:U:X:C:Tph";
+  const char *opt_string = "t:N:n:b:d:D:i:l:f:F:e:c:o:O:u:m:k:r:A:L:R:E:g:y:Y:j:J:a:v:z:Z:5:3:w:x:P:q:s:S:M:U:X:C:Tph";
   /*static*/ struct option long_options[] = { // No static keyword because we may want to call ParseOptions multiple times
     // long args
     {"version", no_argument, &version_flag, 1},
@@ -227,6 +228,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"numReads", required_argument, 0, 'n'},
     {"tags", required_argument, 0, 'b'},
     {"distances", required_argument, 0, 'd'},
+    {"min-delta", required_argument, 0, 'D'},
     {"locations", required_argument, 0, 'l'},
     {"ids", required_argument, 0, 'i'},
     {"groups", required_argument, 0, 'g'},
@@ -317,6 +319,13 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     }
     case 'd': {
       opt.distance_str = optarg;
+      break;
+    }
+    case 'D': {
+      stringstream(optarg) >> opt.min_delta;
+      if (opt.min_delta < 0) {
+        opt.min_delta = -1;
+      }
       break;
     }
     case 'l': {
@@ -1359,7 +1368,7 @@ int main(int argc, char *argv[]) {
   ProgramOptions opt;
   ParseOptions(argc,argv,opt);
   SplitCode sc(opt.nfiles, opt.summary_file, opt.trim_only, opt.disable_n, opt.trim_5_str, opt.trim_3_str, opt.extract_str, opt.extract_no_chain, opt.barcode_prefix, opt.filter_length_str,
-               opt.quality_trimming_5, opt.quality_trimming_3, opt.quality_trimming_pre, opt.quality_trimming_naive, opt.quality_trimming_threshold, opt.phred64, opt.write_locations, opt.sub_assign_vec, opt.bclen);
+               opt.quality_trimming_5, opt.quality_trimming_3, opt.quality_trimming_pre, opt.quality_trimming_naive, opt.quality_trimming_threshold, opt.phred64, opt.write_locations, opt.sub_assign_vec, opt.bclen, opt.min_delta);
   bool checkopts = CheckOptions(opt, sc);
   if (!checkopts) {
     usage();
