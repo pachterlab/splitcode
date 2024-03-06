@@ -359,9 +359,9 @@ checkcmdoutput "$splitcode --trim-only -b AT,TT,GGGGG -i a,a,a --loc-names -d 1 
 
 # Testing --min-delta
 
-checkcmdoutput "$splitcode --trim-only -b AGG,ACC -d 2 --min-delta=2 -p --mod-names $test_dir/test_bound.fq" d8d65f25b3538560a18d0d803c2874f3
+checkcmdoutput "$splitcode --trim-only -b AGG,ACC -d 2 --min-delta=2 -p --mod-names $test_dir/test_bound.fq" 08a1669f62d83b7726d562be030f44b4
 
-checkcmdoutput "$splitcode --trim-only -b AGG,ACC -d 2 --min-delta=3 -p --mod-names $test_dir/test_bound.fq" 94c5a67a6caa2f3c374b5cabaf30f6c1
+checkcmdoutput "$splitcode --trim-only -b AGG,ACC -d 2 --min-delta=3 -p --mod-names $test_dir/test_bound.fq" af972eebe3b6e9366dacda3c0902af82
 
 checkcmdoutput "$splitcode --trim-only -b ATGAGA,GGGGGG,ATGACC -d 2 --min-delta=2 -p --mod-names $test_dir/test_bound.fq" decb5f9ccbd1300e9b89a78b52fc9228
 

@@ -1759,7 +1759,6 @@ struct SplitCode {
             }
           }
         }
-        // TODO: prevent tag ID and name ID from overlapping (i.e. get tag IDs from deltas, store in pair with tag_strings_with_zero_error, and check if same tag)
         // Now we have the original tag sequences, let's iterate through them and find the maximum mismatch between any two sequences
         int max_dist = -1;
         for (const auto& x : tag_strings_with_zero_error) {
@@ -1774,7 +1773,16 @@ struct SplitCode {
           }
         }
         if (max_dist == -1 || max_dist >= min_delta) {
-          found_curr = true; // OK, we're good
+          found_curr = true; // OK, we're good; now determine best match based on query sequence
+          int min_error = -1;
+          for (auto d : deltas) {
+            if (min_error == -1 || d.second < min_error) { // We've encountered a smaller mismatch so let's use that
+              min_error = d.second;
+              error_prev = min_error;
+              tag_id_curr = d.first;
+              name_id_curr = tags_vec[tag_id_curr].name_id;
+            }
+          }
         } else {
           found_curr = false; // Nope, there's a collision because two barcodes were too close
         }
