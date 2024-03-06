@@ -228,7 +228,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"numReads", required_argument, 0, 'n'},
     {"tags", required_argument, 0, 'b'},
     {"distances", required_argument, 0, 'd'},
-    {"min-delta", required_argument, 0, 'D'},
+    {"min-diff", required_argument, 0, 'D'},
     {"locations", required_argument, 0, 'l'},
     {"ids", required_argument, 0, 'i'},
     {"groups", required_argument, 0, 'g'},
