@@ -1480,7 +1480,7 @@ struct SplitCode {
             return false;
           }
           this->trim_3_str = value;
-        } else if (field == "@min-delta") {
+        } else if (field == "@min-diff") {
           if (this->min_delta != -1) {
             std::cerr << "Error: The file \"" << config_file << "\" specifies @min-delta which was already previously set" << std::endl;
             return false;
@@ -1765,7 +1765,7 @@ struct SplitCode {
           for (const auto& y : tag_strings_with_zero_error) {
             if (x.first == y.first || names[tags_vec[x.first].name_id] == names[tags_vec[y.first].name_id]) continue; // Ignore because same tag id or tag name
             if (x.second.length() == y.second.length() && x.second.length() == curr_k) { // Just making sure...
-              int dist = hammingDistance(x.second, y.second); // TODO: Instead of hamming error, just do a delta between x's error and y's error
+              int dist = hammingDistance(x.second, y.second);
               // Debug:
               // std::cout << x.second << " " << y.second << " " << dist << " : " << x.first << " " << y.first << " " << names[tags_vec[x.first].name_id]  << " " << names[tags_vec[y.first].name_id]<< std::endl;
               if (dist < max_dist || max_dist == -1) max_dist = dist;

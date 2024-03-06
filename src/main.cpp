@@ -98,7 +98,7 @@ void usage() {
        << "    --qtrim-naive Perform quality trimming using a naive algorithm (i.e. trim until a base that meets the quality threshold is encountered)" << endl
        << "    --phred64    Use phred+64 encoded quality scores" << endl
        << "-P, --prefix     Bases that will prefix each final barcode sequence (useful for merging separate experiments)" << endl
-       << "-D, --min-delta  When matching tags error-tolerantly, specifies how much worse the next best match must be than the best match" << endl
+       << "-D, --min-diff   When matching tags error-tolerantly, specifies the allowable difference between the next best match and the best match" << endl
        << "Options (configurations supplied in a file):" << endl
        << "-c, --config     Configuration file" << endl
        << "Output Options:" << endl
