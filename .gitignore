@@ -15,6 +15,7 @@ ext/htslib/src/
 CMakeCache.txt
 CMakeFiles
 Makefile
+!ext/htslib/Makefile
 cmake_install.cmake
 CTestTestfile.cmake
 *~
