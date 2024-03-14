@@ -1572,8 +1572,8 @@ struct SplitCode {
           std::transform(field.begin(), field.end(), field.begin(), ::toupper);
           h.push_back(field);
         }
-        if (std::find(h.begin(), h.end(), "BARCODES") == h.end() && std::find(h.begin(), h.end(), "TAGS") == h.end()) {
-          std::cerr << "Error: The file \"" << config_file << "\" must contain a header with, minimally, a column header named tags" << std::endl;
+        if (std::find(h.begin(), h.end(), "BARCODES") == h.end() && std::find(h.begin(), h.end(), "TAGS") == h.end() && std::find(h.begin(), h.end(), "BARCODE") == h.end() && std::find(h.begin(), h.end(), "TAG") == h.end()) {
+          std::cerr << "Error: The file \"" << config_file << "\" must contain a header with, minimally, a column header named tag" << std::endl;
           return false;
         }
         if (std::set<std::string>(h.begin(), h.end()).size() != h.size()) {
@@ -1611,15 +1611,15 @@ struct SplitCode {
       bool ret = true;
       for (int i = 0; ss >> field; i++) {
         if (field == "-") field = ""; // - means empty
-        if (h[i] == "BARCODES" || h[i] == "TAGS") {
+        if (h[i] == "BARCODES" || h[i] == "TAGS" || h[i] == "BARCODE" || h[i] == "TAG") {
           bc = field;
-        } else if (h[i] == "DISTANCES") {
+        } else if (h[i] == "DISTANCES" || h[i] == "DISTANCE") {
           ret = ret && parseDistance(field, mismatch, indel, total_dist);
-        } else if (h[i] == "LOCATIONS") {
+        } else if (h[i] == "LOCATIONS" || h[i] == "LOCATION") {
           ret = ret && parseLocation(field, file, pos_start, pos_end, nFiles);
-        } else if (h[i] == "IDS") {
+        } else if (h[i] == "IDS" || h[i] == "ID") {
           name = field;
-        } else if (h[i] == "GROUPS") {
+        } else if (h[i] == "GROUPS" || h[i] == "GROUP") {
           group = field;
         } else if (h[i] == "MINFINDS") {
           std::stringstream(field) >> min_finds;
@@ -1631,7 +1631,7 @@ struct SplitCode {
           std::stringstream(field) >> max_finds_g;
         } else if (h[i] == "EXCLUDE") {
           std::stringstream(field) >> exclude;
-        } else if (h[i] == "SUBS") {
+        } else if (h[i] == "SUBS" || h[i] == "SUB") {
           std::stringstream(field) >> subs_str;
         } else if (h[i] == "AFTER" || h[i] == "NEXT") {
           std::stringstream(field) >> after_str;
