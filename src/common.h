@@ -9,11 +9,18 @@
 typedef unsigned int uint;
 #endif
 
+#ifndef NO_HTSLIB
+#include <htslib/sam.h>
+#include <htslib/hts.h>
+#include <htslib/bgzf.h>
+#endif
+
 struct ProgramOptions {
   int threads;
   int nfiles;
   int input_interleaved_nfiles;
   int quality_trimming_threshold;
+  int min_delta;
   int64_t max_num_reads;
   int compress_level;
   int bclen;
@@ -47,6 +54,10 @@ struct ProgramOptions {
   bool remultiplex;
   bool write_locations;
   bool webasm;
+  bool outbam;
+  bool outbampipe;
+  bool mod_names_bam;
+  bool keep_r1_r2;
   std::vector<std::string> files;
   std::vector<std::string> output_files;
   std::string outputb_file;
@@ -81,6 +92,7 @@ struct ProgramOptions {
   std::string summary_file;
   std::string subs_str;
   std::string select_output_files_str;
+  std::string outbamfile;
   std::vector<bool> select_output_files;
   std::vector<std::vector<std::string> > sam_tags;
   std::vector<size_t> sub_assign_vec;
@@ -91,6 +103,7 @@ struct ProgramOptions {
     nfiles(1),
     input_interleaved_nfiles(0),
     quality_trimming_threshold(-1),
+    min_delta(-1),
     max_num_reads(0),
     compress_level(1),
     bclen(0),
@@ -123,15 +136,20 @@ struct ProgramOptions {
     keep_fastq_comments(false),
     remultiplex(false),
     write_locations(false),
-    webasm(false)
+    webasm(false),
+    outbam(false),
+    outbampipe(false),
+    mod_names_bam(false),
+    keep_r1_r2(false)
   {
-    const char* sam_tags_default[6] = {"CB:Z:", "RX:Z:", "BI:i:", "SI:i:", "BC:Z:", "LX:Z:"};
+    const char* sam_tags_default[7] = {"CB:Z:", "RX:Z:", "BI:i:", "SI:i:", "BC:Z:", "LX:Z:", "YM:Z:"};
     sam_tags.push_back(std::vector<std::string>(1, std::string(sam_tags_default[0])));
     sam_tags.push_back(std::vector<std::string>(1, std::string(sam_tags_default[1])));
     sam_tags.push_back(std::vector<std::string>(1, std::string(sam_tags_default[2])));
     sam_tags.push_back(std::vector<std::string>(1, std::string(sam_tags_default[3])));
     sam_tags.push_back(std::vector<std::string>(1, std::string(sam_tags_default[4])));
     sam_tags.push_back(std::vector<std::string>(1, std::string(sam_tags_default[5])));
+    sam_tags.push_back(std::vector<std::string>(1, std::string(sam_tags_default[6])));
   }
 };
 

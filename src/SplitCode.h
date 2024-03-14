@@ -1,7 +1,7 @@
 #ifndef SPLITCODE_H
 #define SPLITCODE_H
 
-#define SPLITCODE_VERSION "0.29.3"
+#define SPLITCODE_VERSION "0.29.4"
 
 #include <string>
 #include <iostream>
@@ -76,7 +76,7 @@ struct SplitCode {
             std::string trim_5_str = "", std::string trim_3_str = "", std::string extract_str = "", bool extract_no_chain = false, std::string barcode_prefix = "",
             std::string filter_length_str = "", bool quality_trimming_5 = false, bool quality_trimming_3 = false,
             bool quality_trimming_pre = false, bool quality_trimming_naive = false, int quality_trimming_threshold = -1, bool phred64 = false,
-            bool write_tag_location_information = false, std::vector<size_t> sub_assign_vec = std::vector<size_t>(0), int fake_bc_len_override = 0) {
+            bool write_tag_location_information = false, std::vector<size_t> sub_assign_vec = std::vector<size_t>(0), int fake_bc_len_override = 0, int min_delta = -1, bool do_qc = false) {
     init = false;
     extract_seq_names = false;
     discard_check = false;
@@ -111,6 +111,8 @@ struct SplitCode {
     this->phred64 = phred64;
     this->write_tag_location_information = write_tag_location_information;
     this->sub_assign_vec = sub_assign_vec;
+    this->min_delta = min_delta;
+    this->do_qc = do_qc;
     early_termination_maxFindsG = -1;
     max_seq_len = 0;
     setNFiles(nFiles);
@@ -298,9 +300,39 @@ struct SplitCode {
       of << "\t\t" << "\"assign_id_map_size\": " << idmap_getsize() << ",\n";
       of << "\t\t" << "\"sub_assign_id_map_size\": " << idmap_getsize(true) << ",\n";
       of << "\t\t" << "\"always_assign\": " << always_assign << "\n";
-    of << "\t" << "}" << "\n";
+    of << "\t" << "}";
+    if (do_qc) {
+      of << ",";
+    }
+    of << "\n";
+    if (do_qc) {
+      of << "\t" << "\"tag_qc\": " << "[" << "\n";
+      for (int i = 0; i < qc.size(); i++) {
+        if (qc[i].size() == 0) continue;
+        for (int j = 0; j < qc[i].size(); j++) {
+          of << "\t\t{\"tag\": \"" << names[i] << "\", \"distance\": " << j << ", \"count\": " << qc[i][j] << "}";
+          if (!(i == qc.size()-1 && j == qc[i].size()-1)) {
+            of << ",";
+          }
+          of << "\n";
+        }
+      }
+      of << "\t" << "]" << "\n";
+    }
     of << "}" << std::endl;
     of.close();
+  }
+  
+  int hammingDistance(const std::string& str1, const std::string& str2) {
+    // Ensure both strings are of equal length
+    int distance = 0; // Initialize distance counter
+    // Loop through the strings and compare each character
+    for (size_t i = 0; i < str1.length(); ++i) {
+      if (str1[i] != str2[i]) {
+        ++distance; // Increment the distance for each difference
+      }
+    }
+    return distance; // Return the calculated distance
   }
   
   void setNFiles(int nFiles) {
@@ -456,7 +488,7 @@ struct SplitCode {
         group = true;
         const auto& itnames = std::find(group_names.begin(), group_names.end(), name);
         if (itnames == group_names.end()) {
-          std::cerr << "Error: Could process \"" << s << "\" because \"" << name << "\" does not exist" << std::endl;
+          std::cerr << "Error: Could not process \"" << s << "\" because \"" << name << "\" does not exist" << std::endl;
           exit(1);
         } else {
           id = itnames - group_names.begin();
@@ -465,7 +497,7 @@ struct SplitCode {
         name = s.substr(1,s.find_first_of('}')-1);
         const auto& itnames = std::find(names.begin(), names.end(), name);
         if (itnames == names.end()) {
-          std::cerr << "Error: Could process \"" << s << "\" because \"" << name << "\" does not exist" << std::endl;
+          std::cerr << "Error: Could not process \"" << s << "\" because \"" << name << "\" does not exist" << std::endl;
           exit(1);
         } else {
           id = itnames - names.begin();
@@ -792,6 +824,9 @@ struct SplitCode {
         }
       }
     }*/
+    if (do_qc) {
+      qc.resize(names.size());
+    }
     init = true;
   }
   
@@ -878,6 +913,9 @@ struct SplitCode {
     }
     size_t length() const {
       return l_;
+    }
+    std::string toString() {
+      return p_ ? std::string(p_) : s_;
     }
   };
   
@@ -979,7 +1017,7 @@ struct SplitCode {
       generate_hamming_mismatches(seq, mismatch_dist, results, use_N);
       return;
     }
-    std::unordered_map<std::string,int> indel_results; // Contains the modified string and how many remaining modifications could be applied
+    std::unordered_map<std::string,int> indel_results; // Contains the modified string and how many remaining modifications  be applied
     generate_indels(seq, indel_dist, indel_results, use_N);
     results = indel_results;
     generate_hamming_mismatches(seq, mismatch_dist, results, use_N);
@@ -1417,19 +1455,45 @@ struct SplitCode {
     std::string line;
     bool header_read = false;
     std::vector<std::string> h;
+    bool _keep = false;
+    bool _keep_grp = false;
+    bool _remove = false;
+    bool _remove_grp = false;
     while (std::getline(cfile,line)) {
       if (line.size() == 0) {
+        _keep = false;
+        _keep_grp = false;
+        _remove = false;
+        _remove_grp = false;
         continue;
       }
       if (line[0] == '#') {
         continue;
       }
-      if (line[0] == '@') {
+      if (line[0] == '@' || (_keep || _keep_grp || _remove || _remove_grp)) {
         std::stringstream ss(line);
         std::string field;
         std::string value;
         ss >> field >> value;
-        if (field == "@qtrim-5") {
+        if (_keep || _keep_grp || _remove || _remove_grp) { // Read continuous multi-line value (until an empty line)
+          std::string sline = field + " " + value;
+          while (ss >> value) {
+            sline = " " + value;
+          }
+          value = sline + "\n";
+          if (_keep) _keep_str += value;
+          if (_keep_grp) _keep_grp_str += value;
+          if (_remove) _remove_str += value;
+          if (_remove_grp) _remove_grp_str += value;
+        } else if (field == "@keep:") {
+          _keep = true;
+        } else if (field == "@keep-grp:") {
+          _keep_grp = true;
+        } else if (field == "@remove:") {
+          _remove = true;
+        } else if (field == "@remove-grp:") {
+          _remove_grp = true;
+        } else if (field == "@qtrim-5") {
           this->quality_trimming_5 = true;
         } else if (field == "@qtrim-3") {
           this->quality_trimming_3 = true;
@@ -1464,6 +1528,13 @@ struct SplitCode {
             return false;
           }
           this->trim_3_str = value;
+        } else if (field == "@min-delta") {
+          if (this->min_delta != -1) {
+            std::cerr << "Error: The file \"" << config_file << "\" specifies @min-delta which was already previously set" << std::endl;
+            return false;
+          }
+          std::stringstream ss(value);
+          ss >> this->min_delta;
         } else if (field == "@prefix") {
           if (!this->barcode_prefix.empty()) {
             std::cerr << "Error: The file \"" << config_file << "\" specifies @prefix which was already previously set" << std::endl;
@@ -1523,8 +1594,8 @@ struct SplitCode {
           std::transform(field.begin(), field.end(), field.begin(), ::toupper);
           h.push_back(field);
         }
-        if (std::find(h.begin(), h.end(), "BARCODES") == h.end() && std::find(h.begin(), h.end(), "TAGS") == h.end()) {
-          std::cerr << "Error: The file \"" << config_file << "\" must contain a header with, minimally, a column header named tags" << std::endl;
+        if (std::find(h.begin(), h.end(), "BARCODES") == h.end() && std::find(h.begin(), h.end(), "TAGS") == h.end() && std::find(h.begin(), h.end(), "BARCODE") == h.end() && std::find(h.begin(), h.end(), "TAG") == h.end()) {
+          std::cerr << "Error: The file \"" << config_file << "\" must contain a header with, minimally, a column header named tag" << std::endl;
           return false;
         }
         if (std::set<std::string>(h.begin(), h.end()).size() != h.size()) {
@@ -1562,15 +1633,15 @@ struct SplitCode {
       bool ret = true;
       for (int i = 0; ss >> field; i++) {
         if (field == "-") field = ""; // - means empty
-        if (h[i] == "BARCODES" || h[i] == "TAGS") {
+        if (h[i] == "BARCODES" || h[i] == "TAGS" || h[i] == "BARCODE" || h[i] == "TAG") {
           bc = field;
-        } else if (h[i] == "DISTANCES") {
+        } else if (h[i] == "DISTANCES" || h[i] == "DISTANCE") {
           ret = ret && parseDistance(field, mismatch, indel, total_dist);
-        } else if (h[i] == "LOCATIONS") {
+        } else if (h[i] == "LOCATIONS" || h[i] == "LOCATION") {
           ret = ret && parseLocation(field, file, pos_start, pos_end, nFiles);
-        } else if (h[i] == "IDS") {
+        } else if (h[i] == "IDS" || h[i] == "ID") {
           name = field;
-        } else if (h[i] == "GROUPS") {
+        } else if (h[i] == "GROUPS" || h[i] == "GROUP") {
           group = field;
         } else if (h[i] == "MINFINDS") {
           std::stringstream(field) >> min_finds;
@@ -1582,7 +1653,7 @@ struct SplitCode {
           std::stringstream(field) >> max_finds_g;
         } else if (h[i] == "EXCLUDE") {
           std::stringstream(field) >> exclude;
-        } else if (h[i] == "SUBS") {
+        } else if (h[i] == "SUBS" || h[i] == "SUB") {
           std::stringstream(field) >> subs_str;
         } else if (h[i] == "AFTER" || h[i] == "NEXT") {
           std::stringstream(field) >> after_str;
@@ -1620,6 +1691,13 @@ struct SplitCode {
         }
       }
     }
+    
+    // Do some final processing: i.e. if the keep/discard text corpus were provided in the config file, process them now
+    if (!_keep_str.empty()) addFilterList(_keep_str, false, true);
+    if (!_remove_str.empty()) addFilterList(_remove_str, true, true);
+    if (!_keep_grp_str.empty()) addFilterListGroup(_keep_grp_str, false, true);
+    if (!_remove_grp_str.empty()) addFilterListGroup(_remove_grp_str, true, true);
+    
     checkInit();
     return true;
   }
@@ -1634,6 +1712,7 @@ struct SplitCode {
     int updated_k;
     int updated_error;
     bool found = false;
+    std::vector<tval> deltas;
     while (k_expanded != -1) {
       bool found_curr = false;
       uint32_t tag_id_;
@@ -1703,6 +1782,12 @@ struct SplitCode {
         }
         if (containsRegion(tag.file, tag.pos_start, tag.pos_end, file, pos, pos+curr_k, l)) {
           if (!look_for_initiator || (look_for_initiator && tags_vec[tag_id_].initiator)) {
+            
+            if (min_delta != -1) { // Do min-delta
+              deltas.push_back(x);
+              continue;
+            }
+            
             if (found_curr && tag.name_id != name_id_curr) {
               found_curr = false; // seq of length curr_k maps to multiple tags of different names
               break;
@@ -1715,6 +1800,58 @@ struct SplitCode {
             found_curr = true;
           }
         }
+      }
+      if (min_delta != -1 && !deltas.empty()) { // Handle min-delta stuff
+        /*std::vector<std::pair<uint32_t, std::string>> tag_strings_with_zero_error; // Set of all strings (of the tags we identified) with zero errors; first element in pair is tag id
+        for (auto x : deltas) {
+          auto deltas_tag_id = x.first;
+          for (auto& u : tags) { // Iterate through the sequence:vector<tval> unordered map of *all* tags
+            const auto& tvals_associated_with_tag = u.second; // Get the vector of tag_id:error tvals associated with tag u
+            for (const auto &tval_value : tvals_associated_with_tag) { // Iterate through all tag_id:error tvals and select the ones with a matching tag ID and with error of zero
+              if (tval_value.second == 0 && tval_value.first == deltas_tag_id) {
+                tag_strings_with_zero_error.push_back(std::make_pair(deltas_tag_id, u.first.toString())); // Insert a zero-error tag string (that matches a tag ID within the deltas set) into set
+              }
+            }
+          }
+        }*/
+        // Now we have the original tag sequences, let's iterate through them and find the maximum mismatch between any two sequences
+        int max_dist = -1; // Technically speaking, this is the min_dist
+        for (const auto& x : deltas) {
+          for (const auto& y : deltas) {
+            if (x.first == y.first || names[tags_vec[x.first].name_id] == names[tags_vec[y.first].name_id]) continue; // Ignore because same tag id or tag name
+            int dist = x.second - y.second > 0 ? x.second - y.second : y.second - x.second;
+              // Debug:
+              // std::cout << x.second << " " << y.second << " " << dist << " : " << x.first << " " << y.first << " " << names[tags_vec[x.first].name_id]  << " " << names[tags_vec[y.first].name_id]<< std::endl;
+              if (dist > max_dist || max_dist == -1) max_dist = dist;
+          }
+        }
+        /*for (const auto& x : tag_strings_with_zero_error) {
+          for (const auto& y : tag_strings_with_zero_error) {
+            if (x.first == y.first || names[tags_vec[x.first].name_id] == names[tags_vec[y.first].name_id]) continue; // Ignore because same tag id or tag name
+            if (x.second.length() == y.second.length() && x.second.length() == curr_k) { // Just making sure...
+              int dist = hammingDistance(x.second, y.second);
+              // Debug:
+              // std::cout << x.second << " " << y.second << " " << dist << " : " << x.first << " " << y.first << " " << names[tags_vec[x.first].name_id]  << " " << names[tags_vec[y.first].name_id]<< std::endl;
+              if (dist < max_dist || max_dist == -1) max_dist = dist;
+            }
+          }
+        }*/
+        //std::cout << max_dist << std::endl;
+        if (max_dist == -1 || max_dist > min_delta) {
+          found_curr = true; // OK, we're good; now determine best match based on query sequence
+          int min_error = -1;
+          for (auto d : deltas) {
+            if (min_error == -1 || d.second < min_error) { // We've encountered a smaller mismatch so let's use that
+              min_error = d.second;
+              error_prev = min_error;
+              tag_id_curr = d.first;
+              name_id_curr = tags_vec[tag_id_curr].name_id;
+            }
+          }
+        } else {
+          found_curr = false; // Nope, there's a collision because two barcodes were too close
+        }
+        deltas.clear();
       }
       // Algorithm works as follows:
       // // for a given k, remove that k from consideration if there are multiple tag.name_id's for that k
@@ -2014,16 +2151,25 @@ struct SplitCode {
     return true;
   }
   
-  bool addFilterList(std::string keep_file, bool discard=false) {
+  bool addFilterList(std::string keep_file, bool discard=false, bool is_text_corpus = false) {
     struct stat stFileInfo;
     auto intstat = stat(keep_file.c_str(), &stFileInfo);
-    if (intstat != 0) {
-      std::cerr << "Error: file not found " << keep_file << std::endl;
-      return false;
+    if (!is_text_corpus) {
+      if (intstat != 0) {
+        std::cerr << "Error: file not found " << keep_file << std::endl;
+        return false;
+      }
     }
     std::ifstream kfile(keep_file);
+    std::istringstream textStream(keep_file);
+    
+    if (is_text_corpus) return processFilterList(textStream, discard, "");
+    else return processFilterList(kfile, discard, keep_file);
+  }
+  
+  bool processFilterList(std::istream& input, bool discard, std::string keep_file) {
     std::string line;
-    while (std::getline(kfile,line)) {
+    while (std::getline(input,line)) {
       std::string ofile = "";
       if (line.size() == 0) {
         continue;
@@ -2047,7 +2193,8 @@ struct SplitCode {
         }
         const auto& itnames = std::find(names.begin(), names.end(), name);
         if (itnames == names.end()) {
-          std::cerr << "Error: File " << keep_file << " contains the name \"" << name << "\" which does not exist" << std::endl;
+          if (!keep_file.empty()) std::cerr << "Error: File " << keep_file << " contains the name \"" << name << "\" which does not exist" << std::endl;
+          else std::cerr << "Name \"" << name << "\" does not exist" << std::endl;
           return false;
         }
         u.push_back(itnames - names.begin());
@@ -2055,10 +2202,12 @@ struct SplitCode {
       auto it1 = idmapinv_keep.find(u);
       auto it2 = idmapinv_discard.find(u);
       if (it1 != idmapinv_keep.end() || it2 != idmapinv_discard.end()) {
-        std::cerr << "Error: In file " << keep_file << ", the following line is duplicated: " << line << std::endl;
+        if (!keep_file.empty()) std::cerr << "Error: In file " << keep_file << ", the following line is duplicated: " << line << std::endl;
+        else std::cerr << "Error: the following line is duplicated: " << line << std::endl;
         return false;
       } else if (discard && idmap_find(u) != -1) {
-        std::cerr << "Error: In file " << keep_file << ", the following line cannot be used: " << line << std::endl;
+        if (!keep_file.empty()) std::cerr << "Error: In file " << keep_file << ", the following line cannot be used: " << line << std::endl;
+        else std::cerr << "Cannot use the following line: " << line << std::endl;
         return false;
       }
       if (discard) {
@@ -2072,16 +2221,25 @@ struct SplitCode {
     return true;
   }
   
-  bool addFilterListGroup(std::string keep_file, bool discard=false) {
+  bool addFilterListGroup(std::string keep_file, bool discard=false, bool is_text_corpus = false) {
     struct stat stFileInfo;
-    auto intstat = stat(keep_file.c_str(), &stFileInfo);
-    if (intstat != 0) {
-      std::cerr << "Error: file not found " << keep_file << std::endl;
-      return false;
+    if (!is_text_corpus) {
+      auto intstat = stat(keep_file.c_str(), &stFileInfo);
+      if (intstat != 0) {
+        std::cerr << "Error: file not found " << keep_file << std::endl;
+        return false;
+      }
     }
     std::ifstream kfile(keep_file);
+    std::istringstream textStream(keep_file);
+
+    if (is_text_corpus) return processFilterListGroup(textStream, discard, "");
+    else return processFilterListGroup(kfile, discard, keep_file);
+  }
+  
+  bool processFilterListGroup(std::istream& input, bool discard, std::string keep_file) {
     std::string line;
-    while (std::getline(kfile,line)) {
+    while (std::getline(input,line)) {
       std::string ofile = "";
       if (line.size() == 0) {
         continue;
@@ -2105,7 +2263,8 @@ struct SplitCode {
         }
         const auto& itnames = std::find(group_names.begin(), group_names.end(), name);
         if (itnames == group_names.end()) {
-          std::cerr << "Error: File " << keep_file << " contains the group name \"" << name << "\" which does not exist" << std::endl;
+          if (!keep_file.empty()) std::cerr << "Error: File " << keep_file << " contains the group name \"" << name << "\" which does not exist" << std::endl;
+          else std::cerr << "Group name \"" << name << "\" does not exist" << std::endl;
           return false;
         }
         u.push_back(itnames - group_names.begin());
@@ -2113,7 +2272,8 @@ struct SplitCode {
       auto it1 = groupmapinv_keep.find(u);
       auto it2 = groupmapinv_discard.find(u);
       if (it1 != groupmapinv_keep.end() || it2 != groupmapinv_discard.end()) {
-        std::cerr << "Error: In file " << keep_file << ", the following line is duplicated: " << line << std::endl;
+        if (!keep_file.empty()) std::cerr << "Error: In file " << keep_file << ", the following line is duplicated: " << line << std::endl;
+        else std::cerr << "The following line is duplicated: " << line << std::endl;
         return false;
       }
       if (discard) {
@@ -2975,6 +3135,7 @@ struct SplitCode {
     bool check_group = keep_check_group || discard_check_group;
     auto it_umi_loc = umi_loc_map.begin();
     std::vector<uint32_t> group_v(0);
+    std::vector<std::pair<uint32_t,short>> qc_vec;
     if (check_group) {
       group_v.reserve(16);
     }
@@ -3111,6 +3272,9 @@ struct SplitCode {
           name_id_curr = tag.name_id;
           group_curr = tag.group;
           search_after_start = pos+k; // aka end_pos_curr
+          if (do_qc) { // Store some QC information
+            qc_vec.push_back(std::make_pair(name_id_curr, error));
+          }
           if (write_tag_location_information) {
             results.tag_locations.push_back(names[tag.name_id] + ":" + std::to_string(file) + "," + std::to_string(pos) + "-" + std::to_string(pos+k));
           }
@@ -3284,6 +3448,13 @@ struct SplitCode {
     if (discard_check_group && groupmapinv_discard.find(group_v) != groupmapinv_discard.end()) {
       results.discard = true;
       return;
+    }
+    if (do_qc && !u.empty()) { // Now, store the QC
+      for (auto &q : qc_vec) {
+        auto& qc_ = qc[q.first];
+        qc_.resize(q.second+1, 0);
+        qc_[q.second]++;
+      }
     }
   }
   
@@ -3812,6 +3983,9 @@ struct SplitCode {
   std::unordered_map<std::vector<uint32_t>, std::string, VectorHasher> groupmapinv_keep;
   std::unordered_map<std::vector<uint32_t>, int, VectorHasher> groupmapinv_discard;
   
+  std::vector<std::vector<uint64_t>> qc; // outer vector index = tag name id; vector indices = tag edit distance; value = count
+  bool do_qc; // Should we do QC (i.e. do tag-level statistics?)
+  
   std::unordered_map<uint32_t,int> min_finds_map;
   std::unordered_map<uint32_t,int> max_finds_map;
   std::unordered_map<uint32_t,int> min_finds_group_map;
@@ -3858,6 +4032,8 @@ struct SplitCode {
   
   std::vector<size_t> sub_assign_vec;
   
+  std::string _keep_str, _keep_grp_str, _remove_str, _remove_grp_str;
+  
   bool init;
   bool discard_check;
   bool keep_check;
@@ -3879,6 +4055,7 @@ struct SplitCode {
   int n_tag_entries;
   int curr_barcode_mapping_i;
   int curr_umi_id_i;
+  int min_delta;
   size_t max_seq_len; // Length of longest tag sequence excluding homopolymers
   int fake_bc_len_offset;
   static const int MAX_K = 32;

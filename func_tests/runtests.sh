@@ -357,6 +357,30 @@ checkcmdoutput "$splitcode --trim-only -b AT,TT --loc-names -d 1 -p --mod-names 
 checkcmdoutput "$splitcode --trim-only -b AT,TT,GGGGG -i a,a,b --loc-names -d 1 -p --mod-names $test_dir/test_bound.fq" ca97fa58494f66bd3395ac329e5a95cf
 checkcmdoutput "$splitcode --trim-only -b AT,TT,GGGGG -i a,a,a --loc-names -d 1 -p --mod-names $test_dir/test_bound.fq" ca97fa58494f66bd3395ac329e5a95cf
 
+# Testing --min-delta
+
+checkcmdoutput "$splitcode --trim-only -b AGG,ACC -d 2 --min-delta=0 -p --mod-names $test_dir/test_bound.fq" 08a1669f62d83b7726d562be030f44b4
+
+checkcmdoutput "$splitcode --trim-only -b AGG,ACC -d 2 --min-delta=1 -p --mod-names $test_dir/test_bound.fq" af972eebe3b6e9366dacda3c0902af82
+
+checkcmdoutput "$splitcode --trim-only -b AGG,ACC -d 2 --min-delta=2 -p --mod-names $test_dir/test_bound.fq" af972eebe3b6e9366dacda3c0902af82
+
+checkcmdoutput "$splitcode --trim-only -b ATGAGA,GGGGGG,ATGACC -d 2 --min-delta=0 -p --mod-names $test_dir/test_bound.fq" decb5f9ccbd1300e9b89a78b52fc9228
+
+checkcmdoutput "$splitcode --trim-only -b ATGAGA,GGGGGG,ATGACC -d 2 --min-delta=1 -p --mod-names $test_dir/test_bound.fq" 40e7d95afa0ffa0fc483fc87f0c8a998
+
+checkcmdoutput "$splitcode --trim-only -b ATGAGA,GGGGGG,ATGACC -d 2 --min-delta=2 -p --mod-names $test_dir/test_bound.fq" 40e7d95afa0ffa0fc483fc87f0c8a998
+
+checkcmdoutput "$splitcode --trim-only -b TGAGC,TGAGA,TGAGG -d 1 --min-delta=0 --mod-names -p $test_dir/test_bound.fq" 40e7d95afa0ffa0fc483fc87f0c8a998
+
+checkcmdoutput "$splitcode --trim-only -b TGAGC,TGAGA,TGAGG -d 1 --min-delta=1 --mod-names -p $test_dir/test_bound.fq" 40e7d95afa0ffa0fc483fc87f0c8a998
+
+checkcmdoutput "$splitcode --trim-only -b TGAGC,TGAGA,TGAGT -d 1 --min-delta=0 --mod-names -p $test_dir/test_bound.fq" 588c7374ce94f3e07d94b5630a9c3f4e
+
+checkcmdoutput "$splitcode --trim-only -b TGAGC,TGAGA,TGAGT -d 1 --min-delta=1 --mod-names -p $test_dir/test_bound.fq" 40e7d95afa0ffa0fc483fc87f0c8a998
+
+
+
 # Shorten assigned final barcode 
                 
 checkcmdoutput "$splitcode -m /dev/null -b AT,TT -d 1 -p --mod-names --bclen=15 --bc-names $test_dir/test_bound.fq" 9e7b7980f24349c5c334e1fc02950af8

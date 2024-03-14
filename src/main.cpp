@@ -98,6 +98,7 @@ void usage() {
        << "    --qtrim-naive Perform quality trimming using a naive algorithm (i.e. trim until a base that meets the quality threshold is encountered)" << endl
        << "    --phred64    Use phred+64 encoded quality scores" << endl
        << "-P, --prefix     Bases that will prefix each final barcode sequence (useful for merging separate experiments)" << endl
+       << "-D, --min-delta  When matching tags error-tolerantly, specifies how much worse the next best match must be than the best match" << endl
        << "Options (configurations supplied in a file):" << endl
        << "-c, --config     Configuration file" << endl
        << "Output Options:" << endl
@@ -114,6 +115,7 @@ void usage() {
        << "-S, --select     Select which FASTQ files to output (comma-separated) (e.g. 0,1,3 = Output files #0, #1, #3)" << endl
        << "    --gzip       Output compressed gzip'ed FASTQ files" << endl
        << "    --out-fasta  Output in FASTA format rather than FASTQ format" << endl
+       << "    --out-bam    Output a BAM file rather than FASTQ files (enter the output BAM file name to -o or --output)" << endl
        << "    --keep-com   Preserve the comments of the read names of the input FASTQ file(s)" << endl
        << "    --no-output  Don't output any sequences" << endl
        << "    --no-outb    Don't output final barcode sequences" << endl
@@ -129,7 +131,7 @@ void usage() {
        << "                 (e.g. 0,2 = Generate unique ID based the tags present by subsetting those tags to tag #0 and tag #2 only)" << endl
        << "                 The names of the outputted sequences will be modified to include this secondary sequence ID" << endl
        << "-C  --compress   Set the gzip compression level (default: 1) (range: 1-9)" << endl
-       << "-M  --sam-tags   Modify the default SAM tags (default: CB:Z:,RX:Z:,BI:i:,SI:i:,BC:Z:,LX:Z:)" << endl
+       << "-M  --sam-tags   Modify the default SAM tags (default: CB:Z:,RX:Z:,BI:i:,SI:i:,BC:Z:,LX:Z:,YM:Z:)" << endl
        << "Other Options:" << endl
        << "-N, --nFastqs    Number of FASTQ file(s) per run" << endl
        << "                 (default: 1) (specify 2 for paired-end)" << endl
@@ -145,6 +147,7 @@ void usage() {
        << "    --assign     Assign reads to a final barcode sequence identifier based on tags present" << endl
        << "    --bclen      The length of the final barcode sequence identifier (default: 16)" << endl
        << "    --inleaved   Specifies that input is an interleaved FASTQ file" << endl
+       << "    --keep-r1-r2 Use R1.fastq, R2.fastq, etc. file name formats when demultiplexing using --keep or --keep-grp" << endl
        << "    --remultiplex  Turn on remultiplexing mode" << endl
        << "    --version    Prints version number" << endl
        << "    --cite       Prints citation information" << endl;
@@ -156,11 +159,13 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   int cite_flag = 0;
   int no_chain_flag = 0;
   int output_fasta_flag = 0;
+  int output_bam_flag = 0;
   int no_output_flag = 0;
   int no_output_barcodes_flag = 0;
   int no_output_extracted_flag = 0;
   int gzip_flag = 0;
   int mod_names_flag = 0;
+  int mod_names_bam_flag = 0;
   int bc_names_flag = 0;
   int com_names_flag = 0;
   int seq_names_flag = 0;
@@ -178,23 +183,26 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   int assign_flag = 0;
   int keep_com_flag = 0;
   int remultiplex_flag = 0;
+  int keep_r1_r2_flag = 0;
   int webasm_flag = 0;
   bool trim_only_specified = false;
 
   optind=1; // Reset global variable in case we want to call ParseOptions multiple times
 
-  const char *opt_string = "t:N:n:b:d:i:l:f:F:e:c:o:O:u:m:k:r:A:L:R:E:g:y:Y:j:J:a:v:z:Z:5:3:w:x:P:q:s:S:M:U:X:C:Tph";
+  const char *opt_string = "t:N:n:b:d:D:i:l:f:F:e:c:o:O:u:m:k:r:A:L:R:E:g:y:Y:j:J:a:v:z:Z:5:3:w:x:P:q:s:S:M:U:X:C:Tph";
   /*static*/ struct option long_options[] = { // No static keyword because we may want to call ParseOptions multiple times
     // long args
     {"version", no_argument, &version_flag, 1},
     {"cite", no_argument, &cite_flag, 1},
     {"no-chain", no_argument, &no_chain_flag, 1},
     {"out-fasta", no_argument, &output_fasta_flag, 1},
+    {"out-bam", no_argument, &output_bam_flag, 1},
     {"no-output", no_argument, &no_output_flag, 1},
     {"no-outb", no_argument, &no_output_barcodes_flag, 1},
     {"no-x-out", no_argument, &no_output_extracted_flag, 1},
     {"gzip", no_argument, &gzip_flag, 1},
     {"mod-names", no_argument, &mod_names_flag, 1},
+    {"mod-names-bam", no_argument, &mod_names_bam_flag, 1},
     {"bc-names", no_argument, &bc_names_flag, 1},
     {"com-names", no_argument, &com_names_flag, 1},
     {"seq-names", no_argument, &seq_names_flag, 1},
@@ -212,6 +220,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"keep-com", no_argument, &keep_com_flag, 1},
     {"assign", no_argument, &assign_flag, 1},
     {"remultiplex", no_argument, &remultiplex_flag, 1},
+    {"keep-r1-r2", no_argument, &keep_r1_r2_flag, 1},
     {"webasm", no_argument, &webasm_flag, 1},
     // short args
     {"help", no_argument, 0, 'h'},
@@ -221,10 +230,16 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"nFastqs", required_argument, 0, 'N'},
     {"numReads", required_argument, 0, 'n'},
     {"tags", required_argument, 0, 'b'},
+    {"tag", required_argument, 0, 'b'},
     {"distances", required_argument, 0, 'd'},
+    {"distance", required_argument, 0, 'd'},
+    {"min-delta", required_argument, 0, 'D'},
     {"locations", required_argument, 0, 'l'},
+    {"location", required_argument, 0, 'l'},
     {"ids", required_argument, 0, 'i'},
+    {"id", required_argument, 0, 'i'},
     {"groups", required_argument, 0, 'g'},
+    {"group", required_argument, 0, 'g'},
     {"maxFinds", required_argument, 0, 'F'},
     {"minFinds", required_argument, 0, 'f'},
     {"maxFindsG", required_argument, 0, 'J'},
@@ -233,6 +248,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"next", required_argument, 0, 'a'},
     {"after", required_argument, 0, 'a'},
     {"subs", required_argument, 0, 'U'},
+    {"sub", required_argument, 0, 'U'},
     {"previous", required_argument, 0, 'v'},
     {"partial5", required_argument, 0, 'z'},
     {"partial3", required_argument, 0, 'Z'},
@@ -312,6 +328,13 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     }
     case 'd': {
       opt.distance_str = optarg;
+      break;
+    }
+    case 'D': {
+      stringstream(optarg) >> opt.min_delta;
+      if (opt.min_delta < 0) {
+        opt.min_delta = -1;
+      }
       break;
     }
     case 'l': {
@@ -497,7 +520,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
       std::stringstream ss(m);
       std::string s;
       int i = 0;
-      while (std::getline(ss, s, ',') && i <= 5) {
+      while (std::getline(ss, s, ',') && i <= 6) {
         if (i == 1) { // Allow multiple tags for extraction (default RX:Z:)
           opt.sam_tags[i].clear();
           std::stringstream ss2(s);
@@ -537,11 +560,19 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   if (output_fasta_flag) {
     opt.output_fasta = true;
   }
+  if (output_bam_flag) {
+    opt.outbam = true;
+    if (opt.pipe) opt.outbampipe = true; // Write BAM to stdout
+    opt.pipe = true; // Always pretend there's a pipe (b/c outputting a BAM is similar to having piped output where only one thing is outputted)
+  }
   if (no_output_flag) {
     opt.no_output = true;
   }
   if (mod_names_flag) {
     opt.mod_names = true;
+  }
+  if (mod_names_bam_flag) {
+    opt.mod_names_bam = true;
   }
   if (com_names_flag) {
     opt.com_names = true;
@@ -603,6 +634,9 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   if (remultiplex_flag) {
     opt.remultiplex = true;
   }
+  if (keep_r1_r2_flag) {
+    opt.keep_r1_r2 = true;
+  }
   if (webasm_flag) {
     opt.threads = 1;
     opt.webasm = true;
@@ -616,6 +650,43 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
 
 bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
   bool ret = true;
+
+  if (opt.outbam) { // BAM options
+#ifdef NO_HTSLIB
+    std::cerr << ERROR_STR << " BAM files not supported because splitcode was compiled without BAM file support" << std::endl;
+    return false;
+#endif
+    opt.pipe = true;
+    opt.gzip = false;
+    if (!opt.outbampipe) {
+      if (opt.output_files.size() == 0) {
+        std::cerr << ERROR_STR << " Must supply an output BAM file name to --output" << std::endl;
+        ret = false;
+      } else if (opt.output_files.size() > 1) {
+        std::cerr << ERROR_STR << " Cannot supply multiple BAM file names to --output" << std::endl;
+        ret = false;
+      }
+      opt.outbamfile = opt.output_files[0];
+      opt.output_files.clear();
+    }
+    if (opt.phred64) {
+      std::cerr << ERROR_STR << " --phred64 incompatible with writing BAM files" << std::endl;
+    }
+    if (opt.output_fasta) {
+      std::cerr << ERROR_STR << " Cannot use --out-fasta when when writing BAM files" << std::endl;
+      ret = false;
+    }
+    if (opt.x_only) {
+      std::cerr << ERROR_STR << " Cannot use --x-only when when writing BAM files" << std::endl;
+      ret = false;
+    }
+    if (opt.keep_fastq_comments && opt.mod_names_bam) {
+      std::cerr << ERROR_STR << " Cannot use --mod-names-bam with --keep-com" << std::endl;
+      ret = false;
+    }
+    if (!ret) return ret;
+  }
+
   if (opt.threads <= 0) {
     cerr << "Error: invalid number of threads " << opt.threads << endl;
     ret = false;
@@ -1309,7 +1380,7 @@ int main(int argc, char *argv[]) {
   ProgramOptions opt;
   ParseOptions(argc,argv,opt);
   SplitCode sc(opt.nfiles, opt.summary_file, opt.trim_only, opt.disable_n, opt.trim_5_str, opt.trim_3_str, opt.extract_str, opt.extract_no_chain, opt.barcode_prefix, opt.filter_length_str,
-               opt.quality_trimming_5, opt.quality_trimming_3, opt.quality_trimming_pre, opt.quality_trimming_naive, opt.quality_trimming_threshold, opt.phred64, opt.write_locations, opt.sub_assign_vec, opt.bclen);
+               opt.quality_trimming_5, opt.quality_trimming_3, opt.quality_trimming_pre, opt.quality_trimming_naive, opt.quality_trimming_threshold, opt.phred64, opt.write_locations, opt.sub_assign_vec, opt.bclen, opt.min_delta, !opt.summary_file.empty());
   bool checkopts = CheckOptions(opt, sc);
   if (!checkopts) {
     usage();
@@ -1339,7 +1410,7 @@ int main(int argc, char *argv[]) {
         }
       }
     }
-    if (use_gz) {
+    if (use_gz && !opt.outbam) {
       std::cerr << "* Forcing --gzip because all output file names end in .gz" << std::endl;
       opt.gzip = true;
     }

@@ -7,6 +7,9 @@ ext/zlib-ng/src/
 ext/zlib-ng/build/
 ext/zlib-ng/tmp/
 
+ext/htslib/tmp/
+ext/htslib/src/
+
 *.pyc
 
 CMakeCache.txt
@@ -19,3 +22,4 @@ CTestTestfile.cmake
 debug/
 release/
 .snakemake
+src/.Rhistory
