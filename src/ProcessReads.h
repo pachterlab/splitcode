@@ -327,7 +327,7 @@ public:
   std::unordered_map<std::string, std::vector<gzFile>> out_keep_gz;
   std::vector<FILE*> outumi;
   std::vector<gzFile> outumi_gz;
-#ifndef NO_HDF5
+#ifndef NO_HTSLIB
   samFile* bamfp;
   bam_hdr_t *hdr;
 #endif
