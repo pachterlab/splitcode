@@ -400,6 +400,7 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
 }
 
 void MasterProcessor::writeBam(const std::string& ostr, int readNameLen, int readPair) {
+#ifndef NO_HTSLIB
   std::istringstream iss(ostr);
   std::string read_header;
   std::string read_sequence;
@@ -523,6 +524,7 @@ void MasterProcessor::writeBam(const std::string& ostr, int readNameLen, int rea
     std::cerr << "Error writing to BAM file... exiting" << std::endl;
     exit(1);
   }
+#endif
 }
 
 ReadProcessor::ReadProcessor(const ProgramOptions& opt, MasterProcessor& mp) : 
