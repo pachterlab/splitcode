@@ -3983,7 +3983,7 @@ struct SplitCode {
   std::unordered_map<std::vector<uint32_t>, std::string, VectorHasher> groupmapinv_keep;
   std::unordered_map<std::vector<uint32_t>, int, VectorHasher> groupmapinv_discard;
   
-  std::vector<std::vector<short>> qc; // outer vector index = tag name id; vector indices = tag edit distance; value = count
+  std::vector<std::vector<uint64_t>> qc; // outer vector index = tag name id; vector indices = tag edit distance; value = count
   bool do_qc; // Should we do QC (i.e. do tag-level statistics?)
   
   std::unordered_map<uint32_t,int> min_finds_map;
