@@ -49,17 +49,20 @@ endif(BUILD_FUNCTESTING)
 
 include(ExternalProject)
 
+
+
 if (ZLIBNG)
     message("zlib-ng enabled.")
     ExternalProject_Add(zlib-ng
     PREFIX ${PROJECT_SOURCE_DIR}/ext/zlib-ng
     SOURCE_DIR ${PROJECT_SOURCE_DIR}/ext/zlib-ng
     BUILD_IN_SOURCE 1
-    CONFIGURE_COMMAND mkdir -p build && cd build && cmake .. -DCMAKE_INSTALL_PREFIX=${PREFIX}
-    BUILD_COMMAND cd build && make
+    CONFIGURE_COMMAND mkdir -p zlib-ng && cd zlib-ng && cmake .. -DZLIB_COMPAT=ON -DZLIB_ENABLE_TESTS=OFF -DCMAKE_INSTALL_PREFIX=${PREFIX}
+    BUILD_COMMAND cd zlib-ng && make
     INSTALL_COMMAND ""
     )
 endif(ZLIBNG)
+
 
 if (USE_HTSLIB)
     message("using htslib")
