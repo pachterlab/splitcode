@@ -76,7 +76,7 @@ struct SplitCode {
             std::string trim_5_str = "", std::string trim_3_str = "", std::string extract_str = "", bool extract_no_chain = false, std::string barcode_prefix = "",
             std::string filter_length_str = "", bool quality_trimming_5 = false, bool quality_trimming_3 = false,
             bool quality_trimming_pre = false, bool quality_trimming_naive = false, int quality_trimming_threshold = -1, bool phred64 = false,
-            bool write_tag_location_information = false, std::vector<size_t> sub_assign_vec = std::vector<size_t>(0), int fake_bc_len_override = 0, int min_delta = -1) {
+            bool write_tag_location_information = false, std::vector<size_t> sub_assign_vec = std::vector<size_t>(0), int fake_bc_len_override = 0, int min_delta = -1, bool do_qc = false) {
     init = false;
     extract_seq_names = false;
     discard_check = false;
@@ -112,6 +112,7 @@ struct SplitCode {
     this->write_tag_location_information = write_tag_location_information;
     this->sub_assign_vec = sub_assign_vec;
     this->min_delta = min_delta;
+    this->do_qc = do_qc;
     early_termination_maxFindsG = -1;
     max_seq_len = 0;
     setNFiles(nFiles);
@@ -299,7 +300,25 @@ struct SplitCode {
       of << "\t\t" << "\"assign_id_map_size\": " << idmap_getsize() << ",\n";
       of << "\t\t" << "\"sub_assign_id_map_size\": " << idmap_getsize(true) << ",\n";
       of << "\t\t" << "\"always_assign\": " << always_assign << "\n";
-    of << "\t" << "}" << "\n";
+    of << "\t" << "}";
+    if (do_qc) {
+      of << ",";
+    }
+    of << "\n";
+    if (do_qc) {
+      of << "\t" << "\"tag_qc\": " << "[" << "\n";
+      for (int i = 0; i < qc.size(); i++) {
+        if (qc[i].size() == 0) continue;
+        for (int j = 0; j < qc[i].size(); j++) {
+          of << "\t\t{\"tag\": \"" << names[i] << "\", \"distance\": " << j << ", \"count\": " << qc[i][j] << "}";
+          if (!(i == qc.size()-1 && j == qc[i].size()-1)) {
+            of << ",";
+          }
+          of << "\n";
+        }
+      }
+      of << "\t" << "]" << "\n";
+    }
     of << "}" << std::endl;
     of.close();
   }
@@ -805,6 +824,9 @@ struct SplitCode {
         }
       }
     }*/
+    if (do_qc) {
+      qc.resize(names.size());
+    }
     init = true;
   }
   
@@ -3113,6 +3135,7 @@ struct SplitCode {
     bool check_group = keep_check_group || discard_check_group;
     auto it_umi_loc = umi_loc_map.begin();
     std::vector<uint32_t> group_v(0);
+    std::vector<std::pair<uint32_t,short>> qc_vec;
     if (check_group) {
       group_v.reserve(16);
     }
@@ -3249,6 +3272,9 @@ struct SplitCode {
           name_id_curr = tag.name_id;
           group_curr = tag.group;
           search_after_start = pos+k; // aka end_pos_curr
+          if (do_qc) { // Store some QC information
+            qc_vec.push_back(std::make_pair(name_id_curr, error));
+          }
           if (write_tag_location_information) {
             results.tag_locations.push_back(names[tag.name_id] + ":" + std::to_string(file) + "," + std::to_string(pos) + "-" + std::to_string(pos+k));
           }
@@ -3422,6 +3448,13 @@ struct SplitCode {
     if (discard_check_group && groupmapinv_discard.find(group_v) != groupmapinv_discard.end()) {
       results.discard = true;
       return;
+    }
+    if (do_qc && !u.empty()) { // Now, store the QC
+      for (auto &q : qc_vec) {
+        auto& qc_ = qc[q.first];
+        qc_.resize(q.second+1, 0);
+        qc_[q.second]++;
+      }
     }
   }
   
@@ -3949,6 +3982,9 @@ struct SplitCode {
   std::unordered_map<std::vector<uint32_t>, int, VectorHasher> idmapinv_discard;
   std::unordered_map<std::vector<uint32_t>, std::string, VectorHasher> groupmapinv_keep;
   std::unordered_map<std::vector<uint32_t>, int, VectorHasher> groupmapinv_discard;
+  
+  std::vector<std::vector<short>> qc; // outer vector index = tag name id; vector indices = tag edit distance; value = count
+  bool do_qc; // Should we do QC (i.e. do tag-level statistics?)
   
   std::unordered_map<uint32_t,int> min_finds_map;
   std::unordered_map<uint32_t,int> max_finds_map;

@@ -1380,7 +1380,7 @@ int main(int argc, char *argv[]) {
   ProgramOptions opt;
   ParseOptions(argc,argv,opt);
   SplitCode sc(opt.nfiles, opt.summary_file, opt.trim_only, opt.disable_n, opt.trim_5_str, opt.trim_3_str, opt.extract_str, opt.extract_no_chain, opt.barcode_prefix, opt.filter_length_str,
-               opt.quality_trimming_5, opt.quality_trimming_3, opt.quality_trimming_pre, opt.quality_trimming_naive, opt.quality_trimming_threshold, opt.phred64, opt.write_locations, opt.sub_assign_vec, opt.bclen, opt.min_delta);
+               opt.quality_trimming_5, opt.quality_trimming_3, opt.quality_trimming_pre, opt.quality_trimming_naive, opt.quality_trimming_threshold, opt.phred64, opt.write_locations, opt.sub_assign_vec, opt.bclen, opt.min_delta, !opt.summary_file.empty());
   bool checkopts = CheckOptions(opt, sc);
   if (!checkopts) {
     usage();
