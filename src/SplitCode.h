@@ -610,6 +610,7 @@ struct SplitCode {
     }
     // Transfer kmer_map_vec into kmer_size_locations (which facilitates iteration while processing fastq reads in k-mers)
     kmer_size_locations.resize(nFiles);
+    k_expansions.resize(nFiles);
     for (int i = 0; i < kmer_map_vec.size(); i++) {
       auto kmer_map = kmer_map_vec[i];
       for (auto x : kmer_map) {
@@ -622,6 +623,7 @@ struct SplitCode {
             kmer_size_locations[i].push_back(kmer_location);
             // DEBUG:
             // std::cout << "file=" << i << " k=" << kmer_location.first << " pos=" << kmer_location.second << std::endl;
+            k_expansions[i].insert(kmer_location.first);
             if (end_pos == POS_MAX) {
               kmer_location = std::make_pair(kmer_size, -1); // -1 = progress to end of read
               kmer_size_locations[i].push_back(kmer_location);
@@ -1724,6 +1726,15 @@ struct SplitCode {
       if (pos+curr_k > l) break;
       const auto& it = tags.find(SeqString(seq.c_str()+pos, curr_k));
       if (it == tags.end()) {
+        bool use_expansion = false;
+        for (auto possible_expansion : k_expansions[file]) {
+          if (possible_expansion > curr_k) {
+            k_expanded = possible_expansion;
+            use_expansion = true;
+            break;
+          }
+        }
+        if (use_expansion) continue;
         break;
       }
       for (const auto &x : it->second) {
@@ -4033,6 +4044,8 @@ struct SplitCode {
   std::vector<size_t> sub_assign_vec;
   
   std::string _keep_str, _keep_grp_str, _remove_str, _remove_grp_str;
+  
+  std::vector<std::unordered_set<size_t>> k_expansions; // Keeps track of all possible substring/k-mer lengths for each file (file number is the index)
   
   bool init;
   bool discard_check;
