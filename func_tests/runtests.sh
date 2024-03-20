@@ -419,4 +419,7 @@ echo "@no-chain x,y" >> $test_dir/config_mult_extracts.txt
 
 checkcmdoutput "$splitcode --trim-only -c $test_dir/config_mult_extracts.txt --x-only -p $test_dir/test_bound.fq" 676235664622f341a6fcb6b2035642f2
 
+# Check variable length tags across different locations
+
+checkcmdoutput "$splitcode --trim-only --mod-names -b TCCT,TCCC,TCCA,TCC,TCCGG,AAA --previous=,,,{AAA},, -l 0:0:5,0:0:5,0:0:5,0,0:5:10,0:5:10 -p $test_dir/test.fq" a2df9f98d58b47aa1beeebabc835b3b3
 
