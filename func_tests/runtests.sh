@@ -423,3 +423,17 @@ checkcmdoutput "$splitcode --trim-only -c $test_dir/config_mult_extracts.txt --x
 
 checkcmdoutput "$splitcode --trim-only --mod-names -b TCCT,TCCC,TCCA,TCC,TCCGG,AAA --previous=,,,{AAA},, -l 0:0:5,0:0:5,0:0:5,0,0:5:10,0:5:10 -p $test_dir/test.fq" a2df9f98d58b47aa1beeebabc835b3b3
 
+# Check --unmask
+
+echo ">read1
+ATGAGT
+>read2
+ACACTT" > $test_dir/test_unmasked.1.fa
+
+echo ">read1
+ANNNNT
+>read2
+NCACTN" > $test_dir/test_unmasked.2.fa
+
+checkcmdoutput "$splitcode --unmask $test_dir/test_unmasked.1.fa $test_dir/test_unmasked.2.fa \"\"" b98fba82fc4a92c49d916ab97a8463bc
+
