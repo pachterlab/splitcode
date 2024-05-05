@@ -437,3 +437,10 @@ NCACTN" > $test_dir/test_unmasked.2.fa
 
 checkcmdoutput "$splitcode --unmask $test_dir/test_unmasked.1.fa $test_dir/test_unmasked.2.fa \"\"" b98fba82fc4a92c49d916ab97a8463bc
 
+# Check extract ^...^ and ^^...^^
+
+checkcmdoutput "$splitcode --trim-only -x \"0:1<^AAA^umi[3]>\" -p $test_dir/test_bound.fa" 5827f14f608ed69bd38b12602c8fdeea
+checkcmdoutput "$splitcode --trim-only -x \"0:1<~^^CGC^^umi[3]>\" -p $test_dir/test_bound.fa" 20b95054c5a91cfeb8585c550570bbe1
+
+
+

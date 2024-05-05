@@ -713,6 +713,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   // Now for specialized workflows not part of the main "splitcode" workflow
   if (unmask_flag) {
     runUnmaskingWorkflow(opt);
+    exit(0);
   }
 }
 

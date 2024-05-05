@@ -931,6 +931,7 @@ struct SplitCode {
     std::pair<int16_t,int32_t> location1;
     std::pair<int16_t,int32_t> location2;
     uint16_t name_id;
+    std::string prepend, append;
     bool group1, group2, id1_present, id2_present, rev_comp, special_extraction, use_sub, use_read_sequence;
   };
   
@@ -2362,6 +2363,8 @@ struct SplitCode {
     auto& special_extraction = umi.special_extraction;
     auto& use_sub = umi.use_sub;
     auto& use_read_sequence = umi.use_read_sequence;
+    auto& prepend = umi.prepend;
+    auto& append = umi.append;
     length_range_start = 0;
     length_range_end = 0;
     padding_left = 0;
@@ -2389,6 +2392,34 @@ struct SplitCode {
         umi_name = umi_name.substr(1);
         rev_comp = true;
       }
+      if (umi_name.length() > 3 && umi_name[0] == '^') { // ^...^ = string-to-prepend; ^^...^^ = string-to-append
+          auto &str = umi_name;
+        size_t start, end;
+        
+        // Check if the string starts with ^^
+        if (str.substr(0, 2) == "^^") {
+          start = 2;
+          end = str.find("^^", start); // Find the next occurrence of ^^
+          if (end != std::string::npos) {
+            // Extract everything between the ^^ markers
+            append = str.substr(start, end - start);
+            // Trim off the ^^...^^ from the original string
+            umi_name = str.substr(0, start - 2) + str.substr(end + 2);
+          }
+        }
+        // Check if the string starts with ^
+        else if (str.front() == '^') {
+          start = 1;
+          end = str.find("^", start); // Find the next occurrence of ^
+          if (end != std::string::npos) {
+            // Extract everything between the ^ markers
+            prepend = str.substr(start, end - start);
+            // Trim off the ^...^ from the original string
+            umi_name = str.substr(0, start - 1) + str.substr(end + 1);
+          }
+        }
+      }
+
       // Check if we have <umi{*}> or <umi{tag_name}> or <umi{{group_name}}> to extract sequence of tag when it's identified; aka a special extraction
       auto bracket_open = umi_name.find_first_of('{');
       auto bracket_close = umi_name.find_last_of('}');
@@ -2767,7 +2798,7 @@ struct SplitCode {
           extract_no_chain_ = true;
         }
       }
-      umi_data[u.name_id] += extract_no_chain_ && !umi_data[u.name_id].empty() ? "" : (!u.rev_comp ? extracted_umi : revcomp(extracted_umi));
+      umi_data[u.name_id] += extract_no_chain_ && !umi_data[u.name_id].empty() ? "" : (!u.rev_comp ? u.prepend+extracted_umi+u.append : u.prepend+revcomp(extracted_umi)+u.append);
     };
 
     const auto& umi_vec_name = umi_name_map.find(tag_name_id) != umi_name_map.end() ? umi_name_map[tag_name_id] : std::vector<UMI>(0);
@@ -3050,7 +3081,7 @@ struct SplitCode {
           extract_no_chain_ = true;
         }
       }
-      umi_data[u.name_id] += extract_no_chain_ && !umi_data[u.name_id].empty() ? "" : (!u.rev_comp ? extracted_umi : revcomp(extracted_umi));
+      umi_data[u.name_id] += extract_no_chain_ && !umi_data[u.name_id].empty() ? "" : (!u.rev_comp ? u.prepend+extracted_umi+u.append : u.prepend+revcomp(extracted_umi)+u.append);
     };
     const auto &u = extract_seq_names_umi;
     auto extract_min_len = u.length_range_start;

@@ -377,6 +377,7 @@ int faidx_fetch_nseq(const faidx_t *fai)
 {
 	return fai->n;
 }
+const char *faidx_iseq(const faidx_t *fai, int i){  return fai->name[i];}
 
 char *faidx_fetch_seq(const faidx_t *fai, const char *c_name, int p_beg_i, int p_end_i, int *len)
 {
