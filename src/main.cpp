@@ -43,6 +43,66 @@ void PrintCite() {
        << endl;
 }
 
+// This is part of the --unmask non-standard splitcode workflow
+void runUnmaskingWorkflow(ProgramOptions& opt) {
+  if (opt.files.size() != 2 && opt.files.size() != 3) {
+    std::cerr << "--unmask requires two FASTA files supplied: a masked and an unmasked file" << std::endl;
+    std::cerr << "\n" << "splitcode --unmask file1.unmasked.fasta[.gz] file2.masked.fasta[.gz] [fasta_header]" << "\n" << std::endl;
+    exit(1);
+  }
+  bool header_supplied = (opt.files.size() == 3);
+  std::string header;
+  if (header_supplied) header = opt.files[2];
+
+  gzFile fp1 = gzopen(opt.files[0].c_str(), "rb");
+  gzFile fp2 = gzopen(opt.files[1].c_str(), "rb");
+
+  if (!fp1 || !fp2) {
+    std::cerr << "Error opening files." << std::endl;
+    if (fp1) gzclose(fp1);
+    if (fp2) gzclose(fp2);
+    exit(1);
+  }
+
+  kseq_t *seq1 = kseq_init(fp1);
+  kseq_t *seq2 = kseq_init(fp2);
+
+  int l1, l2;
+  int counter = 1;
+  while ((l1 = kseq_read(seq1)) >= 0 && (l2 = kseq_read(seq2)) >= 0) {
+        std::string s1 = seq1->seq.s;
+        std::string s2 = seq2->seq.s;
+        int diff_start = -1;
+        size_t min_len = std::min(s1.size(), s2.size());
+
+        for (size_t i = 0; i < min_len; ++i) {
+            if (s1[i] != s2[i]) {
+                if (diff_start == -1) diff_start = i; // Start of a new difference
+            } else {
+                if (diff_start != -1) {
+                    std::cout << ">" << (header_supplied ? header : std::to_string(counter++)) << std::endl;
+                    std::cout << s1.substr(diff_start, i - diff_start) << std::endl;
+                    diff_start = -1; // Reset diff_start
+                }
+            }
+        }
+
+        // Handle difference at the end of the sequence
+        if (diff_start != -1) {
+            std::cout << ">" << (header_supplied ? header : std::to_string(counter++)) << std::endl;
+            std::cout << s1.substr(diff_start, min_len - diff_start) << std::endl;
+        }
+  }
+
+  kseq_destroy(seq1);
+  kseq_destroy(seq2);
+  gzclose(fp1);
+  gzclose(fp2);
+
+  exit(0);
+
+}
+
 std::string argv_to_string(int argc, char *argv[]) {
   std::string res;
   for (int i = 0; i < argc; ++i) {
@@ -149,6 +209,7 @@ void usage() {
        << "    --inleaved   Specifies that input is an interleaved FASTQ file" << endl
        << "    --keep-r1-r2 Use R1.fastq, R2.fastq, etc. file name formats when demultiplexing using --keep or --keep-grp" << endl
        << "    --remultiplex  Turn on remultiplexing mode" << endl
+       << "    --unmask       Turn on unmasking mode (extract differences from a masked vs. unmasked FASTA)" << endl
        << "    --version    Prints version number" << endl
        << "    --cite       Prints citation information" << endl;
 }
@@ -183,6 +244,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   int assign_flag = 0;
   int keep_com_flag = 0;
   int remultiplex_flag = 0;
+  int unmask_flag = 0;
   int keep_r1_r2_flag = 0;
   int webasm_flag = 0;
   bool trim_only_specified = false;
@@ -220,6 +282,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"keep-com", no_argument, &keep_com_flag, 1},
     {"assign", no_argument, &assign_flag, 1},
     {"remultiplex", no_argument, &remultiplex_flag, 1},
+    {"unmask", no_argument, &unmask_flag, 1},
     {"keep-r1-r2", no_argument, &keep_r1_r2_flag, 1},
     {"webasm", no_argument, &webasm_flag, 1},
     // short args
@@ -646,6 +709,12 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     opt.files.push_back(argv[i]);
   }
   opt.select_output_files.resize(opt.nfiles, true);
+
+  // Now for specialized workflows not part of the main "splitcode" workflow
+  if (unmask_flag) {
+    runUnmaskingWorkflow(opt);
+    exit(0);
+  }
 }
 
 bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {

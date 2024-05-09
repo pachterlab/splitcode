@@ -1,7 +1,7 @@
 #ifndef SPLITCODE_H
 #define SPLITCODE_H
 
-#define SPLITCODE_VERSION "0.29.4"
+#define SPLITCODE_VERSION "0.29.5"
 
 #include <string>
 #include <iostream>
@@ -610,6 +610,7 @@ struct SplitCode {
     }
     // Transfer kmer_map_vec into kmer_size_locations (which facilitates iteration while processing fastq reads in k-mers)
     kmer_size_locations.resize(nFiles);
+    k_expansions.resize(nFiles);
     for (int i = 0; i < kmer_map_vec.size(); i++) {
       auto kmer_map = kmer_map_vec[i];
       for (auto x : kmer_map) {
@@ -622,6 +623,7 @@ struct SplitCode {
             kmer_size_locations[i].push_back(kmer_location);
             // DEBUG:
             // std::cout << "file=" << i << " k=" << kmer_location.first << " pos=" << kmer_location.second << std::endl;
+            k_expansions[i].insert(kmer_location.first);
             if (end_pos == POS_MAX) {
               kmer_location = std::make_pair(kmer_size, -1); // -1 = progress to end of read
               kmer_size_locations[i].push_back(kmer_location);
@@ -929,6 +931,7 @@ struct SplitCode {
     std::pair<int16_t,int32_t> location1;
     std::pair<int16_t,int32_t> location2;
     uint16_t name_id;
+    std::string prepend, append;
     bool group1, group2, id1_present, id2_present, rev_comp, special_extraction, use_sub, use_read_sequence;
   };
   
@@ -1724,6 +1727,15 @@ struct SplitCode {
       if (pos+curr_k > l) break;
       const auto& it = tags.find(SeqString(seq.c_str()+pos, curr_k));
       if (it == tags.end()) {
+        bool use_expansion = false;
+        for (auto possible_expansion : k_expansions[file]) {
+          if (possible_expansion > curr_k) {
+            k_expanded = possible_expansion;
+            use_expansion = true;
+            break;
+          }
+        }
+        if (use_expansion) continue;
         break;
       }
       for (const auto &x : it->second) {
@@ -2351,6 +2363,8 @@ struct SplitCode {
     auto& special_extraction = umi.special_extraction;
     auto& use_sub = umi.use_sub;
     auto& use_read_sequence = umi.use_read_sequence;
+    auto& prepend = umi.prepend;
+    auto& append = umi.append;
     length_range_start = 0;
     length_range_end = 0;
     padding_left = 0;
@@ -2378,6 +2392,34 @@ struct SplitCode {
         umi_name = umi_name.substr(1);
         rev_comp = true;
       }
+      if (umi_name.length() > 3 && umi_name[0] == '^') { // ^...^ = string-to-prepend; ^^...^^ = string-to-append
+          auto &str = umi_name;
+        size_t start, end;
+        
+        // Check if the string starts with ^^
+        if (str.substr(0, 2) == "^^") {
+          start = 2;
+          end = str.find("^^", start); // Find the next occurrence of ^^
+          if (end != std::string::npos) {
+            // Extract everything between the ^^ markers
+            append = str.substr(start, end - start);
+            // Trim off the ^^...^^ from the original string
+            umi_name = str.substr(0, start - 2) + str.substr(end + 2);
+          }
+        }
+        // Check if the string starts with ^
+        else if (str.front() == '^') {
+          start = 1;
+          end = str.find("^", start); // Find the next occurrence of ^
+          if (end != std::string::npos) {
+            // Extract everything between the ^ markers
+            prepend = str.substr(start, end - start);
+            // Trim off the ^...^ from the original string
+            umi_name = str.substr(0, start - 1) + str.substr(end + 1);
+          }
+        }
+      }
+
       // Check if we have <umi{*}> or <umi{tag_name}> or <umi{{group_name}}> to extract sequence of tag when it's identified; aka a special extraction
       auto bracket_open = umi_name.find_first_of('{');
       auto bracket_close = umi_name.find_last_of('}');
@@ -2756,7 +2798,7 @@ struct SplitCode {
           extract_no_chain_ = true;
         }
       }
-      umi_data[u.name_id] += extract_no_chain_ && !umi_data[u.name_id].empty() ? "" : (!u.rev_comp ? extracted_umi : revcomp(extracted_umi));
+      umi_data[u.name_id] += extract_no_chain_ && !umi_data[u.name_id].empty() ? "" : (!u.rev_comp ? u.prepend+extracted_umi+u.append : u.prepend+revcomp(extracted_umi)+u.append);
     };
 
     const auto& umi_vec_name = umi_name_map.find(tag_name_id) != umi_name_map.end() ? umi_name_map[tag_name_id] : std::vector<UMI>(0);
@@ -3039,7 +3081,7 @@ struct SplitCode {
           extract_no_chain_ = true;
         }
       }
-      umi_data[u.name_id] += extract_no_chain_ && !umi_data[u.name_id].empty() ? "" : (!u.rev_comp ? extracted_umi : revcomp(extracted_umi));
+      umi_data[u.name_id] += extract_no_chain_ && !umi_data[u.name_id].empty() ? "" : (!u.rev_comp ? u.prepend+extracted_umi+u.append : u.prepend+revcomp(extracted_umi)+u.append);
     };
     const auto &u = extract_seq_names_umi;
     auto extract_min_len = u.length_range_start;
@@ -4033,6 +4075,8 @@ struct SplitCode {
   std::vector<size_t> sub_assign_vec;
   
   std::string _keep_str, _keep_grp_str, _remove_str, _remove_grp_str;
+  
+  std::vector<std::unordered_set<size_t>> k_expansions; // Keeps track of all possible substring/k-mer lengths for each file (file number is the index)
   
   bool init;
   bool discard_check;

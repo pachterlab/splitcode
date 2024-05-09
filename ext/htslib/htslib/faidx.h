@@ -105,6 +105,8 @@ extern "C" {
 	 */
 	char *faidx_fetch_seq(const faidx_t *fai, const char *c_name, int p_beg_i, int p_end_i, int *len);
 
+	const char *faidx_iseq(const faidx_t *fai, int i);
+
 #ifdef __cplusplus
 }
 #endif

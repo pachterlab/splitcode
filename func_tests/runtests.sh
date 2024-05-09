@@ -419,4 +419,28 @@ echo "@no-chain x,y" >> $test_dir/config_mult_extracts.txt
 
 checkcmdoutput "$splitcode --trim-only -c $test_dir/config_mult_extracts.txt --x-only -p $test_dir/test_bound.fq" 676235664622f341a6fcb6b2035642f2
 
+# Check variable length tags across different locations
+
+checkcmdoutput "$splitcode --trim-only --mod-names -b TCCT,TCCC,TCCA,TCC,TCCGG,AAA --previous=,,,{AAA},, -l 0:0:5,0:0:5,0:0:5,0,0:5:10,0:5:10 -p $test_dir/test.fq" a2df9f98d58b47aa1beeebabc835b3b3
+
+# Check --unmask
+
+echo ">read1
+ATGAGT
+>read2
+ACACTT" > $test_dir/test_unmasked.1.fa
+
+echo ">read1
+ANNNNT
+>read2
+NCACTN" > $test_dir/test_unmasked.2.fa
+
+checkcmdoutput "$splitcode --unmask $test_dir/test_unmasked.1.fa $test_dir/test_unmasked.2.fa \"\"" b98fba82fc4a92c49d916ab97a8463bc
+
+# Check extract ^...^ and ^^...^^
+
+checkcmdoutput "$splitcode --trim-only -x \"0:1<^AAA^umi[3]>\" -p $test_dir/test_bound.fa" 5827f14f608ed69bd38b12602c8fdeea
+checkcmdoutput "$splitcode --trim-only -x \"0:1<~^^CGC^^umi[3]>\" -p $test_dir/test_bound.fa" 20b95054c5a91cfeb8585c550570bbe1
+
+
 
