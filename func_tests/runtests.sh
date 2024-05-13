@@ -442,5 +442,13 @@ checkcmdoutput "$splitcode --unmask $test_dir/test_unmasked.1.fa $test_dir/test_
 checkcmdoutput "$splitcode --trim-only -x \"0:1<^AAA^umi[3]>\" -p $test_dir/test_bound.fa" 5827f14f608ed69bd38b12602c8fdeea
 checkcmdoutput "$splitcode --trim-only -x \"0:1<~^^CGC^^umi[3]>\" -p $test_dir/test_bound.fa" 20b95054c5a91cfeb8585c550570bbe1
 
+# Check early termination (fixes a bug when maxFindsG is not set for certain groups)
+
+echo "@rNYBot1_StgOdd2Bo1Part
+TATTATGGTCCCCCCCCTTCGTGGAATCTAGCAAAAAATGACTTGAGCTGGGGGGGGGG
++
+TATTATGGTCCCCCCCCTTCGTGGAATCTAGCTGACTTGTGACTAGCTDGGGGGGGGGG" > $test_dir/test_term.fq
+
+checkcmdoutput "$splitcode --assign  -m /dev/null --mod-names -g PART,RPM,RPM,ODD,Y -i Part,RTBC2,RTBC4,Odd2Bo1,NYBot1_Stg -b TGACTTG,TTTTTTT,GGGGGGG,TTCGTGGAATCTAGC,TATTATGGT --maxFindsG=Y:1 -p $test_dir/test_term.fq" 79ad1ca9184b274e1396b5f2220cbade
 
 

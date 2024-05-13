@@ -829,6 +829,19 @@ struct SplitCode {
     if (do_qc) {
       qc.resize(names.size());
     }
+    
+    // Double check the early termination
+    for (int i = 0; i < group_names.size(); i++) {
+      if (max_finds_group_map.find(i) == max_finds_group_map.end()) {
+        early_termination_maxFindsG = -2;
+        break;
+      }
+      if (max_finds_group_map[i] == 0) {
+        early_termination_maxFindsG = -2;
+        break;
+      }
+    }
+    
     init = true;
   }
   
