@@ -184,7 +184,7 @@ public:
     while ((modify_fasta_helper(sample_names, nsmpl, vcf_fp, vcf_hdr, record, fai, chrom, var_locations, ref_seq, ref_len, seen_chromosomes, diploid, i++))) {
       prepareFastaAndPrintChromosome(ref_seq, var_locations, diploid, chrom, ref_len, sample_names, out_fasta, fasta_line_length);
       if (indel) { // Go up to chromosome chrom; maybe a different out_fasta above too; maybe ingest both original and new ref_seq as well
-        while ((modify_fasta_helper(sample_names, nsmpl, vcf_fp, vcf_hdr, record, fai, chrom, var_locations, ref_seq_indel, ref_len_indel, seen_chromosomes, diploid, i++, true, chrom_vec, chrom, ref_seq, ref_len))) {
+        while ((modify_fasta_helper(sample_names, nsmpl, vcf_fp, vcf_hdr, record, fai, chrom, var_locations, ref_seq_indel, ref_len_indel, seen_chromosomes, diploid, i++, true))) {
           // Better idea: Go up to chromosome chrom and have two final var_locations vecs, and combine at the end?
         }
       }
