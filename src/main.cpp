@@ -15,6 +15,7 @@
 #include "common.h"
 #include "ProcessReads.h"
 #include "SplitCode.h"
+#include "LiftWorkflow.h"
 
 
 //#define ERROR_STR "\033[1mError:\033[0m"
@@ -210,6 +211,7 @@ void usage() {
        << "    --keep-r1-r2 Use R1.fastq, R2.fastq, etc. file name formats when demultiplexing using --keep or --keep-grp" << endl
        << "    --remultiplex  Turn on remultiplexing mode" << endl
        << "    --unmask       Turn on unmasking mode (extract differences from a masked vs. unmasked FASTA)" << endl
+       << "    --lift         Turn lift mode (make variant genomes from VCF files)" << endl
        << "    --version    Prints version number" << endl
        << "    --cite       Prints citation information" << endl;
 }
@@ -248,6 +250,13 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   int keep_r1_r2_flag = 0;
   int webasm_flag = 0;
   bool trim_only_specified = false;
+  
+  // Some --lift specific options
+  int lift_flag = 0;
+  int lift_diploid = 0;
+  std::string lift_ref_gtf;
+  std::string lift_out_gtf;
+  std::string lift_indel;
 
   optind=1; // Reset global variable in case we want to call ParseOptions multiple times
 
@@ -285,6 +294,8 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"unmask", no_argument, &unmask_flag, 1},
     {"keep-r1-r2", no_argument, &keep_r1_r2_flag, 1},
     {"webasm", no_argument, &webasm_flag, 1},
+    {"lift", no_argument, &lift_flag, 1},
+    {"diploid", no_argument, &lift_diploid, 1},
     // short args
     {"help", no_argument, 0, 'h'},
     {"pipe", no_argument, 0, 'p'},
@@ -340,6 +351,9 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"sub-assign", required_argument, 0, 'X'},
     {"compress", required_argument, 0, 'C'},
     {"bclen", required_argument, 0, '9'},
+    {"ref-gtf", required_argument, 0, 0},
+    {"out-gtf", required_argument, 0, 0},
+    {"indel", required_argument, 0, 0},
     {0,0,0,0}
   };
   
@@ -356,6 +370,9 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     
     switch (c) {
     case 0:
+      if (strcmp(long_options[option_index].name,"ref-gtf") == 0) lift_ref_gtf = optarg;
+      if (strcmp(long_options[option_index].name,"out-gtf") == 0) lift_out_gtf = optarg;
+      if (strcmp(long_options[option_index].name,"indel") == 0) lift_indel = optarg;
       break;
     case 'h': {
       help_flag = 1;
@@ -713,6 +730,10 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   // Now for specialized workflows not part of the main "splitcode" workflow
   if (unmask_flag) {
     runUnmaskingWorkflow(opt);
+    exit(0);
+  } else if (lift_flag) {
+    LiftWorkflow lf(opt.files, (bool)lift_diploid, lift_indel, lift_ref_gtf, lift_out_gtf);
+    lf.modify_fasta();
     exit(0);
   }
 }
