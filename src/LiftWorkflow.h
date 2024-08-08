@@ -317,7 +317,7 @@ private:
       if ( ngt<=0 ) continue; // GT not present
       int max_ploidy = ngt/nsmpl;
       for (int i = 0; i < nsmpl; i++) {
-        if (sample_names[i].empty()) continue; // Don't care about this particular sample
+        if (i >= sample_names.size() || sample_names[i].empty()) continue; // Don't care about this particular sample
         int32_t *ptr = gt_arr + i*max_ploidy;
         std::vector<int> allele_indices;
         for (int j=0; j<max_ploidy; j++) {
