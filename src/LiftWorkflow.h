@@ -160,11 +160,6 @@ public:
     auto& out_fasta = std::cout;
     bcf1_t* record = bcf_init();
     
-    // Set up diploid
-    if (diploid) {
-      sample_names.push_back(sample_names[0]);
-    }
-    
     int n_seqs = faidx_fetch_nseq(fai); // number of chromosomes in FASTA file
     std::vector<std::string> chrom_vec;
     for (int idx = 0; idx < n_seqs; ++idx) {
@@ -175,7 +170,7 @@ public:
     std::string chrom;
     size_t i = 0;
     std::vector<std::vector<VarLocation>> var_locations;
-    var_locations.resize(sample_names.size());
+    var_locations.resize(diploid ? 2 : sample_names.size());
     std::unordered_set<std::string> seen_chromosomes;
     char* ref_seq = nullptr;
     char* ref_seq_indel = nullptr;
@@ -207,7 +202,10 @@ public:
           final_loc.position = 0;
           final_loc.length = ref_len;
           final_loc.variant = "";
-          var_locations[i].push_back(final_loc);
+          if (diploid) { // REMOVE:
+             var_locations[0].push_back(final_loc);
+             var_locations[1].push_back(final_loc);
+          } else var_locations[i].push_back(final_loc);
         }
         prepareFastaAndPrintChromosome(ref_seq, var_locations, diploid, chrom, ref_len, sample_names, out_fasta, fasta_line_length);
       }
@@ -257,7 +255,7 @@ private:
     bool started_loop = false;
     bool carry_on = false;
     var_locations.clear(); // Clear everything stored
-    var_locations.resize(sample_names.size());
+    var_locations.resize(diploid ? 2 : sample_names.size());
     prev_start.resize(sample_names.size(), 0);
     prev_start_ = 0;
     while ((carry_on = (iteration != 0 && !started_loop)) || bcf_read(vcf_fp, vcf_hdr, record) == 0) { // Note: For carry_on, = is an assignment operator
@@ -290,8 +288,8 @@ private:
         }
         seen_chromosomes.insert(chrom);
         // Output everything stored so far
-        for (int i = 0; i < sample_names.size(); i++) {
-          if (sample_names[i].empty()) continue; // Don't care about this sample
+        for (int i = 0; i < (diploid ? 2 : sample_names.size()); i++) {
+          if (!diploid && sample_names[i].empty()) continue; // Don't care about this sample 
           // Include final stretch of sequences (i.e. the stuff after the last variant) into
           VarLocation final_loc;
           if (var_locations[i].size() != 0) {
@@ -306,6 +304,7 @@ private:
           }
           var_locations[i].push_back(final_loc);
         }
+        chrom = prev_chrom;
         return true;
       } else if (prev_start_ > start) {
         std::cerr << "Error: VCF is unsorted at chromosome " << chrom << ", position: " << start << std::endl;
@@ -349,6 +348,7 @@ private:
           loc_2.length = start-prev_start[1];
           loc_2.variant = allele_2;
           if (!indel && !(allele_1.length() == 1 && allele_2.length() == 1)) continue; // Skip because not a SNP and indel mode not active
+          if (allele_1 == allele_2) continue; // Skip because alleles are identical
           var_locations[0].push_back(loc_1);
           var_locations[1].push_back(loc_2);
           prev_start[0] = start + allele_1.length();
@@ -361,8 +361,8 @@ private:
     }
     // if started_loop and we actually have stuff (TODO: How to determine if we actually have stuff?)
     // Output everything stored so far
-    for (int i = 0; i < sample_names.size(); i++) {
-      if (sample_names[i].empty()) continue; // Don't care about this sample
+    for (int i = 0; i < (diploid ? 2 : sample_names.size()); i++) {
+      if (!diploid && sample_names[i].empty()) continue; // Don't care about this sample
       // Include final stretch of sequences (i.e. the stuff after the last variant) into
       VarLocation final_loc;
       if (var_locations[i].size() != 0) {
@@ -393,6 +393,8 @@ private:
     for (int i = 0; i < var_locations.size(); i++) {
       std::string prefix = "";
       std::string suffix = "";
+
+      if (!diploid && sample_names[i].empty()) continue;
       
       if (diploid) suffix = std::string("_") + std::string(i == 0 ? "L" : "R") + std::string(" ") + prev_chrom + std::string(":1-") + std::to_string(ref_len);
       else prefix = sample_names[i];
