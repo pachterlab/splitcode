@@ -448,7 +448,7 @@ private:
     
     if (ref_seq != nullptr) free(ref_seq);
     var_locations.clear(); // Clear everything stored
-    var_locations.resize(sample_names.size());
+    var_locations.resize(diploid ? 2 : sample_names.size());
   }
 
   void decompressGzipToFile(const std::string& gzipFilePath, FILE* outFile) {
