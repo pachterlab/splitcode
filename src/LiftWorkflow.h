@@ -336,9 +336,9 @@ private:
           allele_1 = alleles[allele_indices[0] != -1 ? allele_indices[0]  : 0];
           allele_2 = alleles[allele_indices[1] != -1 ? allele_indices[1] : 0];
           // For SNPs, if FASTA contains a non-ATCG base AND the genotype is 0 (aka REF) or -1 (aka .), just use that non-ATCG base
-          char s = toupper(ref_seq[start+i]);
-          if (allele_1.length() == 1 && allele_indices[0] <= 0 && s != 'A' && s != 'T' && s != 'C' && s != 'G') allele_1[0] = ref_seq[start+i];
-          if (allele_2.length() == 1 && allele_indices[1] <= 0 && s != 'A' && s != 'T' && s != 'C' && s != 'G') allele_2[0] = ref_seq[start+i];
+          char s = toupper(ref_seq[start]);
+          if (allele_1.length() == 1 && allele_indices[0] <= 0 && s != 'A' && s != 'T' && s != 'C' && s != 'G') allele_1[0] = ref_seq[start];
+          if (allele_2.length() == 1 && allele_indices[1] <= 0 && s != 'A' && s != 'T' && s != 'C' && s != 'G') allele_2[0] = ref_seq[start];
           VarLocation loc_1;
           loc_1.position = prev_start[0];
           loc_1.length = start-prev_start[0];
@@ -348,7 +348,6 @@ private:
           loc_2.length = start-prev_start[1];
           loc_2.variant = allele_2;
           if (!indel && !(allele_1.length() == 1 && allele_2.length() == 1)) continue; // Skip because not a SNP and indel mode not active
-          if (allele_1 == allele_2) continue; // Skip because alleles are identical
           var_locations[0].push_back(loc_1);
           var_locations[1].push_back(loc_2);
           prev_start[0] = start + allele_1.length();
