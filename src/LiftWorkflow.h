@@ -121,16 +121,7 @@ public:
       proceed = false;
       std::cerr << "Error: Cannot use --diploid unless only one sample is provided in the VCF" << std::endl;
     }
-    if (indel) {
-      if (sample_indices_indel.size() < 1) {
-        proceed = false;
-        std::cerr << "Error: Must have at least one sample present in the VCF" << std::endl;
-      }
-      if (diploid && sample_indices_indel.size() != 1) {
-        proceed = false;
-        std::cerr << "Error: Cannot use --diploid unless only one sample is provided in the VCF" << std::endl;
-      }
-    }
+    
     if (!proceed) {
       bcf_hdr_destroy(vcf_hdr);
       hts_close(vcf_fp);
@@ -176,19 +167,14 @@ public:
     char* ref_seq_indel = nullptr;
     int ref_len = 0;
     int ref_len_indel = 0;
-    while ((modify_fasta_helper(sample_names, nsmpl, vcf_fp, vcf_hdr, record, fai, chrom, var_locations, ref_seq, ref_len, seen_chromosomes, diploid, i++))) {
-      prepareFastaAndPrintChromosome(ref_seq, var_locations, diploid, chrom, ref_len, sample_names, out_fasta, fasta_line_length);
-      if (indel) { // Go up to chromosome chrom; maybe a different out_fasta above too; maybe ingest both original and new ref_seq as well
-        while ((modify_fasta_helper(sample_names, nsmpl, vcf_fp, vcf_hdr, record, fai, chrom, var_locations, ref_seq_indel, ref_len_indel, seen_chromosomes, diploid, i++, true))) {
-          // Better idea: Go up to chromosome chrom and have two final var_locations vecs, and combine at the end?
-        }
-      }
+    std::vector<int> chrom_len; // for storing the new length of a chromosome (including indels)
+    chrom_len.resize(diploid ? 2 : 1, 0); 
+    while ((modify_fasta_helper(sample_names, nsmpl, vcf_fp, vcf_hdr, record, fai, chrom, var_locations, ref_seq, ref_len, chrom_len, seen_chromosomes, diploid, i++))) {
+      prepareFastaAndPrintChromosome(ref_seq, var_locations, diploid, chrom, ref_len, chrom_len, sample_names, out_fasta, fasta_line_length);
     }
-    if (indel) { // Go up to the remaining untouched chromosomes
-      
-    }
-    prepareFastaAndPrintChromosome(ref_seq, var_locations, diploid, chrom, ref_len, sample_names, out_fasta, fasta_line_length);
-    // TODO: indel
+    
+    prepareFastaAndPrintChromosome(ref_seq, var_locations, diploid, chrom, ref_len, chrom_len, sample_names, out_fasta, fasta_line_length);
+
     
     for (int idx = 0; idx < n_seqs; ++idx) {
       const char* seq_name = faidx_iseq(fai, idx);
@@ -205,9 +191,11 @@ public:
           if (diploid) { // REMOVE:
              var_locations[0].push_back(final_loc);
              var_locations[1].push_back(final_loc);
+             chrom_len[0] = ref_len;
+             chrom_len[1] = ref_len;
           } else var_locations[i].push_back(final_loc);
         }
-        prepareFastaAndPrintChromosome(ref_seq, var_locations, diploid, chrom, ref_len, sample_names, out_fasta, fasta_line_length);
+        prepareFastaAndPrintChromosome(ref_seq, var_locations, diploid, chrom, ref_len, chrom_len, sample_names, out_fasta, fasta_line_length);
       }
     }
 
@@ -247,7 +235,9 @@ private:
   // sample_names: maps sample indices to sample names (if a sample name is empty for a given sample index, we don't care about that sample and skip over it)
   // nsmpl: total number of samples in the VCF (i.e. bcf_hdr_nsamples)
 #ifndef NO_HTSLIB
-  bool modify_fasta_helper(const vector<string>& sample_names, size_t nsmpl, htsFile* vcf_fp, bcf_hdr_t* vcf_hdr, bcf1_t* record, faidx_t* fai, std::string& chrom, std::vector<std::vector<VarLocation>>& var_locations, char*& ref_seq, int& ref_len, std::unordered_set<std::string>& seen_chromosomes, bool diploid, size_t iteration, bool indel = false) {
+  bool modify_fasta_helper(const vector<string>& sample_names, size_t nsmpl, htsFile* vcf_fp, bcf_hdr_t* vcf_hdr, bcf1_t* record, faidx_t* fai, std::string& chrom, std::vector<std::vector<VarLocation>>& var_locations, char*& ref_seq, int& ref_len, std::vector<int>& chrom_len, std::unordered_set<std::string>& seen_chromosomes, bool diploid, size_t iteration, bool indel = false) {
+    chrom_len[0] = 0; 
+    if (diploid) chrom_len[1] = 0;
     std::vector<int> prev_start;
     prev_start.resize(sample_names.size(), 0);
     std::string prev_chrom = "";
@@ -256,8 +246,10 @@ private:
     bool carry_on = false;
     var_locations.clear(); // Clear everything stored
     var_locations.resize(diploid ? 2 : sample_names.size());
-    prev_start.resize(sample_names.size(), 0);
-    prev_start_ = 0;
+    std::vector<int> deletion_start; // used to check if a variant is within an already deleted portion
+    deletion_start.resize(2, -1);
+    std::vector<int> deletion_end;
+    deletion_end.resize(2, -1);
     while ((carry_on = (iteration != 0 && !started_loop)) || bcf_read(vcf_fp, vcf_hdr, record) == 0) { // Note: For carry_on, = is an assignment operator
       // Note: We use carry_on to determine if we want to carry on from a previous call to this function (i.e. it's not our first time going through a chromosome and haven't started looping yet)
       if (!carry_on) { // If carrying on from before, no need to do these things again (bcf_read will not be performed if carrying on)
@@ -294,13 +286,15 @@ private:
           VarLocation final_loc;
           if (var_locations[i].size() != 0) {
             auto &second_to_final_loc = var_locations[i][var_locations[i].size()-1];
-            final_loc.position = second_to_final_loc.position + second_to_final_loc.length + second_to_final_loc.variant.length();
+            final_loc.position = prev_start[i]; 
             final_loc.length = ref_len - final_loc.position;
             final_loc.variant = "";
+            chrom_len[i] += final_loc.length;
           } else {
             final_loc.position = 0;
             final_loc.length = ref_len;
             final_loc.variant = "";
+            chrom_len[i] += final_loc.length;
           }
           var_locations[i].push_back(final_loc);
         }
@@ -313,7 +307,7 @@ private:
       started_loop = true;
       int32_t *gt_arr = NULL, ngt_arr = 0;
       int ngt = bcf_get_genotypes(vcf_hdr, record, &gt_arr, &ngt_arr);
-      if ( ngt<=0 ) continue; // GT not present
+      if ( ngt<=0 ) continue; // GT not present 
       int max_ploidy = ngt/nsmpl;
       for (int i = 0; i < nsmpl; i++) {
         if (i >= sample_names.size() || sample_names[i].empty()) continue; // Don't care about this particular sample
@@ -331,27 +325,80 @@ private:
         std::string allele_1, allele_2;
         if (diploid) {
           if (allele_indices.size() != 2) continue; // Don't do anything unless we have exactly two alleles
-          // TODO: what about indels? non-diploid?
-          // We set . to REF, aka 0 (e.g. ./. = 0/0)
-          allele_1 = alleles[allele_indices[0] != -1 ? allele_indices[0]  : 0];
-          allele_2 = alleles[allele_indices[1] != -1 ? allele_indices[1] : 0];
-          // For SNPs, if FASTA contains a non-ATCG base AND the genotype is 0 (aka REF) or -1 (aka .), just use that non-ATCG base
+          if (allele_indices[0] == -1 || allele_indices[1] == -1) continue; // in case GT is ./.
           char s = toupper(ref_seq[start]);
-          if (allele_1.length() == 1 && allele_indices[0] <= 0 && s != 'A' && s != 'T' && s != 'C' && s != 'G') allele_1[0] = ref_seq[start];
-          if (allele_2.length() == 1 && allele_indices[1] <= 0 && s != 'A' && s != 'T' && s != 'C' && s != 'G') allele_2[0] = ref_seq[start];
-          VarLocation loc_1;
-          loc_1.position = prev_start[0];
-          loc_1.length = start-prev_start[0];
-          loc_1.variant = allele_1;
-          VarLocation loc_2;
-          loc_2.position = prev_start[1];
-          loc_2.length = start-prev_start[1];
-          loc_2.variant = allele_2;
-          if (!indel && !(allele_1.length() == 1 && allele_2.length() == 1)) continue; // Skip because not a SNP and indel mode not active
-          var_locations[0].push_back(loc_1);
-          var_locations[1].push_back(loc_2);
-          prev_start[0] = start + allele_1.length();
-          prev_start[1] = start + allele_2.length();
+          allele_1 = alleles[allele_indices[0]];
+          allele_2 = alleles[allele_indices[1]];
+          std::string ref_allele = alleles[0];
+
+          bool make_loc1 = true; // these variables are true by default and will turn false if any conditions are violated
+          bool make_loc2 = true;
+          if (allele_indices[0] <= 0) make_loc1 = false; // GT for allele is non-zero
+          if (allele_indices[1] <= 0) make_loc2 = false;
+          if (start >= deletion_start[0] && start <= deletion_end[0]) make_loc1 = false; // inside deleted segment?
+          if (start >= deletion_start[1] && start <= deletion_end[1]) make_loc2 = false;
+
+          // insertion! 
+          if (allele_1.length() > ref_allele.length() || allele_2.length() > ref_allele.length()) { 
+            if (make_loc1 && allele_1.length() > ref_allele.length()) {
+              allele_1 = allele_1.substr(1, allele_1.length() - 1);
+            }
+            if (make_loc2 && allele_2.length() > ref_allele.length()) {
+              allele_2 = allele_2.substr(1, allele_2.length() - 1);
+            }
+            ref_allele = "";
+            start = start + 1;
+          }
+
+          // deletion!
+          else if (allele_1.length() < ref_allele.length() || allele_2.length() < ref_allele.length()) {  
+            ref_allele = ref_allele.substr(1, ref_allele.length() - 1);
+            start = start + 1;
+
+            if (make_loc1 && allele_1.length() < alleles[0].length()) {
+              allele_1 = "";
+              deletion_start[0] = start;
+              deletion_end[0] = start + ref_allele.length() - 1;
+            }
+            else {
+              allele_1 = ref_allele;
+            }
+            if (make_loc2 && allele_2.length() < alleles[0].length()) {
+              allele_2 = "";
+              deletion_start[1] = start;
+              deletion_end[1] = start + ref_allele.length() - 1;
+            }
+            else {
+              allele_2 = ref_allele;
+            }
+          }
+
+          if (start < prev_start[0]) make_loc1 = false;
+          if (start < prev_start[1]) make_loc2 = false;
+          
+          if (make_loc1) { 
+            if (allele_1.length() == 1 && allele_indices[0] <= 0 && s != 'A' && s != 'T' && s != 'C' && s != 'G') allele_1[0] = ref_seq[start];
+            VarLocation loc_1;
+            loc_1.position = prev_start[0];
+            loc_1.length = start-prev_start[0];
+            loc_1.variant = allele_1;
+
+            var_locations[0].push_back(loc_1);
+            prev_start[0] = start + ref_allele.length();
+            chrom_len[0] += loc_1.length + allele_1.length();
+          }
+
+          if (make_loc2) { 
+            if (allele_2.length() == 1 && allele_indices[1] <= 0 && s != 'A' && s != 'T' && s != 'C' && s != 'G') allele_2[0] = ref_seq[start];
+            VarLocation loc_2;
+            loc_2.position = prev_start[1];
+            loc_2.length = start-prev_start[1];
+            loc_2.variant = allele_2;
+
+            var_locations[1].push_back(loc_2);
+            prev_start[1] = start + ref_allele.length();
+            chrom_len[1] += loc_2.length + allele_2.length();
+          }
         } else {
           
         }
@@ -366,13 +413,15 @@ private:
       VarLocation final_loc;
       if (var_locations[i].size() != 0) {
         auto &second_to_final_loc = var_locations[i][var_locations[i].size()-1];
-        final_loc.position = second_to_final_loc.position + second_to_final_loc.length + second_to_final_loc.variant.length();
+        final_loc.position = prev_start[i]; 
         final_loc.length = ref_len - final_loc.position;
         final_loc.variant = "";
+        chrom_len[i] += final_loc.length;
       } else {
         final_loc.position = 0;
         final_loc.length = ref_len;
         final_loc.variant = "";
+        chrom_len[i] += final_loc.length;
       }
       var_locations[i].push_back(final_loc);
     }
@@ -385,6 +434,7 @@ private:
       bool diploid,
       const std::string& prev_chrom,
       int ref_len,
+       std::vector<int>& chrom_len, 
       const std::vector<std::string>& sample_names,
       std::ostream& out_fasta,
       int fasta_line_length
@@ -395,7 +445,7 @@ private:
 
       if (!diploid && sample_names[i].empty()) continue;
       
-      if (diploid) suffix = std::string("_") + std::string(i == 0 ? "L" : "R") + std::string(" ") + prev_chrom + std::string(":1-") + std::to_string(ref_len);
+      if (diploid) suffix = std::string("_") + std::string(i == 0 ? "L" : "R") + std::string(" ") + prev_chrom + std::string("_") + std::string(i == 0 ? "L" : "R") + std::string(":1-") + std::to_string(chrom_len[i]) + std::string(" from|") + prev_chrom + std::string("_") + std::string(i == 0 ? "L" : "R") + std::string(":1-") + std::to_string(ref_len);
       else prefix = sample_names[i];
       
       out_fasta << ">" << prefix << prev_chrom << suffix << std::endl;
