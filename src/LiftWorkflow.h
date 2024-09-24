@@ -93,11 +93,11 @@ private:
 
 class LiftWorkflow {
 public:
-  LiftWorkflow(const std::vector<std::string>& argv_, bool diploid_, std::string indel_vcf_file_, std::string ref_gtf_, std::string out_gtf_) {
-    indel_vcf_file = indel_vcf_file_;
+  LiftWorkflow(const std::vector<std::string>& argv_, bool diploid_, bool rename_, std::string ref_gtf_, std::string out_gtf_) {
     diploid = diploid_;
     ref_gtf = ref_gtf_;
     out_gtf = out_gtf_;
+    rename = rename_;
     std::vector<std::string> argv;
     argv.push_back("splitcode --lift");
     temp_file_name = "";
@@ -108,7 +108,7 @@ public:
 
     size_t argc = argv.size();
     if (argc < 4) {
-      std::cout << "Usage: " << argv[0] << " <ref_fasta> <vcf_file> <sample> [--diploid] [--indel <vcf_file>] [--ref-gtf <ref_gtf>] [--out-gtf <out_gtf>]" << std::endl;
+      std::cout << "Usage: " << argv[0] << " <ref_fasta> <vcf_file> <sample> [--diploid] [--ref-gtf <ref_gtf>] [--out-gtf <out_gtf>]" << std::endl;
       exit(1);
     }
     temp_file_name = generate_tmp_file(temp_file_name + ref_gtf + "," + out_gtf + "," + ref_fasta + "," + vcf_file + "," + std::to_string(diploid), "./");
@@ -259,6 +259,7 @@ public:
   std::vector<string> samples;
   std::string ref_gtf;
   std::string out_gtf;
+  bool rename;
   std::string temp_file_name;
   bool diploid;
   
@@ -572,6 +573,7 @@ private:
       if (diploid) suffix = std::string("_") + std::string(i == 0 ? "L" : "R") + std::string(" ") + prev_chrom + std::string("_") + std::string(i == 0 ? "L" : "R") + std::string(":1-") + std::to_string(chrom_len[i]) + std::string(" from|") + prev_chrom + std::string("_") + std::string(i == 0 ? "L" : "R") + std::string(":1-") + std::to_string(ref_len);
       else {
        prefix = sample_names[i] + "_";
+       if (!rename) prefix = "";
        // Construct header similar to diploid mode
        suffix = " " + prev_chrom + ":1-" + std::to_string(chrom_len[i]) + " from|" + prev_chrom + ":1-" + std::to_string(ref_len);
       }
