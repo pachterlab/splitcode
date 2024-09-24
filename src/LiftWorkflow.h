@@ -19,6 +19,7 @@
 #include <sstream>
 
 #ifndef NO_HTSLIB
+#include "htslib/hts.h"
 #include "htslib/vcf.h"
 #include "htslib/faidx.h"
 #include "htslib/bgzf.h"
@@ -29,6 +30,64 @@
 using namespace std; 
 
 class LiftWorkflow; // This workflow modifies FASTA files with variants and can lift over annotations; essentially recapitulating parts of g2gtools's functionalities
+
+// GTFParser class to parse GTF files
+class GTFParser {
+public:
+    struct Record {
+        std::string seqname;
+        std::string source;
+        std::string feature;
+        int start;
+        int end;
+        std::string remaining_fields; // everything after the fifth column
+    };
+
+    GTFParser(const std::string& gtf_file) {
+        parse(gtf_file);
+    }
+
+    const std::vector<Record>& get_records() const {
+        return records;
+    }
+
+private:
+    std::vector<Record> records;
+
+    void parse(const std::string& gtf_file) {
+        htsFile* infile = hts_open(gtf_file.c_str(), "r");
+        if (!infile) {
+            std::cerr << "Error opening GTF file: " << gtf_file << std::endl;
+            exit(1);
+        }
+
+        kstring_t str = {0, 0, NULL};
+        while (hts_getline(infile, KS_SEP_LINE, &str) >= 0) {
+            std::string line(str.s);
+            if (line.empty() || line[0] == '#') continue; // skip empty lines and comments
+            std::istringstream iss(line);
+            Record record;
+
+            // read the first five columns
+            if (!(iss >> record.seqname >> record.source >> record.feature >> record.start >> record.end)) {
+                std::cerr << "Error parsing GTF line: " << line << std::endl;
+                continue;
+            }
+
+            // get the rest of the line as remaining_fields
+            std::string remaining;
+            std::getline(iss, remaining);
+            // remove leading spaces
+            remaining.erase(0, remaining.find_first_not_of(" \t"));
+            record.remaining_fields = remaining;
+
+            records.push_back(record);
+        }
+
+        hts_close(infile);
+        if (str.s) free(str.s);
+    }
+};
 
 class LiftWorkflow {
 public:
@@ -47,7 +106,7 @@ public:
 
     size_t argc = argv.size();
     if (argc < 4) {
-      std::cout << "Usage: " << argv[0] << " <ref_fasta> <vcf_file> <sample1> [<sample2> ...] [--diploid] [--indel <vcf_file>] [--ref-gtf <ref_gtf>] [--out-gtf <out_gtf>]" << std::endl;
+      std::cout << "Usage: " << argv[0] << " <ref_fasta> <vcf_file> <sample> [--diploid] [--indel <vcf_file>] [--ref-gtf <ref_gtf>] [--out-gtf <out_gtf>]" << std::endl;
       exit(1);
     }
     temp_file_name = generate_tmp_file(temp_file_name + ref_gtf + "," + out_gtf + "," + ref_fasta + "," + vcf_file + "," + std::to_string(diploid), "./");
@@ -60,7 +119,10 @@ public:
     }
 
     if (samples.empty()) {
-      std::cerr << "Error: at least one sample must be specified" << std::endl;
+      std::cerr << "Error: one sample must be specified" << std::endl;
+      exit(1);
+    } else if (samples.size() > 1) {
+      std::cerr << "Error: cannot supply more than one sample" << std::endl;
       exit(1);
     }
 
@@ -79,47 +141,24 @@ public:
     htsFile* vcf_fp = hts_open(vcf_file.c_str(), "rb");
     bcf_hdr_t* vcf_hdr = bcf_hdr_read(vcf_fp);
     unordered_set<string> sample_set(samples.begin(), samples.end());
-    vector<int> sample_indices;
-    vector<string> sample_names;
+    vector<int> sample_indices; // Indices in the VCF of samples we're interested in
+    vector<string> sample_names;  // Names of the samples we're interested in
+    unordered_map<int, int> sample_index_map; // Map from VCF sample index to our sample index
     size_t nsmpl = bcf_hdr_nsamples(vcf_hdr);
     for (int i = 0; i < nsmpl; i++) {
       string sample_name = bcf_hdr_int2id(vcf_hdr, BCF_DT_SAMPLE, i);
       if (sample_set.count(sample_name)) {
+        sample_index_map[i] = sample_names.size();
         sample_indices.push_back(i);
-        sample_names.resize(i+1);
-        sample_names[i] = sample_name;
+        sample_names.push_back(sample_name);
       }
     }
-    
-    htsFile* vcf_fp_indel;
-    bcf_hdr_t* vcf_hdr_indel;
-    size_t nsmpl_indel;
-    vector<int> sample_indices_indel;
-    vector<string> sample_names_indel;
-    if (indel) {
-      vcf_fp_indel = hts_open(indel_vcf_file.c_str(), "rb");
-      bcf_hdr_t* vcf_hdr_indel = bcf_hdr_read(vcf_fp_indel);
-      nsmpl_indel = bcf_hdr_nsamples(vcf_hdr_indel);
-      for (int i = 0; i < nsmpl_indel; i++) {
-        string sample_name = bcf_hdr_int2id(vcf_hdr_indel, BCF_DT_SAMPLE, i);
-        if (sample_set.count(sample_name)) {
-          sample_indices_indel.push_back(i);
-          sample_names_indel.resize(i+1);
-          sample_names_indel[i] = sample_name;
-        }
-      }
-    }
-    
-    
+
     // Check to make sure everything is valid with regards to number of samples and user-input options before proceeding
     bool proceed = true;
-    if (sample_indices.size() < 1) {
+    if (sample_indices.size() != 1) {
       proceed = false;
-      std::cerr << "Error: Must have at least one sample present in the VCF" << std::endl;
-    }
-    if (diploid && sample_indices.size() != 1) {
-      proceed = false;
-      std::cerr << "Error: Cannot use --diploid unless only one sample is provided in the VCF" << std::endl;
+      std::cerr << "Error: The sample supplied must be present in the VCF" << std::endl;
     }
     
     if (!proceed) {
@@ -134,6 +173,7 @@ public:
     if (ref_fasta.substr(ref_fasta.find_last_of(".") + 1) == "gz") {
       FILE* temp_file = std::fopen(temp_file_name.c_str(), "wb");
       decompressGzipToFile(ref_fasta, temp_file);
+      fclose(temp_file);
       fname = temp_file_name;
     } else {
       fname = ref_fasta;
@@ -164,17 +204,14 @@ public:
     var_locations.resize(diploid ? 2 : sample_names.size());
     std::unordered_set<std::string> seen_chromosomes;
     char* ref_seq = nullptr;
-    char* ref_seq_indel = nullptr;
     int ref_len = 0;
-    int ref_len_indel = 0;
     std::vector<int> chrom_len; // for storing the new length of a chromosome (including indels)
-    chrom_len.resize(diploid ? 2 : 1, 0); 
-    while ((modify_fasta_helper(sample_names, nsmpl, vcf_fp, vcf_hdr, record, fai, chrom, var_locations, ref_seq, ref_len, chrom_len, seen_chromosomes, diploid, i++))) {
+    chrom_len.resize(diploid ? 2 : sample_names.size(), 0); 
+    while ((modify_fasta_helper(sample_names, sample_index_map, nsmpl, vcf_fp, vcf_hdr, record, fai, chrom, var_locations, ref_seq, ref_len, chrom_len, seen_chromosomes, diploid, i++))) {
       prepareFastaAndPrintChromosome(ref_seq, var_locations, diploid, chrom, ref_len, chrom_len, sample_names, out_fasta, fasta_line_length);
     }
     
     prepareFastaAndPrintChromosome(ref_seq, var_locations, diploid, chrom, ref_len, chrom_len, sample_names, out_fasta, fasta_line_length);
-
     
     for (int idx = 0; idx < n_seqs; ++idx) {
       const char* seq_name = faidx_iseq(fai, idx);
@@ -182,18 +219,20 @@ public:
         std::string chrom = std::string(seq_name);
         ref_seq = fai_fetch(fai, chrom.c_str(), &ref_len);
         for (int i = 0; i < sample_names.size(); i++) {
-          if (sample_names[i].empty()) continue; // Don't care about this sample
           // Include final stretch of sequences (i.e. the stuff after the last variant) into
           VarLocation final_loc;
           final_loc.position = 0;
           final_loc.length = ref_len;
           final_loc.variant = "";
-          if (diploid) { // REMOVE:
+          if (diploid) {
              var_locations[0].push_back(final_loc);
              var_locations[1].push_back(final_loc);
              chrom_len[0] = ref_len;
              chrom_len[1] = ref_len;
-          } else var_locations[i].push_back(final_loc);
+          } else {
+             var_locations[i].push_back(final_loc);
+             chrom_len[i] = ref_len;
+          }
         }
         prepareFastaAndPrintChromosome(ref_seq, var_locations, diploid, chrom, ref_len, chrom_len, sample_names, out_fasta, fasta_line_length);
       }
@@ -207,15 +246,14 @@ public:
     std::remove(temp_file_name.c_str());
     
     if (!ref_gtf.empty()) {
-      //lift_over_gtf(ref_gtf, out_gtf, mod_ranges[ref_gtf]);
+      lift_over_gtf(ref_gtf, out_gtf);
     }
 #endif
-}
+  }
   
   
   std::string ref_fasta;
   std::string vcf_file;
-  std::string indel_vcf_file;
   std::vector<string> samples;
   std::string ref_gtf;
   std::string out_gtf;
@@ -229,17 +267,23 @@ private:
     uint32_t length; // length from position to start of variant
     std::string variant; // allele
   };
-  
+
+  struct CoordinateShift {
+    uint32_t orig_pos; // original position in reference genome
+    int32_t cumulative_shift; // cumulative shift in coordinate up to this position
+  };
+
+  std::unordered_map<std::string, std::vector<std::vector<CoordinateShift>>> coordinate_shifts_all;
+
   static const size_t fasta_line_length = 60;
   
-  // sample_names: maps sample indices to sample names (if a sample name is empty for a given sample index, we don't care about that sample and skip over it)
-  // nsmpl: total number of samples in the VCF (i.e. bcf_hdr_nsamples)
+    // sample_names: vector of sample names we're interested in
+    // sample_index_map: map from VCF sample index to our sample index
 #ifndef NO_HTSLIB
-  bool modify_fasta_helper(const vector<string>& sample_names, size_t nsmpl, htsFile* vcf_fp, bcf_hdr_t* vcf_hdr, bcf1_t* record, faidx_t* fai, std::string& chrom, std::vector<std::vector<VarLocation>>& var_locations, char*& ref_seq, int& ref_len, std::vector<int>& chrom_len, std::unordered_set<std::string>& seen_chromosomes, bool diploid, size_t iteration, bool indel = false) {
-    chrom_len[0] = 0; 
-    if (diploid) chrom_len[1] = 0;
+  bool modify_fasta_helper(const vector<string>& sample_names, const unordered_map<int, int>& sample_index_map, size_t nsmpl, htsFile* vcf_fp, bcf_hdr_t* vcf_hdr, bcf1_t* record, faidx_t* fai, std::string& chrom, std::vector<std::vector<VarLocation>>& var_locations, char*& ref_seq, int& ref_len, std::vector<int>& chrom_len, std::unordered_set<std::string>& seen_chromosomes, bool diploid, size_t iteration, bool indel = false) {
+    chrom_len.assign(diploid ? 2 : sample_names.size(), 0);
     std::vector<int> prev_start;
-    prev_start.resize(sample_names.size(), 0);
+    prev_start.assign(diploid ? 2 : sample_names.size(), 0);
     std::string prev_chrom = "";
     int prev_start_ = 0;
     bool started_loop = false;
@@ -247,11 +291,17 @@ private:
     var_locations.clear(); // Clear everything stored
     var_locations.resize(diploid ? 2 : sample_names.size());
     std::vector<int> deletion_start; // used to check if a variant is within an already deleted portion
-    deletion_start.resize(2, -1);
+    deletion_start.assign(diploid ? 2 : sample_names.size(), -1);
     std::vector<int> deletion_end;
-    deletion_end.resize(2, -1);
+    deletion_end.assign(diploid ? 2 : sample_names.size(), -1);
+   
+    // Initialize coordinate shifts
+    std::vector<std::vector<CoordinateShift>> coordinate_shifts;
+    coordinate_shifts.resize(diploid ? 2 : sample_names.size());
+    std::vector<int32_t> cumulative_shift;
+    cumulative_shift.assign(diploid ? 2 : sample_names.size(), 0);
+
     while ((carry_on = (iteration != 0 && !started_loop)) || bcf_read(vcf_fp, vcf_hdr, record) == 0) { // Note: For carry_on, = is an assignment operator
-      // Note: We use carry_on to determine if we want to carry on from a previous call to this function (i.e. it's not our first time going through a chromosome and haven't started looping yet)
       if (!carry_on) { // If carrying on from before, no need to do these things again (bcf_read will not be performed if carrying on)
         bcf_unpack(record, BCF_UN_STR);
         bcf_unpack(record, BCF_UN_INFO);
@@ -274,18 +324,16 @@ private:
       if (iteration == 0 && !started_loop) { // Opening up VCF file for the very first time
         seen_chromosomes.insert(chrom);
       } else if (chrom != prev_chrom) { // Encountering a new chromosome in the VCF file
-        if (seen_chromosomes.count(chrom)) { // TODO: store somewhere
+        if (seen_chromosomes.count(chrom)) {
           std::cerr << "Error: VCF is unsorted, encountered chromosome " << chrom << " separately" << std::endl;
           exit(1);
         }
         seen_chromosomes.insert(chrom);
         // Output everything stored so far
         for (int i = 0; i < (diploid ? 2 : sample_names.size()); i++) {
-          if (!diploid && sample_names[i].empty()) continue; // Don't care about this sample 
           // Include final stretch of sequences (i.e. the stuff after the last variant) into
           VarLocation final_loc;
           if (var_locations[i].size() != 0) {
-            auto &second_to_final_loc = var_locations[i][var_locations[i].size()-1];
             final_loc.position = prev_start[i]; 
             final_loc.length = ref_len - final_loc.position;
             final_loc.variant = "";
@@ -298,6 +346,8 @@ private:
           }
           var_locations[i].push_back(final_loc);
         }
+        // Store coordinate shifts
+        coordinate_shifts_all[prev_chrom] = coordinate_shifts;
         chrom = prev_chrom;
         return true;
       } else if (prev_start_ > start) {
@@ -310,7 +360,8 @@ private:
       if ( ngt<=0 ) continue; // GT not present 
       int max_ploidy = ngt/nsmpl;
       for (int i = 0; i < nsmpl; i++) {
-        if (i >= sample_names.size() || sample_names[i].empty()) continue; // Don't care about this particular sample
+        auto it = sample_index_map.find(i);
+        if (it == sample_index_map.end()) continue; // Not a sample we're interested in (technically not needed since we only permit one sample)
         int32_t *ptr = gt_arr + i*max_ploidy;
         std::vector<int> allele_indices;
         for (int j=0; j<max_ploidy; j++) {
@@ -386,6 +437,14 @@ private:
             var_locations[0].push_back(loc_1);
             prev_start[0] = start + ref_allele.length();
             chrom_len[0] += loc_1.length + allele_1.length();
+
+            // Update coordinate shifts
+            int shift = allele_1.length() - ref_allele.length();
+            cumulative_shift[0] += shift;
+            CoordinateShift coord_shift;
+            coord_shift.orig_pos = start + ref_allele.length();
+            coord_shift.cumulative_shift = cumulative_shift[0];
+            coordinate_shifts[0].push_back(coord_shift);
           }
 
           if (make_loc2) { 
@@ -398,21 +457,27 @@ private:
             var_locations[1].push_back(loc_2);
             prev_start[1] = start + ref_allele.length();
             chrom_len[1] += loc_2.length + allele_2.length();
+
+            // Update coordinate shifts
+            int shift = allele_2.length() - ref_allele.length();
+            cumulative_shift[1] += shift;
+            CoordinateShift coord_shift;
+            coord_shift.orig_pos = start + ref_allele.length();
+            coord_shift.cumulative_shift = cumulative_shift[1];
+            coordinate_shifts[1].push_back(coord_shift);
           }
-        } else {
-          
+        } else { // Non-diploid mode
+         
         }
       }
       free(gt_arr);
     }
-    // if started_loop and we actually have stuff (TODO: How to determine if we actually have stuff?)
     // Output everything stored so far
     for (int i = 0; i < (diploid ? 2 : sample_names.size()); i++) {
       if (!diploid && sample_names[i].empty()) continue; // Don't care about this sample
       // Include final stretch of sequences (i.e. the stuff after the last variant) into
       VarLocation final_loc;
       if (var_locations[i].size() != 0) {
-        auto &second_to_final_loc = var_locations[i][var_locations[i].size()-1];
         final_loc.position = prev_start[i]; 
         final_loc.length = ref_len - final_loc.position;
         final_loc.variant = "";
@@ -425,6 +490,8 @@ private:
       }
       var_locations[i].push_back(final_loc);
     }
+    // Store coordinate shifts
+    coordinate_shifts_all[chrom] = coordinate_shifts;
     return false;
   }
   
@@ -434,7 +501,7 @@ private:
       bool diploid,
       const std::string& prev_chrom,
       int ref_len,
-       std::vector<int>& chrom_len, 
+      std::vector<int>& chrom_len, 
       const std::vector<std::string>& sample_names,
       std::ostream& out_fasta,
       int fasta_line_length
@@ -446,7 +513,11 @@ private:
       if (!diploid && sample_names[i].empty()) continue;
       
       if (diploid) suffix = std::string("_") + std::string(i == 0 ? "L" : "R") + std::string(" ") + prev_chrom + std::string("_") + std::string(i == 0 ? "L" : "R") + std::string(":1-") + std::to_string(chrom_len[i]) + std::string(" from|") + prev_chrom + std::string("_") + std::string(i == 0 ? "L" : "R") + std::string(":1-") + std::to_string(ref_len);
-      else prefix = sample_names[i];
+      else {
+       prefix = sample_names[i] + "_";
+       // Construct header similar to diploid mode
+       suffix = " " + prev_chrom + ":1-" + std::to_string(chrom_len[i]) + " from|" + prev_chrom + ":1-" + std::to_string(ref_len);
+      }
       
       out_fasta << ">" << prefix << prev_chrom << suffix << std::endl;
       
@@ -527,56 +598,78 @@ private:
   }
 #endif
   
-  void lift_over_gtf(const string& ref_gtf, const string& out_gtf, const vector<pair<int, int>>& mod_ranges) {
-    ifstream ref_gtf_file(ref_gtf);
-    ofstream out_gtf_file(out_gtf);
-    
-    string line;
-    while (getline(ref_gtf_file, line)) {
-      istringstream iss(line);
-      GTFRecord record;
-      iss >> record.seqname >> record.source >> record.feature >> record.start >> record.end >> record.score >> record.strand >> record.frame >> record.attributes;
-      
-      int start = record.start;
-      int end = record.end;
-      
-      for (const auto& range : mod_ranges) {
-        if (end <= range.first) {
-          continue;
-        } else if (start >= range.second) {
-          start += range.second - range.first;
-          end += range.second - range.first;
-        } else {
-          if (start < range.first) {
-            end += range.second - range.first;
-          } else {
-            end = range.second + (end - range.first);
-          }
-          start = range.first;
+    void lift_over_gtf(const string& ref_gtf, const string& out_gtf) {
+        GTFParser parser(ref_gtf);
+        ofstream out_gtf_file(out_gtf);
+        if (!out_gtf_file) {
+            std::cerr << "Error opening output GTF file: " << out_gtf << std::endl;
+            exit(1);
         }
-      }
-      
-      record.start = start;
-      record.end = end;
-      
-      out_gtf_file << record.seqname << "\t" << record.source << "\t" << record.feature << "\t" << record.start << "\t" << record.end << "\t" << record.score << "\t" << record.strand << "\t" << record.frame << "\t" << record.attributes << endl;
+        const auto& records = parser.get_records();
+        for (const auto& record : records) {
+            const std::string& chrom = record.seqname;
+            if (diploid) {
+                // Output records for both haplotypes
+                for (int hap = 0; hap < 2; ++hap) {
+                    std::string hap_suffix = hap == 0 ? "_L" : "_R";
+                    std::string chrom_with_suffix = chrom + hap_suffix;
+
+                    int new_start = record.start;
+                    int new_end = record.end;
+
+                    if (coordinate_shifts_all.find(chrom) != coordinate_shifts_all.end()) {
+                        // Apply coordinate shifts
+                        const auto& shifts = coordinate_shifts_all.at(chrom)[hap];
+                        new_start = map_coordinate(record.start, shifts);
+                        new_end = map_coordinate(record.end, shifts);
+                    }
+
+                    out_gtf_file << chrom_with_suffix << "\t" << record.source << "\t" << record.feature << "\t" << new_start << "\t" << new_end << "\t" << record.remaining_fields << std::endl;
+                }
+            } else {
+                // Non-diploid case
+                for (int i = 0; i < samples.size(); ++i) {
+                    const std::string& sample_name = samples[i];
+                    std::string chrom_with_prefix = sample_name + "_" + chrom;
+                    int new_start = record.start;
+                    int new_end = record.end;
+
+                    if (coordinate_shifts_all.find(chrom) != coordinate_shifts_all.end()) {
+                        if (i < coordinate_shifts_all.at(chrom).size()) {
+                            const auto& shifts = coordinate_shifts_all.at(chrom)[i];
+                            new_start = map_coordinate(record.start, shifts);
+                            new_end = map_coordinate(record.end, shifts);
+                        }
+                    }
+                    out_gtf_file << chrom_with_prefix << "\t" << record.source << "\t" << record.feature << "\t" << new_start << "\t" << new_end << "\t" << record.remaining_fields << std::endl;
+                }
+            }
+        }
+        out_gtf_file.close();
     }
-    
-    ref_gtf_file.close();
-    out_gtf_file.close();
-  }
-  
-  struct GTFRecord {
-    std::string seqname;
-    std::string source;
-    std::string feature;
-    int start;
-    int end;
-    double score;
-    char strand;
-    std::string frame;
-    std::string attributes;
-  };
+
+    int map_coordinate(int old_pos, const std::vector<CoordinateShift>& shifts) {
+        // Find the last shift where orig_pos <= old_pos
+        if (shifts.empty() || old_pos < shifts[0].orig_pos) {
+            // No shift applies
+            return old_pos;
+        }
+        // Binary search to find the appropriate shift
+        size_t left = 0;
+        size_t right = shifts.size();
+        while (left < right) {
+            size_t mid = (left + right) / 2;
+            if (shifts[mid].orig_pos <= old_pos) {
+                left = mid + 1;
+            } else {
+                right = mid;
+            }
+        }
+        // The shift to apply is shifts[left - 1]
+        int shift = shifts[left - 1].cumulative_shift;
+        return old_pos + shift;
+    }
+
   
   int my_mkdir(const char *path, mode_t mode) {
 #ifdef _WIN64
