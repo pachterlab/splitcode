@@ -55,6 +55,7 @@ private:
     std::vector<Record> records;
 
     void parse(const std::string& gtf_file) {
+#ifndef NO_HTSLIB
         htsFile* infile = hts_open(gtf_file.c_str(), "r");
         if (!infile) {
             std::cerr << "Error opening GTF file: " << gtf_file << std::endl;
@@ -86,6 +87,7 @@ private:
 
         hts_close(infile);
         if (str.s) free(str.s);
+#endif
     }
 };
 
