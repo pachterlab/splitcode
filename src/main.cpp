@@ -254,9 +254,9 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   // Some --lift specific options
   int lift_flag = 0;
   int lift_diploid = 0;
+  int lift_rename = 0;
   std::string lift_ref_gtf;
   std::string lift_out_gtf;
-  std::string lift_indel;
 
   optind=1; // Reset global variable in case we want to call ParseOptions multiple times
 
@@ -296,6 +296,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"webasm", no_argument, &webasm_flag, 1},
     {"lift", no_argument, &lift_flag, 1},
     {"diploid", no_argument, &lift_diploid, 1},
+    {"rename", no_argument, &lift_rename, 1},
     // short args
     {"help", no_argument, 0, 'h'},
     {"pipe", no_argument, 0, 'p'},
@@ -353,7 +354,6 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"bclen", required_argument, 0, '9'},
     {"ref-gtf", required_argument, 0, 0},
     {"out-gtf", required_argument, 0, 0},
-    {"indel", required_argument, 0, 0},
     {0,0,0,0}
   };
   
@@ -372,7 +372,6 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     case 0:
       if (strcmp(long_options[option_index].name,"ref-gtf") == 0) lift_ref_gtf = optarg;
       if (strcmp(long_options[option_index].name,"out-gtf") == 0) lift_out_gtf = optarg;
-      if (strcmp(long_options[option_index].name,"indel") == 0) lift_indel = optarg;
       break;
     case 'h': {
       help_flag = 1;
@@ -732,7 +731,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     runUnmaskingWorkflow(opt);
     exit(0);
   } else if (lift_flag) {
-    LiftWorkflow lf(opt.files, (bool)lift_diploid, lift_indel, lift_ref_gtf, lift_out_gtf);
+    LiftWorkflow lf(opt.files, (bool)lift_diploid, (bool)lift_rename, lift_ref_gtf, lift_out_gtf);
     lf.modify_fasta();
     exit(0);
   }
