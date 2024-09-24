@@ -467,7 +467,62 @@ private:
             coordinate_shifts[1].push_back(coord_shift);
           }
         } else { // Non-diploid mode
-         
+          if (allele_indices.size() != 2) continue; // Only process diploid genotypes
+          if (allele_indices[0] == -1 || allele_indices[1] == -1) continue; // in case GT is ./.
+          if (allele_indices[0] != allele_indices[1]) continue; // Skip heterozygous genotypes
+          int allele_idx = allele_indices[0];
+          if (allele_idx == 0) continue; // Homozygous reference, no change
+          if (allele_idx > 0) {
+           // Homozygous non-reference allele
+           char s = toupper(ref_seq[start]);
+           std::string allele = alleles[allele_idx];
+           std::string ref_allele = alleles[0];
+           
+           bool make_loc = true;
+           if (start >= deletion_start[0] && start <= deletion_end[0]) make_loc = false; // inside deleted segment?
+
+           // Insertion
+           if (allele.length() > ref_allele.length()) {
+            if (make_loc) allele = allele.substr(1); // Remove the first base
+            ref_allele = "";
+            start = start + 1;
+           }
+           // Deletion
+           else if (allele.length() < ref_allele.length()) {
+            ref_allele = ref_allele.substr(1);
+            start = start + 1;
+            if (make_loc && allele.length() < alleles[0].length()) {
+             allele = "";
+             deletion_start[0] = start;
+             deletion_end[0] = start+ref_allele.length()-1;
+            } else {
+             allele = ref_allele;
+            }
+           }
+
+           if (start < prev_start[0]) make_loc = false;
+
+           if (make_loc) {
+            if (allele.length() == 1 && allele_idx <= 0 && s != 'A' && s != 'T' && s != 'C' && s != 'G') allele[0] = ref_seq[start];
+
+            VarLocation loc;
+            loc.position = prev_start[0];
+            loc.length = start - prev_start[0];
+            loc.variant = allele;
+
+            var_locations[0].push_back(loc);
+            prev_start[0] = start + ref_allele.length();//allele.length();
+            chrom_len[0] += loc.length + allele.length();
+
+            // Update coordinate shifts
+            int shift = allele.length() - ref_allele.length();
+            cumulative_shift[0] += shift;
+            CoordinateShift coord_shift;
+            coord_shift.orig_pos = start + ref_allele.length();
+            coord_shift.cumulative_shift = cumulative_shift[0];
+            coordinate_shifts[0].push_back(coord_shift);
+           }
+          }
         }
       }
       free(gt_arr);
