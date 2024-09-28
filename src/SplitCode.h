@@ -18,6 +18,7 @@
 #include <stack>
 #include <cmath>
 #include <iomanip>
+#include <cstdint>
 
 #if defined(_MSVC_LANG)
 #define SPLITCODE_CPP_VERSION _MSVC_LANG
