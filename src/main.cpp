@@ -255,6 +255,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   int lift_flag = 0;
   int lift_diploid = 0;
   int lift_rename = 0;
+  int lift_filter = 0;
   std::string lift_ref_gtf;
   std::string lift_out_gtf;
 
@@ -297,6 +298,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"lift", no_argument, &lift_flag, 1},
     {"diploid", no_argument, &lift_diploid, 1},
     {"rename", no_argument, &lift_rename, 1},
+    {"filter", no_argument, &lift_filter, 1},
     // short args
     {"help", no_argument, 0, 'h'},
     {"pipe", no_argument, 0, 'p'},
@@ -731,7 +733,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     runUnmaskingWorkflow(opt);
     exit(0);
   } else if (lift_flag) {
-    LiftWorkflow lf(opt.files, (bool)lift_diploid, (bool)lift_rename, lift_ref_gtf, lift_out_gtf);
+    LiftWorkflow lf(opt.files, (bool)lift_diploid, (bool)lift_rename, lift_ref_gtf, lift_out_gtf, (bool)lift_filter);
     lf.modify_fasta();
     exit(0);
   }

@@ -93,27 +93,29 @@ private:
 
 class LiftWorkflow {
 public:
-  LiftWorkflow(const std::vector<std::string>& argv_, bool diploid_, bool rename_, std::string ref_gtf_, std::string out_gtf_) {
+  LiftWorkflow(const std::vector<std::string>& argv_, bool diploid_, bool rename_, std::string ref_gtf_, std::string out_gtf_, bool do_filtering_) {
     diploid = diploid_;
     ref_gtf = ref_gtf_;
     out_gtf = out_gtf_;
+    do_filtering = do_filtering_;
     rename = rename_;
+    make_temp_fasta_file = false;
     std::vector<std::string> argv;
     argv.push_back("splitcode --lift");
-    temp_file_name = "";
+    temp_file_name_prefix = "";
     for (auto x : argv_) {
       argv.push_back(x);
-      temp_file_name += x + ",";
+      temp_file_name_prefix += x + ",";
     }
 
     size_t argc = argv.size();
     if (argc < 4) {
-      std::cout << "Usage: " << argv[0] << " <ref_fasta> <vcf_file> <sample> [--diploid] [--ref-gtf <ref_gtf>] [--out-gtf <out_gtf>]" << std::endl;
+      std::cout << "Usage: " << argv[0] << " <ref_fasta> <vcf_file> <sample> [--diploid] [--filter] [--ref-gtf <ref_gtf>] [--out-gtf <out_gtf>]" << std::endl;
       exit(1);
     }
-    temp_file_name = generate_tmp_file(temp_file_name + ref_gtf + "," + out_gtf + "," + ref_fasta + "," + vcf_file + "," + std::to_string(diploid), "./");
     ref_fasta = argv[1];
     vcf_file = argv[2];
+    temp_file_name_prefix = temp_file_name_prefix + ref_gtf + "," + out_gtf + "," + ref_fasta + "," + vcf_file + "," + std::to_string(diploid);
 
     for (int i = 3; i < argc; i++) {
       std::string arg = argv[i];
@@ -136,8 +138,6 @@ public:
   
   void modify_fasta() {
 #ifndef NO_HTSLIB
-    
-    bool indel = !indel_vcf_file.empty();
     
     // Prepare VCF file
     htsFile* vcf_fp = hts_open(vcf_file.c_str(), "rb");
@@ -173,20 +173,31 @@ public:
     faidx_t* fai = nullptr;
     std::string fname;
     if (ref_fasta.substr(ref_fasta.find_last_of(".") + 1) == "gz") {
-      FILE* temp_file = std::fopen(temp_file_name.c_str(), "wb");
+      temp_file_name_fasta = generate_tmp_file(temp_file_name_prefix, "./");
+      make_temp_fasta_file = true;
+      FILE* temp_file = std::fopen(temp_file_name_fasta.c_str(), "wb");
       decompressGzipToFile(ref_fasta, temp_file);
       fclose(temp_file);
-      fname = temp_file_name;
+      fname = temp_file_name_fasta;
     } else {
       fname = ref_fasta;
     }
-    std::string faiFilePath = fname + ".fai";
-    if (FILE *file = fopen(faiFilePath.c_str(), "r")) {
+    std::string faiFilePath = generate_tmp_file(temp_file_name_prefix + "fai", "./");
+    std::string faiFilePath_1 = faiFilePath + ".fai";
+    std::string faiFilePath_2 = faiFilePath + ".gzi";
+    if (FILE *file = fopen(faiFilePath_1.c_str(), "r")) {
       fclose(file);
       // File exists, attempt to delete it
       std::cerr << "fai file already exists; removing it to build a new one" << std::endl;
-      std::remove(faiFilePath.c_str());
+      std::remove(faiFilePath_1.c_str());
     }
+    if (FILE *file = fopen(faiFilePath_2.c_str(), "r")) {
+      fclose(file);
+      // File exists, attempt to delete it
+      std::cerr << "fai file already exists; removing it to build a new one" << std::endl;
+      std::remove(faiFilePath_2.c_str());
+    }
+    //fai = fai_load3(fname.c_str(), faiFilePath_1.c_str(), faiFilePath_2.c_str(), FAI_CREATE|FAI_CACHE);
     fai = fai_load(fname.c_str());
     
     // Initialize input/output variables
@@ -245,7 +256,7 @@ public:
     bcf_hdr_destroy(vcf_hdr);
     hts_close(vcf_fp);
     fai_destroy(fai);
-    std::remove(temp_file_name.c_str());
+    if (make_temp_fasta_file) std::remove(temp_file_name_fasta.c_str());
     
     if (!ref_gtf.empty()) {
       lift_over_gtf(ref_gtf, out_gtf);
@@ -260,8 +271,11 @@ public:
   std::string ref_gtf;
   std::string out_gtf;
   bool rename;
-  std::string temp_file_name;
+  std::string temp_file_name_prefix;
+  std::string temp_file_name_fasta;
   bool diploid;
+  bool do_filtering;
+  bool make_temp_fasta_file;
   
 private:
   
@@ -279,6 +293,7 @@ private:
   std::unordered_map<std::string, std::vector<std::vector<CoordinateShift>>> coordinate_shifts_all;
 
   static const size_t fasta_line_length = 60;
+  
   
     // sample_names: vector of sample names we're interested in
     // sample_index_map: map from VCF sample index to our sample index
@@ -309,6 +324,7 @@ private:
         bcf_unpack(record, BCF_UN_STR);
         bcf_unpack(record, BCF_UN_INFO);
         bcf_unpack(record, BCF_UN_FMT);
+        if (do_filtering) bcf_unpack(record, BCF_UN_FLT);
       }
       chrom = bcf_hdr_id2name(vcf_hdr, record->rid);
       if (!started_loop) { // Only load new chromosome if it's our first time going through this loop
@@ -359,6 +375,8 @@ private:
       }
       started_loop = true;
       int32_t *gt_arr = NULL, ngt_arr = 0;
+      char pass_str[] = "PASS";
+      if (do_filtering && bcf_has_filter(vcf_hdr, record, pass_str) != 1) continue;
       int ngt = bcf_get_genotypes(vcf_hdr, record, &gt_arr, &ngt_arr);
       if ( ngt<=0 ) continue; // GT not present 
       int max_ploidy = ngt/nsmpl;
