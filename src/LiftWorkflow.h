@@ -184,21 +184,14 @@ public:
     }
     std::string faiFilePath = generate_tmp_file(temp_file_name_prefix + "fai", "./");
     std::string faiFilePath_1 = faiFilePath + ".fai";
-    std::string faiFilePath_2 = faiFilePath + ".gzi";
     if (FILE *file = fopen(faiFilePath_1.c_str(), "r")) {
       fclose(file);
       // File exists, attempt to delete it
       std::cerr << "fai file already exists; removing it to build a new one" << std::endl;
       std::remove(faiFilePath_1.c_str());
     }
-    if (FILE *file = fopen(faiFilePath_2.c_str(), "r")) {
-      fclose(file);
-      // File exists, attempt to delete it
-      std::cerr << "fai file already exists; removing it to build a new one" << std::endl;
-      std::remove(faiFilePath_2.c_str());
-    }
     //fai = fai_load3(fname.c_str(), faiFilePath_1.c_str(), faiFilePath_2.c_str(), FAI_CREATE|FAI_CACHE);
-    fai = fai_load(fname.c_str());
+    fai = fai_load(fname.c_str(), faiFilePath_1.c_str());
     
     // Initialize input/output variables
     auto& out_fasta = std::cout;
@@ -255,7 +248,7 @@ public:
     bcf_destroy(record);
     bcf_hdr_destroy(vcf_hdr);
     hts_close(vcf_fp);
-    fai_destroy(fai);
+    fai_destroy(fai, faiFilePath_1.c_str());
     if (make_temp_fasta_file) std::remove(temp_file_name_fasta.c_str());
     
     if (!ref_gtf.empty()) {
