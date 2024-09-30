@@ -248,7 +248,7 @@ public:
     bcf_destroy(record);
     bcf_hdr_destroy(vcf_hdr);
     hts_close(vcf_fp);
-    fai_destroy(fai, faiFilePath_1.c_str());
+    fai_destroy(fai);
     if (make_temp_fasta_file) std::remove(temp_file_name_fasta.c_str());
     
     if (!ref_gtf.empty()) {
