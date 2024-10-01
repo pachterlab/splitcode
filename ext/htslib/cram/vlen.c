@@ -118,7 +118,6 @@ int vflen(char *fmt, va_list ap)
     int len = 0;
     char *cp, c;
     long long l;
-    int i;
     double d; 
 
     /*
