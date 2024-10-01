@@ -93,12 +93,14 @@ private:
 
 class LiftWorkflow {
 public:
-  LiftWorkflow(const std::vector<std::string>& argv_, bool diploid_, bool rename_, std::string ref_gtf_, std::string out_gtf_, bool do_filtering_) {
+  LiftWorkflow(const std::vector<std::string>& argv_, bool diploid_, bool rename_, std::string ref_gtf_, std::string out_gtf_, bool do_filtering_, int kmer_length_, std::string kmer_output_file_) {
     diploid = diploid_;
     ref_gtf = ref_gtf_;
     out_gtf = out_gtf_;
     do_filtering = do_filtering_;
     rename = rename_;
+    kmer_output_file = kmer_output_file_;
+    kmer_length = kmer_length_;
     make_temp_fasta_file = false;
     std::vector<std::string> argv;
     argv.push_back("splitcode --lift");
@@ -132,6 +134,15 @@ public:
 
     if (!ref_gtf.empty() && out_gtf.empty()) {
       std::cerr << "Error: --out-gtf must be specified if --ref-gtf is provided" << std::endl;
+      exit(1);
+    }
+    
+    bool invalid_kmer = kmer_length <= 0 || kmer_length > 100000000;
+    if (invalid_kmer && !kmer_output_file.empty()) {
+      std::cerr << "Error: --kmer-length missing or invalid even though --kmer-output is specified" << std::endl;
+      exit(1);
+    } else if (!invalid_kmer && kmer_output_file.empty()) {
+      std::cerr << "Error: --kmer-output must be specified if --kmer-length is supplied" << std::endl;
       exit(1);
     }
   }
@@ -213,11 +224,21 @@ public:
     int ref_len = 0;
     std::vector<int> chrom_len; // for storing the new length of a chromosome (including indels)
     chrom_len.resize(diploid ? 2 : sample_names.size(), 0); 
+    
+    std::ofstream kmer_out;
+    if (kmer_length > 0 && !kmer_output_file.empty()) {
+      kmer_out.open(kmer_output_file);
+      if (!kmer_out.is_open()) {
+        std::cerr << "Error: Could not open k-mer output file: " << kmer_output_file << std::endl;
+        exit(1);
+      }
+    }
+
     while ((modify_fasta_helper(sample_names, sample_index_map, nsmpl, vcf_fp, vcf_hdr, record, fai, chrom, var_locations, ref_seq, ref_len, chrom_len, seen_chromosomes, diploid, i++))) {
-      prepareFastaAndPrintChromosome(ref_seq, var_locations, diploid, chrom, ref_len, chrom_len, sample_names, out_fasta, fasta_line_length);
+      prepareFastaAndPrintChromosome(ref_seq, var_locations, diploid, chrom, ref_len, chrom_len, sample_names, out_fasta, fasta_line_length, kmer_length, kmer_out);
     }
     
-    prepareFastaAndPrintChromosome(ref_seq, var_locations, diploid, chrom, ref_len, chrom_len, sample_names, out_fasta, fasta_line_length);
+    prepareFastaAndPrintChromosome(ref_seq, var_locations, diploid, chrom, ref_len, chrom_len, sample_names, out_fasta, fasta_line_length, kmer_length, kmer_out);
     
     for (int idx = 0; idx < n_seqs; ++idx) {
       const char* seq_name = faidx_iseq(fai, idx);
@@ -240,7 +261,7 @@ public:
              chrom_len[i] = ref_len;
           }
         }
-        prepareFastaAndPrintChromosome(ref_seq, var_locations, diploid, chrom, ref_len, chrom_len, sample_names, out_fasta, fasta_line_length);
+        prepareFastaAndPrintChromosome(ref_seq, var_locations, diploid, chrom, ref_len, chrom_len, sample_names, out_fasta, fasta_line_length, kmer_length, kmer_out);
       }
     }
 
@@ -253,6 +274,10 @@ public:
     
     if (!ref_gtf.empty()) {
       lift_over_gtf(ref_gtf, out_gtf);
+    }
+    
+    if (kmer_out.is_open()) {
+      kmer_out.close();
     }
 #endif
   }
@@ -269,6 +294,8 @@ public:
   bool diploid;
   bool do_filtering;
   bool make_temp_fasta_file;
+  int kmer_length;
+  std::string kmer_output_file;
   
 private:
   
@@ -573,7 +600,9 @@ private:
       std::vector<int>& chrom_len, 
       const std::vector<std::string>& sample_names,
       std::ostream& out_fasta,
-      int fasta_line_length
+      int fasta_line_length,
+      int kmer_length,
+      std::ofstream& kmer_out
   ) {
     for (int i = 0; i < var_locations.size(); i++) {
       std::string prefix = "";
@@ -597,6 +626,10 @@ private:
       size_t charsToPrint;
       auto lineLength = fasta_line_length;
       
+      std::deque<char> buffer; // For storing the last (kmer_length - 1) bases
+      size_t buffer_max_size = (kmer_length > 0) ? kmer_length - 1 : 0;
+      bool print_kmers = kmer_length > 0 && kmer_out.is_open();
+      
       for (const auto loc : var_locations[i]) { // Loop through each variant
         currentChar = ref_seq + loc.position; // Pointer to the current string
         size_t remainingChars = loc.length;
@@ -616,6 +649,17 @@ private:
           
           // Print directly from the pointer, spanning the needed characters
           out_fasta.write(currentChar, charsToPrint);
+          
+          if (print_kmers) { // Put trailing characters before the variant into buffer
+            // Process each character
+            for (size_t idx = 0; idx < charsToPrint; ++idx) {
+              char b = currentChar[idx];
+              // Append to buffer
+              buffer.push_back(b);
+              if (buffer.size() > buffer_max_size) buffer.pop_front();
+            }
+          }
+          
           currentLineLength += charsToPrint;
           remainingChars -= charsToPrint;
           currentChar += charsToPrint; // Move the pointer forward

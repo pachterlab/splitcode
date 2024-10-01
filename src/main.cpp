@@ -258,6 +258,8 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   int lift_filter = 0;
   std::string lift_ref_gtf;
   std::string lift_out_gtf;
+  std::string lift_kmer_length;
+  std::string lift_kmer_output;
 
   optind=1; // Reset global variable in case we want to call ParseOptions multiple times
 
@@ -356,6 +358,8 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"bclen", required_argument, 0, '9'},
     {"ref-gtf", required_argument, 0, 0},
     {"out-gtf", required_argument, 0, 0},
+    {"kmer-length", required_argument, 0, 0},
+    {"kmer-output", required_argument, 0, 0},
     {0,0,0,0}
   };
   
@@ -374,6 +378,8 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     case 0:
       if (strcmp(long_options[option_index].name,"ref-gtf") == 0) lift_ref_gtf = optarg;
       if (strcmp(long_options[option_index].name,"out-gtf") == 0) lift_out_gtf = optarg;
+      if (strcmp(long_options[option_index].name,"kmer-length") == 0) lift_kmer_length = optarg;
+      if (strcmp(long_options[option_index].name,"kmer-output") == 0) lift_kmer_output = optarg;
       break;
     case 'h': {
       help_flag = 1;
@@ -733,7 +739,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     runUnmaskingWorkflow(opt);
     exit(0);
   } else if (lift_flag) {
-    LiftWorkflow lf(opt.files, (bool)lift_diploid, (bool)lift_rename, lift_ref_gtf, lift_out_gtf, (bool)lift_filter);
+    LiftWorkflow lf(opt.files, (bool)lift_diploid, (bool)lift_rename, lift_ref_gtf, lift_out_gtf, (bool)lift_filter, lift_kmer_length.empty() ? 0 : std::atoi(lift_kmer_length.c_str()), lift_kmer_output);
     lf.modify_fasta();
     exit(0);
   }
