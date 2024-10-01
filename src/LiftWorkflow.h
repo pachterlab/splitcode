@@ -625,15 +625,43 @@ private:
       const char* currentChar;
       size_t charsToPrint;
       auto lineLength = fasta_line_length;
-      
-      std::deque<char> buffer; // For storing the last (kmer_length - 1) bases
-      size_t buffer_max_size = (kmer_length > 0) ? kmer_length - 1 : 0;
-      bool print_kmers = kmer_length > 0 && kmer_out.is_open();
-      
-      for (const auto loc : var_locations[i]) { // Loop through each variant
+  
+      for (const auto& loc : var_locations[i]) { // Loop through each variant
         currentChar = ref_seq + loc.position; // Pointer to the current string
         size_t remainingChars = loc.length;
         bool variant_printed = false;
+        
+        if (kmer_length > 0 && kmer_out.is_open()) { // Generate contigs
+          // Compute the position of the variant in the reference sequence
+          int variant_pos = loc.position + loc.length;
+          // Determine the start and end positions for the contig
+          int contig_half_length = kmer_length - 1;
+          int contig_start = variant_pos - contig_half_length;
+          int contig_end = variant_pos + contig_half_length + loc.variant.length() - 1;
+          // Adjust if the contig extends beyond the sequence boundaries
+          if (contig_start < 0) contig_start = 0;
+          if (contig_end > ref_len) contig_end = ref_len;
+          std::string contig_seq;
+          // Get sequence before the variant
+          if (contig_start < variant_pos) {
+            contig_seq += std::string(ref_seq + contig_start, variant_pos - contig_start);
+          }
+          // Append the variant
+          contig_seq += loc.variant;
+          // Get sequence after the variant
+          int after_variant_start = variant_pos + loc.variant.length();
+          if (after_variant_start < contig_end) {
+            int after_variant_len = contig_end - after_variant_start;
+            if (after_variant_len > 0) {
+              contig_seq += std::string(ref_seq + after_variant_start, after_variant_len);
+            }
+          }
+          // Output the contig
+          if (!contig_seq.empty()) {
+            kmer_out << ">" << prev_chrom << ":" << contig_start + 1 << "-" << contig_end << "\n";
+            kmer_out << contig_seq << "\n";
+          }
+        }
         
         while (true) { // Print out sequence (ref+variant)
           if (remainingChars == 0 && !variant_printed) { // Now move onto printing the variant
@@ -649,16 +677,6 @@ private:
           
           // Print directly from the pointer, spanning the needed characters
           out_fasta.write(currentChar, charsToPrint);
-          
-          if (print_kmers) { // Put trailing characters before the variant into buffer
-            // Process each character
-            for (size_t idx = 0; idx < charsToPrint; ++idx) {
-              char b = currentChar[idx];
-              // Append to buffer
-              buffer.push_back(b);
-              if (buffer.size() > buffer_max_size) buffer.pop_front();
-            }
-          }
           
           currentLineLength += charsToPrint;
           remainingChars -= charsToPrint;
