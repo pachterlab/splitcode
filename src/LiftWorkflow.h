@@ -637,7 +637,7 @@ private:
           // Determine the start and end positions for the contig
           int contig_half_length = kmer_length - 1;
           int contig_start = variant_pos - contig_half_length;
-          int contig_end = variant_pos + contig_half_length + loc.variant.length() - 1;
+          int contig_end = variant_pos + contig_half_length + loc.variant.length();
           // Adjust if the contig extends beyond the sequence boundaries
           if (contig_start < 0) contig_start = 0;
           if (contig_end > ref_len) contig_end = ref_len;
