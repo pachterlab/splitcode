@@ -93,7 +93,7 @@ private:
 
 class LiftWorkflow {
 public:
-  LiftWorkflow(const std::vector<std::string>& argv_, bool diploid_, bool rename_, std::string ref_gtf_, std::string out_gtf_, bool do_filtering_, int kmer_length_, std::string kmer_output_file_) {
+  LiftWorkflow(const std::vector<std::string>& argv_, bool diploid_, bool rename_, std::string ref_gtf_, std::string out_gtf_, bool do_filtering_, int kmer_length_, std::string kmer_output_file_, std::string kmer_seq_header_ = "", bool kmer_seq_header_num_ = false) {
     diploid = diploid_;
     ref_gtf = ref_gtf_;
     out_gtf = out_gtf_;
@@ -101,7 +101,10 @@ public:
     rename = rename_;
     kmer_output_file = kmer_output_file_;
     kmer_length = kmer_length_;
+    kmer_seq_header = kmer_seq_header_;
+    kmer_seq_header_num = kmer_seq_header_num_;
     make_temp_fasta_file = false;
+    kmer_seq_num_counter = 0;
     std::vector<std::string> argv;
     argv.push_back("splitcode --lift");
     temp_file_name_prefix = "";
@@ -113,6 +116,13 @@ public:
     size_t argc = argv.size();
     if (argc < 4) {
       std::cout << "Usage: " << argv[0] << " <ref_fasta> <vcf_file> <sample> [--diploid] [--filter] [--ref-gtf <ref_gtf>] [--out-gtf <out_gtf>]" << std::endl;
+      std::cout << "\n";
+      std::cout << "Options for contig extraction: \n";
+      std::cout << "    --kmer-length=INT       Length of the k-mers that contain the variant\n";
+      std::cout << "    --kmer-output=STRING    Filename for k-mer output sequences\n";
+      std::cout << "    --kmer-header=STRING    The header of the sequences in the FASTA output (default: the variant IDs in the VCF file)\n";
+      std::cout << "    --kmer-header-num       If specified, will append a number (in increasing numerical order) to each header\n";
+      std::cout << std::endl;
       exit(1);
     }
     ref_fasta = argv[1];
@@ -235,10 +245,10 @@ public:
     }
 
     while ((modify_fasta_helper(sample_names, sample_index_map, nsmpl, vcf_fp, vcf_hdr, record, fai, chrom, var_locations, ref_seq, ref_len, chrom_len, seen_chromosomes, diploid, i++))) {
-      prepareFastaAndPrintChromosome(ref_seq, var_locations, diploid, chrom, ref_len, chrom_len, sample_names, out_fasta, fasta_line_length, kmer_length, kmer_out);
+      prepareFastaAndPrintChromosome(ref_seq, var_locations, diploid, chrom, ref_len, chrom_len, sample_names, out_fasta, fasta_line_length, kmer_length, kmer_out, kmer_seq_header, kmer_seq_num, kmer_seq_num_counter);
     }
     
-    prepareFastaAndPrintChromosome(ref_seq, var_locations, diploid, chrom, ref_len, chrom_len, sample_names, out_fasta, fasta_line_length, kmer_length, kmer_out);
+    prepareFastaAndPrintChromosome(ref_seq, var_locations, diploid, chrom, ref_len, chrom_len, sample_names, out_fasta, fasta_line_length, kmer_length, kmer_out, kmer_seq_header, kmer_seq_num, kmer_seq_num_counter);
     
     for (int idx = 0; idx < n_seqs; ++idx) {
       const char* seq_name = faidx_iseq(fai, idx);
@@ -261,7 +271,7 @@ public:
              chrom_len[i] = ref_len;
           }
         }
-        prepareFastaAndPrintChromosome(ref_seq, var_locations, diploid, chrom, ref_len, chrom_len, sample_names, out_fasta, fasta_line_length, kmer_length, kmer_out);
+        prepareFastaAndPrintChromosome(ref_seq, var_locations, diploid, chrom, ref_len, chrom_len, sample_names, out_fasta, fasta_line_length, kmer_length, kmer_out, kmer_seq_header, kmer_seq_num, kmer_seq_num_counter);
       }
     }
 
@@ -296,6 +306,9 @@ public:
   bool make_temp_fasta_file;
   int kmer_length;
   std::string kmer_output_file;
+  std::string kmer_seq_header;
+  bool kmer_seq_header_num;
+  size_t kmer_seq_num_counter;
   
 private:
   
@@ -618,7 +631,10 @@ private:
       std::ostream& out_fasta,
       int fasta_line_length,
       int kmer_length,
-      std::ofstream& kmer_out
+      std::ofstream& kmer_out,
+      const std::string& kmer_seq_header,
+      bool kmer_seq_num,
+      size_t& kmer_seq_num_counter
   ) {
     for (int i = 0; i < var_locations.size(); i++) {
       std::string prefix = "";
@@ -678,7 +694,12 @@ private:
           // Output the contig
           if (!contig_seq.empty()) {
             kmer_out << ">";
-            if (loc.variant_id != ".") kmer_out << loc.variant_id << " ";
+            if (kmer_seq_header != "") {
+              kmer_out << kmer_seq_header;
+              if (kmer_seq_num) kmer_out << std::to_string(kmer_seq_num_counter++);
+              kmer_out << " ";
+            }
+            else if (loc.variant_id != ".") kmer_out << loc.variant_id << " ";
             kmer_out << prev_chrom << ":" << contig_start + 1 << "-" << contig_end << "\n";
             kmer_out << contig_seq << "\n";
           }
