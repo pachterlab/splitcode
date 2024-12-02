@@ -303,6 +303,8 @@ private:
     uint32_t position;
     uint32_t length; // length from position to start of variant
     std::string variant; // allele
+    std::string variant_id;
+    uint16_t deletion; // record the length of deletion if it's a deletion (only used when printing k-mers surrounding the variant)
   };
 
   struct CoordinateShift {
@@ -372,6 +374,7 @@ private:
         for (int i = 0; i < (diploid ? 2 : sample_names.size()); i++) {
           // Include final stretch of sequences (i.e. the stuff after the last variant) into
           VarLocation final_loc;
+          final_loc.deletion = 0;
           if (var_locations[i].size() != 0) {
             final_loc.position = prev_start[i]; 
             final_loc.length = ref_len - final_loc.position;
@@ -430,6 +433,8 @@ private:
           if (start >= deletion_start[0] && start <= deletion_end[0]) make_loc1 = false; // inside deleted segment?
           if (start >= deletion_start[1] && start <= deletion_end[1]) make_loc2 = false;
 
+          int deletion_1 = 0;
+          int deletion_2 = 0;
           // insertion! 
           if (allele_1.length() > ref_allele.length() || allele_2.length() > ref_allele.length()) { 
             if (make_loc1 && allele_1.length() > ref_allele.length()) {
@@ -463,6 +468,8 @@ private:
             else {
               allele_2 = ref_allele;
             }
+            deletion_1 = ref_allele.length() - allele_1.length();
+            deletion_2 = ref_allele.length() - allele_2.length();
           }
 
           if (start < prev_start[0]) make_loc1 = false;
@@ -471,9 +478,11 @@ private:
           if (make_loc1) { 
             if (allele_1.length() == 1 && allele_indices[0] <= 0 && s != 'A' && s != 'T' && s != 'C' && s != 'G') allele_1[0] = ref_seq[start];
             VarLocation loc_1;
+            loc_1.deletion = deletion_1;
             loc_1.position = prev_start[0];
             loc_1.length = start-prev_start[0];
             loc_1.variant = allele_1;
+            loc_1.variant_id = record->d.id ? record->d.id : ".";
 
             var_locations[0].push_back(loc_1);
             prev_start[0] = start + ref_allele.length();
@@ -491,9 +500,11 @@ private:
           if (make_loc2) { 
             if (allele_2.length() == 1 && allele_indices[1] <= 0 && s != 'A' && s != 'T' && s != 'C' && s != 'G') allele_2[0] = ref_seq[start];
             VarLocation loc_2;
+            loc_2.deletion = deletion_2;
             loc_2.position = prev_start[1];
             loc_2.length = start-prev_start[1];
             loc_2.variant = allele_2;
+            loc_2.variant_id = record->d.id ? record->d.id : ".";
 
             var_locations[1].push_back(loc_2);
             prev_start[1] = start + ref_allele.length();
@@ -522,6 +533,7 @@ private:
            bool make_loc = true;
            if (start >= deletion_start[0] && start <= deletion_end[0]) make_loc = false; // inside deleted segment?
 
+           int deletion = 0;
            // Insertion
            if (allele.length() > ref_allele.length()) {
             if (make_loc) allele = allele.substr(1); // Remove the first base
@@ -539,6 +551,7 @@ private:
             } else {
              allele = ref_allele;
             }
+            deletion = ref_allele.length() - allele.length();
            }
 
            if (start < prev_start[0]) make_loc = false;
@@ -547,9 +560,11 @@ private:
             if (allele.length() == 1 && allele_idx <= 0 && s != 'A' && s != 'T' && s != 'C' && s != 'G') allele[0] = ref_seq[start];
 
             VarLocation loc;
+            loc.deletion = deletion;
             loc.position = prev_start[0];
             loc.length = start - prev_start[0];
             loc.variant = allele;
+            loc.variant_id = record->d.id ? record->d.id : "";
 
             var_locations[0].push_back(loc);
             prev_start[0] = start + ref_allele.length();//allele.length();
@@ -573,6 +588,7 @@ private:
       if (!diploid && sample_names[i].empty()) continue; // Don't care about this sample
       // Include final stretch of sequences (i.e. the stuff after the last variant) into
       VarLocation final_loc;
+      final_loc.deletion = 0;
       if (var_locations[i].size() != 0) {
         final_loc.position = prev_start[i]; 
         final_loc.length = ref_len - final_loc.position;
@@ -637,8 +653,8 @@ private:
           // Determine the start and end positions for the contig
           int contig_half_length = kmer_length - 1;
           int contig_start = variant_pos - contig_half_length;
-          int contig_end = variant_pos + contig_half_length + loc.variant.length();
-          if (loc.variant.length() > 1)  contig_end = variant_pos + contig_half_length; // Insertion
+          int contig_end = variant_pos + contig_half_length + loc.variant.length() + loc.deletion;
+          if (loc.variant.length() > 1) contig_end = variant_pos + contig_half_length; // Insertion
           // Adjust if the contig extends beyond the sequence boundaries
           if (contig_start < 0) contig_start = 0;
           if (contig_end > ref_len) contig_end = ref_len;
@@ -650,8 +666,9 @@ private:
           // Append the variant
           contig_seq += loc.variant;
           // Get sequence after the variant
-          int after_variant_start = variant_pos + loc.variant.length();
+          int after_variant_start = variant_pos + 1/*loc.variant.length()*/;
           if (loc.variant.length() > 1) after_variant_start = variant_pos; // Insertion
+          if (loc.deletion != 0) after_variant_start = variant_pos + loc.deletion;
           if (after_variant_start < contig_end) {
             int after_variant_len = contig_end - after_variant_start;
             if (after_variant_len > 0) {
@@ -660,7 +677,9 @@ private:
           }
           // Output the contig
           if (!contig_seq.empty()) {
-            kmer_out << ">" << prev_chrom << ":" << contig_start + 1 << "-" << contig_end << "\n";
+            kmer_out << ">";
+            if (loc.variant_id != ".") kmer_out << loc.variant_id << " ";
+            kmer_out << prev_chrom << ":" << contig_start + 1 << "-" << contig_end << "\n";
             kmer_out << contig_seq << "\n";
           }
         }
