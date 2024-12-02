@@ -260,6 +260,8 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   std::string lift_out_gtf;
   std::string lift_kmer_length;
   std::string lift_kmer_output;
+  std::string lift_kmer_header;
+  int lift_kmer_header_num = 0;
 
   optind=1; // Reset global variable in case we want to call ParseOptions multiple times
 
@@ -301,6 +303,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"diploid", no_argument, &lift_diploid, 1},
     {"rename", no_argument, &lift_rename, 1},
     {"filter", no_argument, &lift_filter, 1},
+    {"kmer-header-num", no_argument, &lift_kmer_header_num, 1},
     // short args
     {"help", no_argument, 0, 'h'},
     {"pipe", no_argument, 0, 'p'},
@@ -360,6 +363,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"out-gtf", required_argument, 0, 0},
     {"kmer-length", required_argument, 0, 0},
     {"kmer-output", required_argument, 0, 0},
+    {"kmer-header", required_argument, 0, 0},
     {0,0,0,0}
   };
   
@@ -380,6 +384,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
       if (strcmp(long_options[option_index].name,"out-gtf") == 0) lift_out_gtf = optarg;
       if (strcmp(long_options[option_index].name,"kmer-length") == 0) lift_kmer_length = optarg;
       if (strcmp(long_options[option_index].name,"kmer-output") == 0) lift_kmer_output = optarg;
+      if (strcmp(long_options[option_index].name,"kmer-header") == 0) lift_kmer_header = optarg;
       break;
     case 'h': {
       help_flag = 1;
@@ -739,7 +744,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     runUnmaskingWorkflow(opt);
     exit(0);
   } else if (lift_flag) {
-    LiftWorkflow lf(opt.files, (bool)lift_diploid, (bool)lift_rename, lift_ref_gtf, lift_out_gtf, (bool)lift_filter, lift_kmer_length.empty() ? 0 : std::atoi(lift_kmer_length.c_str()), lift_kmer_output);
+    LiftWorkflow lf(opt.files, (bool)lift_diploid, (bool)lift_rename, lift_ref_gtf, lift_out_gtf, (bool)lift_filter, lift_kmer_length.empty() ? 0 : std::atoi(lift_kmer_length.c_str()), lift_kmer_output, lift_kmer_header, lift_kmer_header_num);
     lf.modify_fasta();
     exit(0);
   }
