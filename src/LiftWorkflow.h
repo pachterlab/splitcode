@@ -245,10 +245,10 @@ public:
     }
 
     while ((modify_fasta_helper(sample_names, sample_index_map, nsmpl, vcf_fp, vcf_hdr, record, fai, chrom, var_locations, ref_seq, ref_len, chrom_len, seen_chromosomes, diploid, i++))) {
-      prepareFastaAndPrintChromosome(ref_seq, var_locations, diploid, chrom, ref_len, chrom_len, sample_names, out_fasta, fasta_line_length, kmer_length, kmer_out, kmer_seq_header, kmer_seq_num, kmer_seq_num_counter);
+      prepareFastaAndPrintChromosome(ref_seq, var_locations, diploid, chrom, ref_len, chrom_len, sample_names, out_fasta, fasta_line_length, kmer_length, kmer_out, kmer_seq_header, kmer_seq_header_num, kmer_seq_num_counter);
     }
     
-    prepareFastaAndPrintChromosome(ref_seq, var_locations, diploid, chrom, ref_len, chrom_len, sample_names, out_fasta, fasta_line_length, kmer_length, kmer_out, kmer_seq_header, kmer_seq_num, kmer_seq_num_counter);
+    prepareFastaAndPrintChromosome(ref_seq, var_locations, diploid, chrom, ref_len, chrom_len, sample_names, out_fasta, fasta_line_length, kmer_length, kmer_out, kmer_seq_header, kmer_seq_header_num, kmer_seq_num_counter);
     
     for (int idx = 0; idx < n_seqs; ++idx) {
       const char* seq_name = faidx_iseq(fai, idx);
@@ -271,7 +271,7 @@ public:
              chrom_len[i] = ref_len;
           }
         }
-        prepareFastaAndPrintChromosome(ref_seq, var_locations, diploid, chrom, ref_len, chrom_len, sample_names, out_fasta, fasta_line_length, kmer_length, kmer_out, kmer_seq_header, kmer_seq_num, kmer_seq_num_counter);
+        prepareFastaAndPrintChromosome(ref_seq, var_locations, diploid, chrom, ref_len, chrom_len, sample_names, out_fasta, fasta_line_length, kmer_length, kmer_out, kmer_seq_header, kmer_seq_header_num, kmer_seq_num_counter);
       }
     }
 
