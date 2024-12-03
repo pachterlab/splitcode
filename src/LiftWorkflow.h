@@ -663,7 +663,7 @@ private:
         size_t remainingChars = loc.length;
         bool variant_printed = false;
         
-        if (kmer_length > 0 && kmer_out.is_open()) { // Generate contigs
+        if (kmer_length > 0 && kmer_out.is_open() && loc.variant_id != "") { // Generate contigs
           // Compute the position of the variant in the reference sequence
           int variant_pos = loc.position + loc.length;
           // Determine the start and end positions for the contig
