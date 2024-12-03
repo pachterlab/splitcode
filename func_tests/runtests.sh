@@ -50,9 +50,12 @@ cmdexec "$splitcode --version"
 # Test lift workflow
 
 checkcmdoutput "$splitcode --lift $test_dir/vcf_validation.fa.gz $test_dir/test_1.vcf.gz CAST_EiJ --kmer-length=31 --kmer-output=$test_dir/test.kmers.1.txt" 7e9c1d67efdf7113bfab367cb5d2d640
-checkcmdoutput "$splitcode --lift $test_dir/vcf_validation.fa.gz $test_dir/test_2.vcf.gz CAST_EiJ --kmer-length=31 --kmer-output=$test_dir/test.kmers.2.txt" c6084f4498e53d3e58c7ceb8ff6d5372
+checkcmdoutput "$splitcode --lift $test_dir/vcf_validation.fa.gz $test_dir/test_2.vcf.gz CAST_EiJ --rename --kmer-length=31 --kmer-output=$test_dir/test.kmers.2.txt" c9a91833da19b20383d6bd1d3e32ff8f
 checkcmdoutput "cat $test_dir/test.kmers.1.txt" 54d189f4549f6b35ea80ec5c167332b7
 checkcmdoutput "cat $test_dir/test.kmers.2.txt" 9982de087ed358724580836600cc9ba7
+checkcmdoutput "$splitcode --lift $test_dir/vcf_validation.fa.gz $test_dir/test_2.vcf.gz CAST_EiJ --diploid --kmer-length=31 --kmer-output=$test_dir/test.kmers.2.txt" 6c33bd3ba7cd9aaefeca5cbaa272cdfe
+checkcmdoutput "cat $test_dir/test.kmers.2.txt" a4c73b67a0ad6e5094ff7f2dfdda15bc
+
 
 # Test SPRITE config files
 

@@ -262,6 +262,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   std::string lift_kmer_output;
   std::string lift_kmer_header;
   int lift_kmer_header_num = 0;
+  int lift_kmer_sj = 0;
 
   optind=1; // Reset global variable in case we want to call ParseOptions multiple times
 
@@ -304,6 +305,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"rename", no_argument, &lift_rename, 1},
     {"filter", no_argument, &lift_filter, 1},
     {"kmer-header-num", no_argument, &lift_kmer_header_num, 1},
+    {"kmer-sj", no_argument, &lift_kmer_sj, 1},
     // short args
     {"help", no_argument, 0, 'h'},
     {"pipe", no_argument, 0, 'p'},
@@ -744,7 +746,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     runUnmaskingWorkflow(opt);
     exit(0);
   } else if (lift_flag) {
-    LiftWorkflow lf(opt.files, (bool)lift_diploid, (bool)lift_rename, lift_ref_gtf, lift_out_gtf, (bool)lift_filter, lift_kmer_length.empty() ? 0 : std::atoi(lift_kmer_length.c_str()), lift_kmer_output, lift_kmer_header, lift_kmer_header_num);
+    LiftWorkflow lf(opt.files, (bool)lift_diploid, (bool)lift_rename, lift_ref_gtf, lift_out_gtf, (bool)lift_filter, lift_kmer_length.empty() ? 0 : std::atoi(lift_kmer_length.c_str()), lift_kmer_output, lift_kmer_header, (bool)lift_kmer_header_num, (bool)lift_kmer_sj);
     lf.modify_fasta();
     exit(0);
   }

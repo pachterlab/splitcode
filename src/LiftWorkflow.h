@@ -93,7 +93,7 @@ private:
 
 class LiftWorkflow {
 public:
-  LiftWorkflow(const std::vector<std::string>& argv_, bool diploid_, bool rename_, std::string ref_gtf_, std::string out_gtf_, bool do_filtering_, int kmer_length_, std::string kmer_output_file_, std::string kmer_seq_header_ = "", bool kmer_seq_header_num_ = false) {
+  LiftWorkflow(const std::vector<std::string>& argv_, bool diploid_, bool rename_, std::string ref_gtf_, std::string out_gtf_, bool do_filtering_, int kmer_length_, std::string kmer_output_file_, std::string kmer_seq_header_ = "", bool kmer_seq_header_num_ = false, bool kmer_sj_ = false) {
     diploid = diploid_;
     ref_gtf = ref_gtf_;
     out_gtf = out_gtf_;
@@ -105,6 +105,7 @@ public:
     kmer_seq_header_num = kmer_seq_header_num_;
     make_temp_fasta_file = false;
     kmer_seq_num_counter = 0;
+    kmer_sj = kmer_sj_;
     std::vector<std::string> argv;
     argv.push_back("splitcode --lift");
     temp_file_name_prefix = "";
@@ -115,19 +116,34 @@ public:
 
     size_t argc = argv.size();
     if (argc < 4) {
-      std::cout << "Usage: " << argv[0] << " <ref_fasta> <vcf_file> <sample> [--diploid] [--filter] [--ref-gtf <ref_gtf>] [--out-gtf <out_gtf>]" << std::endl;
+      std::cout << "Usage: " << argv[0] << " <ref_fasta> <vcf_file> <sample> [--diploid] [--filter] [--rename] [--ref-gtf <ref_gtf>] [--out-gtf <out_gtf>]" << std::endl;
       std::cout << "\n";
       std::cout << "Options for contig extraction: \n";
       std::cout << "    --kmer-length=INT       Length of the k-mers that contain the variant\n";
       std::cout << "    --kmer-output=STRING    Filename for k-mer output sequences\n";
       std::cout << "    --kmer-header=STRING    The header of the sequences in the FASTA output (default: the variant IDs in the VCF file)\n";
       std::cout << "    --kmer-header-num       If specified, will append a number (in increasing numerical order) to each header\n";
+      //std::cout << "    --kmer-sj               Extracts k-mer spanning splice junctions following a given SJ file. See usage below.\n";
+      //std::cout << "                            " << argv[0] << " <ref_fasta> <SJ_file> [additional k-mer options]\n";
       std::cout << std::endl;
       exit(1);
     }
     ref_fasta = argv[1];
     vcf_file = argv[2];
     temp_file_name_prefix = temp_file_name_prefix + ref_gtf + "," + out_gtf + "," + ref_fasta + "," + vcf_file + "," + std::to_string(diploid);
+
+    if (kmer_sj) {
+      if (argc >= 3) {
+         std::cerr << "Error: Too many arguments provided for --kmer-sj" << std::endl;
+         exit(1);
+      }
+      if (do_filtering || diploid || !ref_gtf.empty() || !out_gtf.empty()) {
+         std::cerr << "Error: Invalid argument supplied for --kmer-sj" << std::endl;
+         exit(1);
+      }
+      std::string dummy_sample = "";
+      samples.push_back(dummy_sample);
+    }
 
     for (int i = 3; i < argc; i++) {
       std::string arg = argv[i];
@@ -151,6 +167,9 @@ public:
     if (invalid_kmer && !kmer_output_file.empty()) {
       std::cerr << "Error: --kmer-length missing or invalid even though --kmer-output is specified" << std::endl;
       exit(1);
+    } else if (invalid_kmer && kmer_sj) {
+      std::cerr << "Error: --kmer-length missing or invalid even though --kmer-sj is specified" << std::endl;
+      exit(1);
     } else if (!invalid_kmer && kmer_output_file.empty()) {
       std::cerr << "Error: --kmer-output must be specified if --kmer-length is supplied" << std::endl;
       exit(1);
@@ -158,6 +177,7 @@ public:
   }
   
   void modify_fasta() {
+    if (kmer_sj) extract_kmer_sj(ref_fasta, vcf_file, kmer_length, kmer_output_file, kmer_seq_header, kmer_seq_header_num); // Note: vcf_file here is, in actuality, the SJ file
 #ifndef NO_HTSLIB
     
     // Prepare VCF file
@@ -309,6 +329,7 @@ public:
   std::string kmer_seq_header;
   bool kmer_seq_header_num;
   size_t kmer_seq_num_counter;
+  bool kmer_sj;
   
 private:
   
@@ -694,13 +715,18 @@ private:
           // Output the contig
           if (!contig_seq.empty()) {
             kmer_out << ">";
+            std::string dsuffix = diploid ? (std::string("_") + std::string(i == 0 ? "L" : "R")) : std::string(" ");
             if (kmer_seq_header != "") {
               kmer_out << kmer_seq_header;
               if (kmer_seq_num) kmer_out << std::to_string(kmer_seq_num_counter++);
-              kmer_out << " ";
+              kmer_out << dsuffix;
+              if (diploid) kmer_out << " ";
+              dsuffix = "";
             }
-            else if (loc.variant_id != ".") kmer_out << loc.variant_id << " ";
-            kmer_out << prev_chrom << ":" << contig_start + 1 << "-" << contig_end << "\n";
+            else if (loc.variant_id != ".") { kmer_out << loc.variant_id << dsuffix; dsuffix = ""; if (diploid) { kmer_out << " "; } }
+            kmer_out << prev_chrom << ":" << contig_start + 1 << "-" << contig_end;
+            if (diploid) kmer_out << dsuffix;
+            kmer_out << "\n";
             kmer_out << contig_seq << "\n";
           }
         }
@@ -852,7 +878,11 @@ private:
     return mkdir(path,mode);
 #endif
   }
-  
+
+  void extract_kmer_sj(std::string ref_fasta, std::string sj_file, int kmer_length, std::string kmer_output_file, std::string kmer_seq_header, bool kmer_seq_header_num) {
+    // TODO:
+  }
+
   std::string generate_tmp_file(std::string seed, std::string tmp_dir) {
     struct stat stFileInfo;
     auto intStat = stat(tmp_dir.c_str(), &stFileInfo);
