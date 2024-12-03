@@ -47,6 +47,13 @@ checkcmdoutput() {
 
 cmdexec "$splitcode --version"
 
+# Test lift workflow
+
+checkcmdoutput "$splitcode --lift $test_dir/vcf_validation.fa.gz $test_dir/test_1.vcf.gz CAST_EiJ --kmer-length=31 --kmer-output=$test_dir/test.kmers.1.txt" 7e9c1d67efdf7113bfab367cb5d2d640
+checkcmdoutput "$splitcode --lift $test_dir/vcf_validation.fa.gz $test_dir/test_2.vcf.gz CAST_EiJ --kmer-length=31 --kmer-output=$test_dir/test.kmers.2.txt" c6084f4498e53d3e58c7ceb8ff6d5372
+checkcmdoutput "cat $test_dir/test.kmers.1.txt" 54d189f4549f6b35ea80ec5c167332b7
+checkcmdoutput "cat $test_dir/test.kmers.2.txt" 9982de087ed358724580836600cc9ba7
+
 # Test SPRITE config files
 
 cmdexec "$splitcode -t 1 -o "$test_dir/A_out_1.fastq.gz,$test_dir/A_out_2.fastq.gz" -O $test_dir/A_out_barcodes.fastq.gz -N 2 -c $test_dir/splitcode_example_config.txt -y <(echo "DPM,Y,ODD,EVEN,ODD") --mod-names --gzip -m $test_dir/A_out_mapping.txt.gz $test_dir/A_1.fastq.gz $test_dir/A_2.fastq.gz"
