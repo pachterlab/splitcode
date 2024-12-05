@@ -18,6 +18,16 @@
 #include <unordered_set>
 #include <sstream>
 
+#ifdef SPLITCODE_USE_ZLIB_NG
+#ifndef WITH_GZFILEOP
+#define WITH_GZFILEOP
+#endif
+#include "zlib-ng/zlib.h"
+#else
+#include <zlib.h>
+#endif
+
+
 #ifndef NO_HTSLIB
 #include "htslib/hts.h"
 #include "htslib/vcf.h"
@@ -26,6 +36,11 @@
 #endif
 
 #include "common.h"
+#ifndef KSEQ_INIT_READY
+#define KSEQ_INIT_READY
+KSEQ_INIT(gzFile, gzread)
+#endif
+
  
 using namespace std; 
 
@@ -93,12 +108,13 @@ private:
 
 class LiftWorkflow {
 public:
-  LiftWorkflow(const std::vector<std::string>& argv_, bool diploid_, bool rename_, std::string ref_gtf_, std::string out_gtf_, bool do_filtering_, int kmer_length_, std::string kmer_output_file_, std::string kmer_seq_header_ = "", bool kmer_seq_header_num_ = false, bool kmer_sj_ = false) {
+  LiftWorkflow(const std::vector<std::string>& argv_, bool diploid_, bool rename_, bool snv_only_, std::string ref_gtf_, std::string out_gtf_, bool do_filtering_, int kmer_length_, std::string kmer_output_file_, std::string kmer_seq_header_ = "", bool kmer_seq_header_num_ = false, bool kmer_sj_ = false) {
     diploid = diploid_;
     ref_gtf = ref_gtf_;
     out_gtf = out_gtf_;
     do_filtering = do_filtering_;
     rename = rename_;
+    snv_only = snv_only_;
     kmer_output_file = kmer_output_file_;
     kmer_length = kmer_length_;
     kmer_seq_header = kmer_seq_header_;
@@ -115,25 +131,25 @@ public:
     }
 
     size_t argc = argv.size();
-    if (argc < 4) {
-      std::cout << "Usage: " << argv[0] << " <ref_fasta> <vcf_file> <sample> [--diploid] [--filter] [--rename] [--ref-gtf <ref_gtf>] [--out-gtf <out_gtf>]" << std::endl;
+    if ((!kmer_sj && argc < 4) || (kmer_sj && argc < 3)) {
+      std::cout << "Usage: " << argv[0] << " <ref_fasta> <vcf_file> <sample> [--diploid] [--filter] [--rename] [--snv-only] [--ref-gtf <ref_gtf>] [--out-gtf <out_gtf>]" << std::endl;
       std::cout << "\n";
       std::cout << "Options for contig extraction: \n";
       std::cout << "    --kmer-length=INT       Length of the k-mers that contain the variant\n";
       std::cout << "    --kmer-output=STRING    Filename for k-mer output sequences\n";
       std::cout << "    --kmer-header=STRING    The header of the sequences in the FASTA output (default: the variant IDs in the VCF file)\n";
       std::cout << "    --kmer-header-num       If specified, will append a number (in increasing numerical order) to each header\n";
-      //std::cout << "    --kmer-sj               Extracts k-mer spanning splice junctions following a given SJ file. See usage below.\n";
-      //std::cout << "                            " << argv[0] << " <ref_fasta> <SJ_file> [additional k-mer options]\n";
+      std::cout << "    --kmer-sj               Extracts k-mer spanning splice junctions following a given SJ file. See usage below.\n";
+      std::cout << "                            " << argv[0] << " --kmer-sj <ref_fasta> <SJ_file> [additional k-mer options]\n";
       std::cout << std::endl;
       exit(1);
     }
     ref_fasta = argv[1];
     vcf_file = argv[2];
-    temp_file_name_prefix = temp_file_name_prefix + ref_gtf + "," + out_gtf + "," + ref_fasta + "," + vcf_file + "," + std::to_string(diploid);
+    temp_file_name_prefix = temp_file_name_prefix + ref_gtf + "," + out_gtf + "," + ref_fasta + "," + vcf_file + "," + std::to_string(diploid) + std::to_string(rename) + std::to_string(snv_only) + std::to_string(do_filtering) + std::to_string(kmer_length) + std::to_string(kmer_sj) + std::to_string(kmer_seq_header_num) + kmer_output_file + kmer_seq_header;
 
     if (kmer_sj) {
-      if (argc >= 3) {
+      if (argc > 3) {
          std::cerr << "Error: Too many arguments provided for --kmer-sj" << std::endl;
          exit(1);
       }
@@ -170,14 +186,17 @@ public:
     } else if (invalid_kmer && kmer_sj) {
       std::cerr << "Error: --kmer-length missing or invalid even though --kmer-sj is specified" << std::endl;
       exit(1);
-    } else if (!invalid_kmer && kmer_output_file.empty()) {
+    } else if (!invalid_kmer && kmer_output_file.empty() && !kmer_sj) {
       std::cerr << "Error: --kmer-output must be specified if --kmer-length is supplied" << std::endl;
       exit(1);
     }
   }
   
   void modify_fasta() {
-    if (kmer_sj) extract_kmer_sj(ref_fasta, vcf_file, kmer_length, kmer_output_file, kmer_seq_header, kmer_seq_header_num); // Note: vcf_file here is, in actuality, the SJ file
+    if (kmer_sj) {
+       extract_kmer_sj(ref_fasta, vcf_file, kmer_length, kmer_output_file, kmer_seq_header, kmer_seq_header_num); // Note: vcf_file here is, in actuality, the SJ file
+       return;
+    }
 #ifndef NO_HTSLIB
     
     // Prepare VCF file
@@ -319,6 +338,7 @@ public:
   std::string ref_gtf;
   std::string out_gtf;
   bool rename;
+  bool snv_only;
   std::string temp_file_name_prefix;
   std::string temp_file_name_fasta;
   bool diploid;
@@ -479,6 +499,7 @@ private:
             }
             ref_allele = "";
             start = start + 1;
+            if (snv_only) continue; // Skip
           }
 
           // deletion!
@@ -504,6 +525,7 @@ private:
             }
             deletion_1 = ref_allele.length() - allele_1.length();
             deletion_2 = ref_allele.length() - allele_2.length();
+            if (snv_only) continue; // Skip
           }
 
           if (start < prev_start[0]) make_loc1 = false;
@@ -573,6 +595,7 @@ private:
             if (make_loc) allele = allele.substr(1); // Remove the first base
             ref_allele = "";
             start = start + 1;
+            if (snv_only) continue; // Skip
            }
            // Deletion
            else if (allele.length() < ref_allele.length()) {
@@ -586,6 +609,7 @@ private:
              allele = ref_allele;
             }
             deletion = ref_allele.length() - allele.length();
+            if (snv_only) continue; // Skip
            }
 
            if (start < prev_start[0]) make_loc = false;
@@ -879,9 +903,144 @@ private:
 #endif
   }
 
-  void extract_kmer_sj(std::string ref_fasta, std::string sj_file, int kmer_length, std::string kmer_output_file, std::string kmer_seq_header, bool kmer_seq_header_num) {
-    // TODO:
-  }
+
+void extract_kmer_sj(std::string ref_fasta, std::string sj_file, int kmer_length, std::string kmer_output_file, std::string kmer_seq_header, bool kmer_seq_header_num) {
+    // Structure to hold splice junction data
+    struct SpliceJunction {
+        int start_pos;
+        int end_pos;
+    };
+
+    // Read the SJ.out.tab file and store splice junctions in memory
+    std::unordered_map<std::string, std::vector<SpliceJunction>> chrom_to_sj;
+    std::ifstream sj_in(sj_file);
+    if (!sj_in) {
+        std::cerr << "Error opening SJ file: " << sj_file << std::endl;
+        exit(1);
+    }
+    std::string line;
+    while (std::getline(sj_in, line)) {
+        if (line.empty()) continue;
+        std::istringstream ss(line);
+        std::string chrom;
+        int start_pos, end_pos;
+        ss >> chrom >> start_pos >> end_pos;
+        if (chrom.empty()) continue;
+        // Positions are 1-based
+        chrom_to_sj[chrom].push_back({start_pos, end_pos});
+    }
+    sj_in.close();
+
+    // Sort the splice junctions for each chromosome
+    for (auto& kv : chrom_to_sj) {
+        std::sort(kv.second.begin(), kv.second.end(), [](const SpliceJunction& a, const SpliceJunction& b) {
+            return a.start_pos < b.start_pos;
+        });
+    }
+
+    // Prepare output stream
+    std::ostream* kmer_out = nullptr;
+    std::ofstream ofs;
+    if (kmer_output_file.empty()) {
+        kmer_out = &std::cout;
+    } else {
+        ofs.open(kmer_output_file);
+        if (!ofs) {
+            std::cerr << "Error opening output file: " << kmer_output_file << std::endl;
+            exit(1);
+        }
+        kmer_out = &ofs;
+    }
+    int kmer_seq_num_counter = 0;
+
+    // Open the FASTA file using kseq.h
+    gzFile fp = gzopen(ref_fasta.c_str(), "r");
+    if (!fp) {
+        std::cerr << "Error opening FASTA file: " << ref_fasta << std::endl;
+        exit(1);
+    }
+    kseq_t *seq = kseq_init(fp);
+
+    // Read sequences one by one
+    while (kseq_read(seq) >= 0) {
+        std::string current_chrom = seq->name.s;
+        // Remove any description after space
+        size_t space_pos = current_chrom.find(' ');
+        if (space_pos != std::string::npos) {
+            current_chrom = current_chrom.substr(0, space_pos);
+        }
+
+        // Check if we have splice junctions for this chromosome
+        auto it = chrom_to_sj.find(current_chrom);
+        if (it == chrom_to_sj.end()) {
+            // No splice junctions for this chromosome
+            continue;
+        }
+        std::vector<SpliceJunction>& sj_vector = it->second;
+
+        const char* sequence = seq->seq.s;
+        int seq_length = seq->seq.l; // length of the sequence
+
+        // Process each splice junction
+        for (const auto& sj : sj_vector) {
+            int start_pos = sj.start_pos;
+            int end_pos = sj.end_pos;
+
+            // Validate positions
+            if (start_pos < 1 || end_pos < 1 || start_pos > seq_length || end_pos > seq_length || start_pos > end_pos) {
+                std::cerr << "Invalid positions for chromosome " << current_chrom << ": " << start_pos << "-" << end_pos << std::endl;
+                continue;
+            }
+
+            // Compute the k-mer window spanning the junction
+            int junction_index_in_new_seq = start_pos - 1; // 0-based index in the original sequence
+
+            // The length of the removed segment
+            int removed_length = end_pos - start_pos + 1;
+
+            // The length of the new sequence after removal
+            int new_seq_length = seq_length - removed_length;
+
+            // Calculate k-mer window indices in the original sequence
+            int kmer_window_start_in_orig = junction_index_in_new_seq - (kmer_length - 1); // Before removal
+            int kmer_window_end_in_orig = junction_index_in_new_seq + (kmer_length - 2) + removed_length; // After the junction, adjusted for removed length
+
+            // Adjust indices if they go beyond the sequence boundaries
+            if (kmer_window_start_in_orig < 0) kmer_window_start_in_orig = 0;
+            if (kmer_window_end_in_orig > seq_length - 1) kmer_window_end_in_orig = seq_length - 1;
+
+            // Build the k-mer window sequence without copying the entire sequence
+            std::string kmer_window_seq;
+            // Append sequence before the splice junction
+            if (start_pos - 1 > kmer_window_start_in_orig) {
+                kmer_window_seq.append(&sequence[kmer_window_start_in_orig], start_pos - 1 - kmer_window_start_in_orig);
+            }
+            // Append sequence after the splice junction
+            if (kmer_window_end_in_orig >= end_pos) {
+                kmer_window_seq.append(&sequence[end_pos], kmer_window_end_in_orig - end_pos + 1);
+            }
+
+            // Output the k-mer window sequence
+            *kmer_out << ">";
+            if (!kmer_seq_header.empty()) {
+                *kmer_out << kmer_seq_header;
+                if (kmer_seq_header_num) *kmer_out << kmer_seq_num_counter++;
+                *kmer_out << " ";
+            }
+            *kmer_out << current_chrom << ":" << start_pos << "-" << end_pos << "\n";
+            *kmer_out << kmer_window_seq << "\n";
+        }
+    }
+
+    // Clean up
+    kseq_destroy(seq);
+    gzclose(fp);
+    if (ofs.is_open()) {
+        ofs.close();
+    }
+}
+
+
 
   std::string generate_tmp_file(std::string seed, std::string tmp_dir) {
     struct stat stFileInfo;

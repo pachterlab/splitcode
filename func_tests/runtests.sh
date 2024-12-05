@@ -55,6 +55,9 @@ checkcmdoutput "cat $test_dir/test.kmers.1.txt" 54d189f4549f6b35ea80ec5c167332b7
 checkcmdoutput "cat $test_dir/test.kmers.2.txt" 9982de087ed358724580836600cc9ba7
 checkcmdoutput "$splitcode --lift $test_dir/vcf_validation.fa.gz $test_dir/test_2.vcf.gz CAST_EiJ --diploid --kmer-length=31 --kmer-output=$test_dir/test.kmers.2.txt" 6c33bd3ba7cd9aaefeca5cbaa272cdfe
 checkcmdoutput "cat $test_dir/test.kmers.2.txt" a4c73b67a0ad6e5094ff7f2dfdda15bc
+checkcmdoutput "$splitcode --lift --snv-only $test_dir/vcf_validation.fa.gz $test_dir/test_2.vcf.gz CAST_EiJ" 4bdcaf9f34da45033d477651d8845bf2
+checkcmdoutput "$splitcode --lift --kmer-sj $test_dir/vcf_validation.fa.gz $test_dir/example.SJ.tab --kmer-length=31 --kmer-header=X_ --kmer-header-num" 1e88d0b72323a6c11faa73e19007fc5f
+
 
 
 # Test SPRITE config files

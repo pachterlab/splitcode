@@ -255,6 +255,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   int lift_flag = 0;
   int lift_diploid = 0;
   int lift_rename = 0;
+  int lift_snvonly = 0;
   int lift_filter = 0;
   std::string lift_ref_gtf;
   std::string lift_out_gtf;
@@ -303,6 +304,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"lift", no_argument, &lift_flag, 1},
     {"diploid", no_argument, &lift_diploid, 1},
     {"rename", no_argument, &lift_rename, 1},
+    {"snv-only", no_argument, &lift_snvonly, 1},
     {"filter", no_argument, &lift_filter, 1},
     {"kmer-header-num", no_argument, &lift_kmer_header_num, 1},
     {"kmer-sj", no_argument, &lift_kmer_sj, 1},
@@ -746,7 +748,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     runUnmaskingWorkflow(opt);
     exit(0);
   } else if (lift_flag) {
-    LiftWorkflow lf(opt.files, (bool)lift_diploid, (bool)lift_rename, lift_ref_gtf, lift_out_gtf, (bool)lift_filter, lift_kmer_length.empty() ? 0 : std::atoi(lift_kmer_length.c_str()), lift_kmer_output, lift_kmer_header, (bool)lift_kmer_header_num, (bool)lift_kmer_sj);
+    LiftWorkflow lf(opt.files, (bool)lift_diploid, (bool)lift_rename, (bool)lift_snvonly, lift_ref_gtf, lift_out_gtf, (bool)lift_filter, lift_kmer_length.empty() ? 0 : std::atoi(lift_kmer_length.c_str()), lift_kmer_output, lift_kmer_header, (bool)lift_kmer_header_num, (bool)lift_kmer_sj);
     lf.modify_fasta();
     exit(0);
   }
