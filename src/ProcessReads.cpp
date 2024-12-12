@@ -5,6 +5,7 @@
 #include "kseq.h"
 #include "common.h"
 #include <unordered_set>
+#include <algorithm>
 
 std::string pretty_num(size_t num) {
   auto s = std::to_string(num);
@@ -155,7 +156,8 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
                                   std::vector<std::pair<const char*, int>>& seqs,
                                   std::vector<std::pair<const char*, int>>& names,
                                   std::vector<std::pair<const char*, int>>& quals,
-                                  std::vector<uint32_t>& flags) {
+                                  std::vector<uint32_t>& flags,
+                                  SplitCode* sc_current) {
   // Write out fastq
   int incf, jmax;
   incf = nfiles-1;
@@ -166,20 +168,27 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
   std::vector<const char*> nl(jmax, nullptr);
   std::vector<const char*> q(jmax, nullptr);
   std::vector<int> l(jmax,0);
-  char start_char = opt.output_fasta ? '>' : '@';
-  bool include_quals = !opt.output_fasta;
+  bool isParent = (sc_current == nullptr); // The parent if nested
+  SplitCode* sc = isParent ? &(this->sc) : sc_current;
+  bool hasChild = (sc->sc_nest != nullptr); // If parent has child
+  bool writeToSS = hasChild; // Write to an intermediate output string to be stored
+  char start_char = opt.output_fasta && !writeToSS ? '>' : '@';
+  bool include_quals = !opt.output_fasta || writeToSS;
+  std::string oss; // contains the output stored string (i.e. the intermediate)
+  bool remultiplex = opt.remultiplex && isParent;
+  bool x_only = sc->x_only;
   
   size_t readnum = 0;
-  for (int i = 0; i + incf < seqs.size() && readnum < rv.size(); i++, readnum++) {
+  for (int i = 0; i + incf < seqs.size() && (readnum < rv.size() || !isParent); i++, readnum++) {
     auto& r = rv[readnum];
     if (!r.passes_filter) {
       i += incf;
       continue;
     }
     auto& umi_vec = r.umi_data;
-    bool assigned = sc.isAssigned(r); // Note: r.discard and assigned will both true be in the case of sc.always_assign==true but the read doesn't pass our keep/discard filter (if !sc.always_assign, assigned will be false if r.discard is false)
-    bool assigned2 = sc.isAssigned(r, true); // Unlike assigned, assigned2 is false if sc.always_assign==true but the read doesn't pass the keep/discard filter; basically, it's equivalent to: (assigned && !r.discard)
-    bool use_pipe = opt.pipe && (r.ofile.empty() || (!r.ofile.empty() && !r.ofile_keep)); // Conditions under which we'll write to stdout
+    bool assigned = sc->isAssigned(r); // Note: r.discard and assigned will both true be in the case of sc->always_assign==true but the read doesn't pass our keep/discard filter (if !sc->always_assign, assigned will be false if r.discard is false)
+    bool assigned2 = sc->isAssigned(r, true); // Unlike assigned, assigned2 is false if sc->always_assign==true but the read doesn't pass the keep/discard filter; basically, it's equivalent to: (assigned && !r.discard)
+    bool use_pipe = (opt.pipe && (r.ofile.empty() || (!r.ofile.empty() && !r.ofile_keep))) || writeToSS; // Conditions under which we'll write to stdout
     // Conditions under which we'll write to separate barcode file (either write_barcode_separate_fastq specified previously or we need to write reads out to r.ofile even though user specified --pipe):
     bool write_barcode_separate_fastq_ = write_barcode_separate_fastq || (!r.ofile.empty() && (opt.pipe && !opt.no_output_barcodes));
     bool name_modded = false;
@@ -189,30 +198,30 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
     }
     if ((assigned || r.discard) && opt.mod_names) {
       mod_name += (name_modded ? "\t" : "");
-      mod_name += "::" + sc.getNameString(r); // Barcode names
+      mod_name += "::" + sc->getNameString(r); // Barcode names
     }
     if ((assigned || r.discard) && opt.seq_names && !r.identified_tags_seqs.empty()) {
       mod_name += (name_modded ? "\t" : " ");
       mod_name += opt.sam_tags[0][0] + r.identified_tags_seqs; // Sequences of identified tags stitched together
       name_modded = true;
     }
-    if (assigned && opt.com_names && !sc.always_assign) {
+    if (assigned && opt.com_names && !sc->always_assign) {
       mod_name += (name_modded ? "\t" : " ");
-      mod_name += opt.sam_tags[2][0] + std::to_string(sc.getID(r.id));
-      //mod_name += "\t" + opt.sam_tags[0][0] + sc.binaryToString(sc.getID(r.id), sc.getBarcodeLength())
+      mod_name += opt.sam_tags[2][0] + std::to_string(sc->getID(r.id));
+      //mod_name += "\t" + opt.sam_tags[0][0] + sc->binaryToString(sc->getID(r.id), sc->getBarcodeLength())
       name_modded = true;
-    } else if (assigned && opt.com_names && opt.remultiplex) { // Add remultiplexed ID to read name
+    } else if (assigned && opt.com_names && remultiplex) { // Add remultiplexed ID to read name
       mod_name += (name_modded ? "\t" : " ");
-      mod_name += opt.sam_tags[2][0] + std::to_string(sc.getID(batch_id_mapping[flags[readnum]]));
+      mod_name += opt.sam_tags[2][0] + std::to_string(sc->getID(batch_id_mapping[flags[readnum]]));
       name_modded = true;
     }
-    if (assigned && opt.bc_names && !sc.always_assign) {
+    if (assigned && opt.bc_names && !sc->always_assign) {
       mod_name += (name_modded ? "\t" : " ");
-      mod_name += opt.sam_tags[4][0] + sc.binaryToString(sc.getID(r.id), sc.getBarcodeLength());
+      mod_name += opt.sam_tags[4][0] + sc->binaryToString(sc->getID(r.id), sc->getBarcodeLength());
       name_modded = true;
-    } else if (assigned && opt.bc_names && opt.remultiplex) { // Add remultiplexed ID to read name
+    } else if (assigned && opt.bc_names && remultiplex) { // Add remultiplexed ID to read name
       mod_name += (name_modded ? "\t" : " ");
-      mod_name += opt.sam_tags[4][0] + sc.binaryToString(sc.getID(batch_id_mapping[flags[readnum]]), sc.getBarcodeLength());
+      mod_name += opt.sam_tags[4][0] + sc->binaryToString(sc->getID(batch_id_mapping[flags[readnum]]), sc->getBarcodeLength());
       name_modded = true;
     }
     if (assigned && r.subassign_id != -1) {
@@ -228,11 +237,11 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
       }
       name_modded = true;
     }
-    if (assigned2 && opt.x_names && !sc.umi_names.empty()) {
+    if (assigned2 && opt.x_names && !sc->umi_names.empty()) {
       std::string mod_name2 = (name_modded ? "\t" : " ");
       mod_name2 += opt.sam_tags[1][0];
       bool umi_empty = true;
-      for (size_t umi_index = 0; umi_index < sc.umi_names.size(); umi_index++) { // Iterate through vector of all UMI names
+      for (size_t umi_index = 0; umi_index < sc->umi_names.size(); umi_index++) { // Iterate through vector of all UMI names
         std::string curr_umi = umi_vec[umi_index];
         if (umi_index != 0 && !(opt.empty_remove && curr_umi.empty())) {
           if (opt.sam_tags[1].size() >= umi_index+1) {
@@ -253,24 +262,28 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
     if (mod_name == " " || mod_name == "\t") {
       mod_name = "";
     }
-    if (assigned && (write_barcode_separate_fastq_ || use_pipe) && (!sc.always_assign || (opt.remultiplex && assigned2)) && !opt.no_output_barcodes) { // Write out barcode read
+  
+    if (assigned && (write_barcode_separate_fastq_ || use_pipe) && (!sc->always_assign || (remultiplex && assigned2)) && !opt.no_output_barcodes) { // Write out barcode read
       std::stringstream o;
       // Write out barcode read
       o << start_char << std::string(names[i].first, names[i].second) << mod_name << "\n";
-      if (!opt.remultiplex) {
-        o << sc.binaryToString(sc.getID(r.id), sc.getBarcodeLength()) << "\n";
+      if (!remultiplex) {
+        o << sc->binaryToString(sc->getID(r.id), sc->getBarcodeLength()) << "\n";
       } else { // Write out remultiplexing barcode
-        o << sc.binaryToString(sc.getID(batch_id_mapping[flags[readnum]]), sc.getBarcodeLength()) << "\n";
+        o << sc->binaryToString(sc->getID(batch_id_mapping[flags[readnum]]), sc->getBarcodeLength()) << "\n";
       }
       if (include_quals) {
         o << "+" << "\n";
-        o << std::string(sc.getBarcodeLength(), sc.QUAL) << "\n";
+        o << std::string(sc->getBarcodeLength(), sc->QUAL) << "\n";
       }
       const std::string& ostr = o.str();
       size_t ostr_len = ostr.length();
       if (!opt.outbam || !r.ofile.empty()) { // Only write barcode read if we're not writing BAM files (or we're writing BAM files but we need to write the current read into a FASTQ file for the "keep" demultiplexing)
         if (use_pipe && !write_barcode_separate_fastq_) {
-          if (!opt.no_output_) fwrite(ostr.c_str(), 1, ostr_len, stdout);
+          if (!opt.no_output_) {
+            if (!hasChild) fwrite(ostr.c_str(), 1, ostr_len, stdout);
+            else oss += ostr;
+          }
         } else if (opt.gzip) {
           gzwrite(r.ofile.empty() ? outb_gz : out_keep_gz[r.ofile][0], ostr.c_str(), ostr_len);
         } else {
@@ -278,8 +291,8 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
         }
       }
     }
-    if (!sc.umi_names.empty() && assigned2 && !opt.no_x_out && !opt.outbam) { // Write out extracted UMIs as needed
-      for (int umi_index = 0; umi_index < sc.umi_names.size(); umi_index++) { // Iterate through vector of all UMI names
+    if (!sc->umi_names.empty() && assigned2 && !opt.no_x_out && !opt.outbam) { // Write out extracted UMIs as needed
+      for (int umi_index = 0; umi_index < sc->umi_names.size(); umi_index++) { // Iterate through vector of all UMI names
         std::string curr_umi = umi_vec[umi_index];
         if (curr_umi.empty()) {
           if (opt.empty_remove) {
@@ -292,12 +305,15 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
         o << curr_umi << "\n";
         if (include_quals) {
           o << "+" << "\n";
-          o << std::string(curr_umi.length(), sc.QUAL) << "\n";
+          o << std::string(curr_umi.length(), sc->QUAL) << "\n";
         }
         const std::string& ostr = o.str();
         size_t ostr_len = ostr.length();
         if (use_pipe) {
-          if (!opt.no_output_) fwrite(ostr.c_str(), 1, ostr_len, stdout);
+          if (!opt.no_output_) {
+            if (!hasChild) fwrite(ostr.c_str(), 1, ostr_len, stdout);
+            else oss += ostr;
+          }
         } else if (opt.gzip && !outumi_gz.empty()) {
           gzwrite(outumi_gz[umi_index], ostr.c_str(), ostr_len);
         } else if (!outumi.empty()) {
@@ -306,7 +322,7 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
       }
     }
     int jj = -1;
-    bool no_output = (!(assigned2) && !write_unassigned_fastq) || opt.x_only; // When to not output read sequences
+    bool no_output = (!(assigned2) && !write_unassigned_fastq) || x_only; // When to not output read sequences
     std::vector<const char*> s_(jmax, nullptr);
     std::vector<const char*> q_(jmax, nullptr);
     std::vector<int> l_(jmax,0);
@@ -318,7 +334,7 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
         l_[j] = seqs[i+j].second;
       }
     } else if (!no_output) { // If we need to make a substitution in the read
-      edited_s_vec = sc.getEditedRead(seqs, quals, i, jmax, r, include_quals);
+      edited_s_vec = sc->getEditedRead(seqs, quals, i, jmax, r, include_quals);
       for (int j = 0; j < jmax; j++) {
         s_[j] = edited_s_vec[j].first.c_str(); // sequence
         q_[j] = edited_s_vec[j].second.c_str(); // quality
@@ -347,14 +363,14 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
       int nl = names[i+j].second;
       const char* q = q_[j];
       // Write out read
-      bool embed_final_barcode = assigned && jj == 0 && !write_barcode_separate_fastq_ && !use_pipe && (!sc.always_assign || opt.remultiplex) && !opt.no_output_barcodes;
+      bool embed_final_barcode = assigned && jj == 0 && !write_barcode_separate_fastq_ && !use_pipe && (!sc->always_assign || remultiplex) && !opt.no_output_barcodes;
       o << start_char;
       o << std::string(n,nl) << mod_name << "\n";
       if (embed_final_barcode) {
-        if (!opt.remultiplex) {
-          o << sc.binaryToString(sc.getID(r.id), sc.getBarcodeLength());
+        if (!remultiplex) {
+          o << sc->binaryToString(sc->getID(r.id), sc->getBarcodeLength());
         } else {
-          o << sc.binaryToString(sc.getID(batch_id_mapping[flags[readnum]]), sc.getBarcodeLength());
+          o << sc->binaryToString(sc->getID(batch_id_mapping[flags[readnum]]), sc->getBarcodeLength());
         }
       } else if (l == 0 && !opt.empty_read_sequence.empty()) {
         o << opt.empty_read_sequence;
@@ -365,9 +381,9 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
       if (include_quals) {
         o << "+" << "\n";
         if (embed_final_barcode) {
-          o << std::string(sc.getBarcodeLength(), sc.QUAL);
+          o << std::string(sc->getBarcodeLength(), sc->QUAL);
         } else if (l == 0 && !opt.empty_read_sequence.empty()) {
-          o << std::string(opt.empty_read_sequence.length(), sc.QUAL);
+          o << std::string(opt.empty_read_sequence.length(), sc->QUAL);
         }
         o << std::string(q,l) << "\n";
       }
@@ -378,7 +394,10 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
         if (opt.outbam && r.ofile.empty()) {
           writeBam(ostr, nl, jmax == 2 ? jj+1 : 0);
         } else if (use_pipe && !opt.outbam) {
-          if (!opt.no_output_) fwrite(ostr.c_str(), 1, ostr_len, stdout);
+          if (!opt.no_output_) {
+            if (!hasChild) fwrite(ostr.c_str(), 1, ostr_len, stdout);
+            else oss += ostr;
+          }
         } else {
           if (opt.gzip) {
             gzwrite(r.ofile.empty() ? out_gz[jj] : out_keep_gz[r.ofile][j+1], ostr.c_str(), ostr_len);
@@ -396,6 +415,63 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
       }
     }
     i += incf;
+  }
+  
+  if (hasChild) { // TODO: 
+    int jmax = sc->sc_nest->nFiles;
+    SplitCode* sc_nest = sc->sc_nest;
+    int incf = jmax-1;
+    std::vector<const char*> s(jmax, nullptr);
+    std::vector<int> l(jmax,0);
+    std::vector<const char*> q(jmax, nullptr);
+    auto seqs_size = seqs.size();
+    rv.clear();
+    
+    std::vector<std::pair<const char*, int>> seqs_;
+    seqs_.reserve(seqs_size*jmax);
+    std::vector<std::pair<const char*, int>> quals_;
+    quals_.reserve(seqs_size*jmax);
+    std::vector<std::pair<const char*, int>> names_;
+    names_.reserve(seqs_size*jmax);
+    std::replace(oss.begin(), oss.end(), '\n', '\0');
+    const char* data = oss.data();
+    const char* end = data + oss.size();
+    const char* pos = data; // Current position in oss
+
+    int i_ = 0;
+    for (int i = 0; i + incf < seqs_size && (i_ < readnum || !isParent); i++,i_++) { // Iterate through sequences again
+      for (int record = 0; record < jmax; ++record) { // Go through FASTQ records in stored string
+        const char* header_start = pos;
+        while (pos < end && *pos != '\0') ++pos; // Skip Header Line
+        const char* header_end = pos;
+        names_.emplace_back(header_start+1, static_cast<int>(header_end - header_start));
+        if (pos < end) ++pos; // Move past '\n'
+        const char* seq_start = pos;
+        while (pos < end && *pos != '\0') ++pos; // Record sequence line
+        const char* seq_end = pos;
+        if (pos < end) ++pos; // Move past '\n'
+        s[record] = seq_start;
+        l[record] = static_cast<int>(seq_end - seq_start);
+        seqs_.emplace_back(s[record], l[record]);
+        while (pos < end && *pos != '\0') ++pos; // Skip separator line '+'
+        if (pos < end) ++pos; // Move past '\n'
+        const char* qual_start = pos;
+        while (pos < end && *pos != '\0') ++pos;
+        if (pos < end) ++pos; // Move past '\n'
+        q[record] = qual_start;
+        quals_.emplace_back(q[record], l[record]);
+        SplitCode::Results results;
+        sc_nest->processRead(s, l, jmax, results, q);
+        i += incf;
+        if (sc_nest->isAssigned(results)) {
+          sc_nest->modifyRead(seqs_, quals_, i-incf, results, true); // What to do about the incf
+        }
+        rv.push_back(results);
+      }
+    }
+    
+    std::vector<uint32_t> flags;
+    writeOutput(rv, seqs_, names_, quals_, flags, sc_nest);
   }
 }
 

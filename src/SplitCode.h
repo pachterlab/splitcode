@@ -42,6 +42,7 @@ struct SplitCode {
   
   SplitCode() {
     init = false;
+    sc_nest = nullptr;
     extract_seq_names = false;
     discard_check = false;
     keep_check = false;
@@ -70,14 +71,22 @@ struct SplitCode {
     fake_bc_len_offset = 0;
     setNFiles(0);
     early_termination_maxFindsG = -1;
+    x_only = false;
+    no_x_out = false;
+    outbam = false;
+    no_output_barcodes = false;
+    remultiplex = false;
+    always_assign = true;
   }
   
   SplitCode(int nFiles, std::string summary_file = "", bool trim_only = false, bool disable_n = true,
             std::string trim_5_str = "", std::string trim_3_str = "", std::string extract_str = "", bool extract_no_chain = false, std::string barcode_prefix = "",
             std::string filter_length_str = "", bool quality_trimming_5 = false, bool quality_trimming_3 = false,
             bool quality_trimming_pre = false, bool quality_trimming_naive = false, int quality_trimming_threshold = -1, bool phred64 = false,
-            bool write_tag_location_information = false, std::vector<size_t> sub_assign_vec = std::vector<size_t>(0), int fake_bc_len_override = 0, int min_delta = -1, bool do_qc = false) {
+            bool write_tag_location_information = false, std::vector<size_t> sub_assign_vec = std::vector<size_t>(0), int fake_bc_len_override = 0, int min_delta = -1, bool do_qc = false,
+            bool x_only = false, bool no_x_out = false, bool outbam = false, bool no_output_barcodes = false, std::string outputb_file = "", bool remultiplex = false) {
     init = false;
+    sc_nest = nullptr;
     extract_seq_names = false;
     discard_check = false;
     keep_check = false;
@@ -113,11 +122,21 @@ struct SplitCode {
     this->sub_assign_vec = sub_assign_vec;
     this->min_delta = min_delta;
     this->do_qc = do_qc;
+    this->x_only = x_only;
+    this->no_x_out = no_x_out;
+    this->outbam = outbam;
+    this->no_output_barcodes = no_output_barcodes;
+    this->outputb_file = outputb_file;
+    this->remultiplex = remultiplex;
     early_termination_maxFindsG = -1;
     max_seq_len = 0;
     setNFiles(nFiles);
     setTrimOnly(trim_only);
     setRandomReplacement(!disable_n);
+  }
+  
+  ~SplitCode() {
+    if (sc_nest != nullptr) delete sc_nest;
   }
   
   void writeSummary(std::string call = "", std::string fname = "") {
@@ -1452,7 +1471,7 @@ struct SplitCode {
     }
   }
   
-  bool addTags(std::string config_file) {
+  bool addTags(std::string config_file, std::string config_remainder = "") {
     if (init) {
       std::cerr << "Error: Already initialized" << std::endl;
       return false;
@@ -1462,20 +1481,47 @@ struct SplitCode {
       return false;
     }
     struct stat stFileInfo;
-    auto intstat = stat(config_file.c_str(), &stFileInfo);
-    if (intstat != 0) {
-      std::cerr << "Error: file not found " << config_file << std::endl;
-      return false;
+    if (config_file != "") {
+      auto intstat = stat(config_file.c_str(), &stFileInfo);
+      if (intstat != 0) {
+        std::cerr << "Error: file not found " << config_file << std::endl;
+        return false;
+      }
     }
     std::ifstream cfile(config_file);
     std::string line;
+    std::vector<std::string> lines;
+    int nest_index = -1;
+    if (config_file != "") {
+      while (std::getline(cfile, line)) lines.push_back(line);
+      cfile.close();
+      for (int i = 0; i < lines.size(); ++i) {
+        if (lines[i].size() > 0 && lines[i][0] == '@' && lines[i].substr(0, lines[i].find_last_not_of(' ') + 1) == "@nest") {
+          nest_index = i;
+          break;
+        }
+      }
+    } else {
+      std::stringstream ss(config_remainder);
+      while (std::getline(ss, line)) lines.push_back(line);
+      for (int i = 0; i < lines.size(); ++i) {
+        if (lines[i].size() > 0 && lines[i][0] == '@' && lines[i].substr(0, lines[i].find_last_not_of(' ') + 1) == "@nest") {
+          nest_index = i;
+          break;
+        }
+      }
+    }
+
+    std::stringstream ss_above; // Above @nest
+    for (int i = 0; i < (nest_index == -1 ? lines.size() : nest_index); ++i) ss_above << lines[i] << "\n";
+    for (int i = nest_index + 1; i < lines.size() && nest_index != -1; ++i) config_remainder += lines[i] + "\n";
     bool header_read = false;
     std::vector<std::string> h;
     bool _keep = false;
     bool _keep_grp = false;
     bool _remove = false;
     bool _remove_grp = false;
-    while (std::getline(cfile,line)) {
+    while (std::getline(ss_above,line)) {
       if (line.size() == 0) {
         _keep = false;
         _keep_grp = false;
@@ -1519,6 +1565,12 @@ struct SplitCode {
           this->quality_trimming_naive = true;
         } else if (field == "@phred64") {
           this->phred64 = true;
+        } else if (field == "@x-only") {
+          if (no_x_out) {
+            std::cerr << "Error: Cannot specify x-only with --no-x-out in the file \"" << config_file << "\"" << std::endl;
+            return false;
+          }
+          this->x_only = true;
         } else if (field == "@no-chain") {
           this->extract_no_chain = true;
           if (!value.empty()) {
@@ -1715,6 +1767,20 @@ struct SplitCode {
     if (!_remove_grp_str.empty()) addFilterListGroup(_remove_grp_str, true, true);
     
     checkInit();
+    
+    if (nest_index != -1) { // If we need to create a new nested SplitCode object:
+      int nfiles_ = 0;
+      if (!no_output_barcodes && outputb_file.empty() && (!always_assign || remultiplex)) {
+        nfiles_ += 1; // For the barcode
+      }
+      if (!umi_names.empty() && !no_x_out && !outbam) { // Write out extracted UMIs as needed
+        nfiles_ += umi_names.size();
+      }
+      nfiles_ += x_only ? 0 : nFiles;
+      sc_nest = new SplitCode(nfiles_);
+      sc_nest->setTrimOnly(this->always_assign);
+      sc_nest->addTags("", config_remainder);
+    }
     return true;
   }
   
@@ -4019,6 +4085,9 @@ struct SplitCode {
     }
   };
   
+  SplitCode* sc_nest; // Used for nesting
+  std::string config_remainder;
+  
   std::vector<SplitCodeTag> tags_vec;
   splitcode_u_map_<SeqString, std::vector<tval>, SeqStringHasher> tags;
   std::vector<std::string> names;
@@ -4107,6 +4176,12 @@ struct SplitCode {
   bool quality_trimming_naive;
   bool phred64;
   bool write_tag_location_information;
+  bool x_only;
+  bool no_x_out;
+  bool outbam;
+  bool no_output_barcodes;
+  bool remultiplex;
+  std::string outputb_file;
   int quality_trimming_threshold;
   int nFiles;
   int n_tag_entries;
