@@ -160,23 +160,33 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
                                   SplitCode* sc_current) {
   // Write out fastq
   int incf, jmax;
+  
+  bool isParent = (sc_current == nullptr); // The parent if nested
+  SplitCode* sc = isParent ? &(this->sc) : sc_current;
+  bool hasChild = (sc->sc_nest != nullptr); // If parent has child
+  bool writeToSS = hasChild; // Write to an intermediate output string to be stored
+
   incf = nfiles-1;
   jmax = nfiles;
+  
+  if (!isParent) {
+    jmax = sc->nFiles;
+    incf = jmax - 1;
+  }
   
   std::vector<const char*> s(jmax, nullptr);
   std::vector<const char*> n(jmax, nullptr);
   std::vector<const char*> nl(jmax, nullptr);
   std::vector<const char*> q(jmax, nullptr);
   std::vector<int> l(jmax,0);
-  bool isParent = (sc_current == nullptr); // The parent if nested
-  SplitCode* sc = isParent ? &(this->sc) : sc_current;
-  bool hasChild = (sc->sc_nest != nullptr); // If parent has child
-  bool writeToSS = hasChild; // Write to an intermediate output string to be stored
+
   char start_char = opt.output_fasta && !writeToSS ? '>' : '@';
   bool include_quals = !opt.output_fasta || writeToSS;
   std::string oss; // contains the output stored string (i.e. the intermediate)
   bool remultiplex = opt.remultiplex && isParent;
   bool x_only = sc->x_only;
+  bool empty_remove = opt.empty_remove && !hasChild;
+  size_t nseqs_pipe = 0;
   
   size_t readnum = 0;
   for (int i = 0; i + incf < seqs.size() && (readnum < rv.size() || !isParent); i++, readnum++) {
@@ -243,7 +253,7 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
       bool umi_empty = true;
       for (size_t umi_index = 0; umi_index < sc->umi_names.size(); umi_index++) { // Iterate through vector of all UMI names
         std::string curr_umi = umi_vec[umi_index];
-        if (umi_index != 0 && !(opt.empty_remove && curr_umi.empty())) {
+        if (umi_index != 0 && !(empty_remove && curr_umi.empty())) {
           if (opt.sam_tags[1].size() >= umi_index+1) {
             mod_name2 += "\t" + opt.sam_tags[1][umi_index];
           } else {
@@ -283,6 +293,7 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
           if (!opt.no_output_) {
             if (!hasChild) fwrite(ostr.c_str(), 1, ostr_len, stdout);
             else oss += ostr;
+            nseqs_pipe++;
           }
         } else if (opt.gzip) {
           gzwrite(r.ofile.empty() ? outb_gz : out_keep_gz[r.ofile][0], ostr.c_str(), ostr_len);
@@ -295,7 +306,7 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
       for (int umi_index = 0; umi_index < sc->umi_names.size(); umi_index++) { // Iterate through vector of all UMI names
         std::string curr_umi = umi_vec[umi_index];
         if (curr_umi.empty()) {
-          if (opt.empty_remove) {
+          if (empty_remove) {
             continue; // Don't write anything
           }
           curr_umi = opt.empty_read_sequence;
@@ -313,6 +324,7 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
           if (!opt.no_output_) {
             if (!hasChild) fwrite(ostr.c_str(), 1, ostr_len, stdout);
             else oss += ostr;
+            nseqs_pipe++;
           }
         } else if (opt.gzip && !outumi_gz.empty()) {
           gzwrite(outumi_gz[umi_index], ostr.c_str(), ostr_len);
@@ -352,7 +364,7 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
       if (no_output) {
         break;
       }
-      if (!opt.select_output_files[j]) {
+      if (!hasChild && j < opt.select_output_files.size() && !opt.select_output_files[j]) {
         continue;
       }
       jj++;
@@ -374,7 +386,7 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
         }
       } else if (l == 0 && !opt.empty_read_sequence.empty()) {
         o << opt.empty_read_sequence;
-      } else if (l == 0 && opt.empty_remove) {
+      } else if (l == 0 && empty_remove) {
         continue; // Don't write anything
       }
       o << std::string(s,l) << "\n";
@@ -397,6 +409,7 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
           if (!opt.no_output_) {
             if (!hasChild) fwrite(ostr.c_str(), 1, ostr_len, stdout);
             else oss += ostr;
+            nseqs_pipe++;
           }
         } else {
           if (opt.gzip) {
@@ -417,14 +430,14 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
     i += incf;
   }
   
-  if (hasChild) { // TODO: 
+  if (hasChild) {
     int jmax = sc->sc_nest->nFiles;
     SplitCode* sc_nest = sc->sc_nest;
     int incf = jmax-1;
     std::vector<const char*> s(jmax, nullptr);
     std::vector<int> l(jmax,0);
     std::vector<const char*> q(jmax, nullptr);
-    auto seqs_size = seqs.size();
+    auto seqs_size = nseqs_pipe;
     rv.clear();
     
     std::vector<std::pair<const char*, int>> seqs_;
@@ -444,7 +457,7 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
         const char* header_start = pos;
         while (pos < end && *pos != '\0') ++pos; // Skip Header Line
         const char* header_end = pos;
-        names_.emplace_back(header_start+1, static_cast<int>(header_end - header_start));
+        names_.emplace_back(header_start+1, static_cast<int>(header_end - header_start - 1));
         if (pos < end) ++pos; // Move past '\n'
         const char* seq_start = pos;
         while (pos < end && *pos != '\0') ++pos; // Record sequence line
@@ -460,16 +473,15 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
         if (pos < end) ++pos; // Move past '\n'
         q[record] = qual_start;
         quals_.emplace_back(q[record], l[record]);
-        SplitCode::Results results;
-        sc_nest->processRead(s, l, jmax, results, q);
-        i += incf;
-        if (sc_nest->isAssigned(results)) {
-          sc_nest->modifyRead(seqs_, quals_, i-incf, results, true); // What to do about the incf
-        }
-        rv.push_back(results);
       }
+      SplitCode::Results results;
+      sc_nest->processRead(s, l, jmax, results, q);
+      i += incf;
+      if (sc_nest->isAssigned(results)) {
+        sc_nest->modifyRead(seqs_, quals_, i-incf, results, true); // What to do about the incf
+      }
+      rv.push_back(results);
     }
-    
     std::vector<uint32_t> flags;
     writeOutput(rv, seqs_, names_, quals_, flags, sc_nest);
   }

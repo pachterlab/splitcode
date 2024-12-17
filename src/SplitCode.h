@@ -1471,7 +1471,7 @@ struct SplitCode {
     }
   }
   
-  bool addTags(std::string config_file, std::string config_remainder = "") {
+  bool addTags(std::string config_file, std::string config_remainder = "", int nest_level = 0) {
     if (init) {
       std::cerr << "Error: Already initialized" << std::endl;
       return false;
@@ -1492,6 +1492,7 @@ struct SplitCode {
     std::string line;
     std::vector<std::string> lines;
     int nest_index = -1;
+    int nest_count = 0;
     if (config_file != "") {
       while (std::getline(cfile, line)) lines.push_back(line);
       cfile.close();
@@ -1511,6 +1512,8 @@ struct SplitCode {
         }
       }
     }
+
+    config_remainder = "";
 
     std::stringstream ss_above; // Above @nest
     for (int i = 0; i < (nest_index == -1 ? lines.size() : nest_index); ++i) ss_above << lines[i] << "\n";
@@ -1779,7 +1782,7 @@ struct SplitCode {
       nfiles_ += x_only ? 0 : nFiles;
       sc_nest = new SplitCode(nfiles_);
       sc_nest->setTrimOnly(this->always_assign);
-      sc_nest->addTags("", config_remainder);
+      sc_nest->addTags("", config_remainder, ++nest_level);
     }
     return true;
   }
