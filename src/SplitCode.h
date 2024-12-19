@@ -80,6 +80,7 @@ struct SplitCode {
     set_assign_nested = false;
     always_assign = true;
     thisIsParent = true;
+    isNested = false;
   }
   
   SplitCode(int nFiles, SplitCode* sc) { // nesting
@@ -120,6 +121,7 @@ struct SplitCode {
     remultiplex = false;
     no_tags = false;
     thisIsParent = false;
+    isNested = false;
     always_assign = true;
     
     init = false;
@@ -202,6 +204,7 @@ struct SplitCode {
     summary_n_reads_filtered_assigned = 0;
     no_tags = false;
     thisIsParent = true;
+    isNested = false;
     this->summary_file = summary_file;
     this->trim_5_str = trim_5_str;
     this->trim_3_str = trim_3_str;
@@ -520,7 +523,7 @@ struct SplitCode {
       std::cerr << "Error: nFiles must be set to a positive integer" << std::endl;
       exit(1);
     }
-    if (thisIsParent && this->extract_str.empty() && !this->extract_str_og.empty() && this->sc_nest == nullptr) {
+    if (thisIsParent && this->extract_str.empty() && !this->extract_str_og.empty() && !this->isNested) {
       this->extract_str = extract_str_og; // Make sure we get the -x from the command line
     }
     // Process 5′/3′ end-trimming
@@ -1628,6 +1631,7 @@ struct SplitCode {
         }
       }
     }
+    
 
     config_remainder = "";
 
@@ -1887,6 +1891,7 @@ struct SplitCode {
       }
     }
     
+    
     // Do some final processing: i.e. if the keep/discard text corpus were provided in the config file, process them now
     if (!_keep_str.empty()) addFilterList(_keep_str, false, true);
     if (!_remove_str.empty()) addFilterList(_remove_str, true, true);
@@ -1895,12 +1900,14 @@ struct SplitCode {
     
     if (this->set_assign_nested) this->always_assign = false; // Make sure always_assign is false in the parent (aka we'll assign barcodes in the parent)
     
-    
+
     // If no child 
     if (nest_index == -1) {
       if (this->extract_str.empty()) {
         this->extract_str = extract_str_og; // Set it to the sequence supplied via -x on the command-line if there are no (more) children and another extracting string was not set
       }
+    } else {
+      isNested = true;
     }
 
     checkInit();
@@ -4382,7 +4389,8 @@ struct SplitCode {
   bool remultiplex;
   bool set_assign_nested;
   bool no_tags;
-  bool thisIsParent;
+  bool thisIsParent; // Whether object is the "parent" one
+  bool isNested; // Whether object contains children/descendants
   std::string outputb_file;
   int quality_trimming_threshold;
   int nFiles;
