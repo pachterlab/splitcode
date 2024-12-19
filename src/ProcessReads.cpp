@@ -272,7 +272,7 @@ void MasterProcessor::update(int n, std::vector<SplitCode::Results>& rv,
       }
       writeOutput(rv, seqs_, names_, quals_, flags, ns, sc_nest); // ns is overwritten
       // Write out anything remaining that's stored:
-      ns_write(ns);
+      ns_queue.push(std::move(ns));
       numreads += n;
       curr_readbatch_id++;
       lock.unlock(); // releases the lock
@@ -571,10 +571,10 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
           }
         }
       } else {
-        if (opt.gzip) {
+        if (opt.gzip && outu_gz[jj] != nullptr) {
           if (!hasChild) gzwrite(outu_gz[jj], ostr.c_str(), ostr_len);
           else ns_store(ns, outu_gz[jj], ostr, ostr_len);
-        } else {
+        } else if (outu[jj] != nullptr) {
           if (!hasChild) fwrite(ostr.c_str(), 1, ostr_len, outu[jj]);
           else ns_store(ns, ostr, ostr_len, outu[jj]);
         }
@@ -799,6 +799,15 @@ void ReadProcessor::operator()() {
     // update the results, MP acquires the lock
     int nfiles = mp.nfiles;
     mp.update(seqs.size() / nfiles, rv, seqs, names, quals, flags, readbatch_id);
+    // Write out remaining things that might appear in the nesting framework
+    if (mp.use_ns_queue) {
+      std::lock_guard<std::mutex> lock(mp.ns_queue_lock);
+      while (!mp.ns_queue.empty()) {
+        auto& front = mp.ns_queue.front();
+        ns_write(front);
+        mp.ns_queue.pop();
+      }
+    }
     clear();
     if (mp.opt.max_num_reads != 0 && mp.numreads >= mp.opt.max_num_reads) {
       return;

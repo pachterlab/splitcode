@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <iostream>
 #include <fstream>
+#include <queue>
 
 #include <thread>
 #include <mutex>
@@ -122,6 +123,7 @@ public:
 
     SR = new FastqSequenceReader(opt);
     verbose = opt.verbose;
+    use_ns_queue = (sc.sc_nest != nullptr); // Only check the queue if doing nesting
     nfiles = opt.input_interleaved_nfiles == 0 ? opt.nfiles : opt.input_interleaved_nfiles;
     const std::string suffix = opt.output_fasta ? ".fasta" : ".fastq";
     const std::string suffix_gz = opt.output_fasta ? ".fasta.gz" : ".fastq.gz";
@@ -136,9 +138,11 @@ public:
     }
     for (auto f : opt.unassigned_files) {
       if (opt.gzip) {
-        outu_gz.push_back(gzopen(f.c_str(), gz_out_str));
+        if (f.length() == 0) outu_gz.push_back(nullptr);
+        else outu_gz.push_back(gzopen(f.c_str(), gz_out_str));
       } else {
-        outu.push_back(fopen(f.c_str(), "wb"));
+        if (f.length() == 0) outu.push_back(nullptr);
+        else outu.push_back(fopen(f.c_str(), "wb"));
       }
     }
     if (!opt.pipe && !opt.no_x_out && !opt.no_output) {
@@ -275,7 +279,7 @@ public:
       fclose(of);
     }
     for (auto& of : outu) {
-      fclose(of);
+      if (of != nullptr) fclose(of);
     }
     for (auto& of : outumi) {
       fclose(of);
@@ -284,7 +288,7 @@ public:
       gzclose(of);
     }
     for (auto& of : outu_gz) {
-      gzclose(of);
+      if (of != nullptr) gzclose(of);
     }
     for (auto& of : outumi_gz) {
       gzclose(of);
@@ -323,7 +327,10 @@ public:
   std::vector<std::mutex> parallel_reader_locks;
   bool parallel_read;
   std::mutex writer_lock;
+  std::mutex ns_queue_lock;
+  bool use_ns_queue;
   std::condition_variable cv;
+  std::queue<NestStorage> ns_queue;
   
   std::vector<FILE*> out;
   std::vector<gzFile> out_gz;

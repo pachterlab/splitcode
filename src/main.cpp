@@ -550,6 +550,9 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
       while (std::getline(ss, filename, ',')) { 
         opt.unassigned_files.push_back(filename);
       }
+      if (!files.empty() && files.back() == ',') {
+        opt.unassigned_files.push_back(""); // Allow an unspecified file (i.e. no file name)
+      }
       break;
     }
     case '5': {
