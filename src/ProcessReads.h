@@ -63,6 +63,20 @@ public:
   int readbatch_id = -1;
 };
 
+
+
+struct NestStorage {
+  SplitCode* sc;
+  size_t nseqs_pipe;
+  std::string oss;
+  size_t readnum;
+  bool isParent;
+  std::unordered_map<FILE*,std::string> write_storage; // file : contents
+  std::unordered_map<gzFile,std::string> write_storage_gz; // file : contents
+  std::unordered_map<FILE*,size_t> write_storage_len; // file : content length
+  std::unordered_map<gzFile,size_t> write_storage_gz_len; // file : content length
+};
+
 class FastqSequenceReader : public SequenceReader {
 public:
   
@@ -128,7 +142,7 @@ public:
       }
     }
     if (!opt.pipe && !opt.no_x_out && !opt.no_output) {
-      for (auto f : sc.umi_names) {
+      for (auto f : sc.get_umi_names()) {
         if (opt.gzip) {
           outumi_gz.push_back(gzopen((f+suffix_gz).c_str(), gz_out_str));
         } else {
@@ -353,6 +367,7 @@ public:
                    std::vector<std::pair<const char*, int>>& names,
                    std::vector<std::pair<const char*, int>>& quals,
                    std::vector<uint32_t>& flags,
+                   NestStorage& ns,
                    SplitCode* sc_current = nullptr);
   void writeBam(const std::string& s, int readNameLen=0, int readPair=0);
 };

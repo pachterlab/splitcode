@@ -76,7 +76,106 @@ struct SplitCode {
     outbam = false;
     no_output_barcodes = false;
     remultiplex = false;
+    no_tags = false;
+    set_assign_nested = false;
     always_assign = true;
+    thisIsParent = true;
+  }
+  
+  SplitCode(int nFiles, SplitCode* sc) { // nesting
+    init = false;
+    sc_nest = nullptr;
+    extract_seq_names = false;
+    discard_check = false;
+    keep_check = false;
+    discard_check_group = false;
+    keep_check_group = false;
+    always_assign = false;
+    random_replacement = false;
+    do_extract = false;
+    extract_no_chain = false;
+    use_16 = false;
+    n_tag_entries = 0;
+    curr_barcode_mapping_i = 0;
+    curr_umi_id_i = 0;
+    quality_trimming_5 = false;
+    quality_trimming_3 = false;
+    quality_trimming_pre = false;
+    quality_trimming_naive = false;
+    write_tag_location_information = false;
+    quality_trimming_threshold = -1;
+    phred64 = false;
+    num_reads_set = false;
+    num_reads_assigned = 0;
+    summary_n_reads_filtered = 0;
+    summary_n_reads_filtered_assigned = 0;
+    max_seq_len = 0;
+    fake_bc_len_offset = 0;
+    setNFiles(0);
+    early_termination_maxFindsG = -1;
+    x_only = false;
+    no_x_out = false;
+    outbam = false;
+    no_output_barcodes = false;
+    remultiplex = false;
+    no_tags = false;
+    thisIsParent = false;
+    always_assign = true;
+    
+    init = false;
+    sc_nest = nullptr;
+    extract_seq_names = false;
+    discard_check = false;
+    keep_check = false;
+    discard_check_group = false;
+    keep_check_group = false;
+    do_extract = false;
+    use_16 = false;
+    n_tag_entries = 0;
+    curr_barcode_mapping_i = 0;
+    curr_umi_id_i = 0;
+    num_reads_set = false;
+    num_reads_assigned = 0;
+    summary_n_reads_filtered = 0;
+    summary_n_reads_filtered_assigned = 0;
+    this->summary_file = sc->summary_file;
+
+    this->trim_5_str = ""; // Only applies to parent
+    this->trim_3_str = ""; // Only applies to parent
+
+    this->extract_str = ""; // Will set this later
+    this->extract_no_chain = false; // Will set this later
+    this->barcode_prefix = sc->barcode_prefix; sc->barcode_prefix = ""; // Reset parent
+    this->filter_length_str = ""; // Only applies to parent
+    this->quality_trimming_5 = false; // Only applies to parent
+    this->quality_trimming_3 = false; // Only applies to parent
+    this->quality_trimming_pre = false; // Only applies to parent
+    this->quality_trimming_naive = false; // Only applies to parent
+    this->quality_trimming_threshold = -1; // Only applies to parent
+    
+    this->fake_bc_len_offset = sc->fake_bc_len_offset; sc->fake_bc_len_offset = 0; // Reset parent
+    this->phred64 = sc->phred64;
+    this->write_tag_location_information = sc->write_tag_location_information;
+    this->sub_assign_vec = sc->sub_assign_vec; sc->sub_assign_vec.clear(); // Reset parent
+    this->min_delta = sc->min_delta;
+    this->do_qc = sc->do_qc;
+    this->extract_str_og = sc->extract_str_og;
+    this->x_only = false; // Will set this later
+    this->no_x_out = sc->no_x_out; sc->no_x_out = false; // Reset parent
+    this->outbam = sc->outbam; sc->outbam = false; // Reset parent
+    this->no_output_barcodes = sc->no_output_barcodes; sc->no_output_barcodes = false; // Reset parent
+    this->outputb_file = sc->outputb_file; sc->outputb_file = ""; // Reset parent
+    this->remultiplex = sc->remultiplex; sc->remultiplex = false; // Reset parent
+    early_termination_maxFindsG = -1;
+    max_seq_len = 0;
+    this->set_assign_nested = false; // Will set this later
+    if (sc->set_assign_nested) { // Parent is where the "assign" will occur
+      this->always_assign = true; // So this one should have assign turned off
+    } else {
+      this->always_assign = sc->always_assign; sc->always_assign = true; // Reset parent
+    }
+    this->random_replacement = sc->random_replacement;
+    setNFiles(nFiles);
   }
   
   SplitCode(int nFiles, std::string summary_file = "", bool trim_only = false, bool disable_n = true,
@@ -101,10 +200,12 @@ struct SplitCode {
     num_reads_assigned = 0;
     summary_n_reads_filtered = 0;
     summary_n_reads_filtered_assigned = 0;
+    no_tags = false;
+    thisIsParent = true;
     this->summary_file = summary_file;
     this->trim_5_str = trim_5_str;
     this->trim_3_str = trim_3_str;
-    this->extract_str = extract_str;
+    this->extract_str_og = extract_str;
     this->extract_no_chain = extract_no_chain;
     this->barcode_prefix = barcode_prefix;
     this->filter_length_str = filter_length_str;
@@ -128,6 +229,7 @@ struct SplitCode {
     this->no_output_barcodes = no_output_barcodes;
     this->outputb_file = outputb_file;
     this->remultiplex = remultiplex;
+    this->set_assign_nested = false;
     early_termination_maxFindsG = -1;
     max_seq_len = 0;
     setNFiles(nFiles);
@@ -141,6 +243,17 @@ struct SplitCode {
   
   void writeSummary(std::string call = "", std::string fname = "") {
     fname = fname.empty() ? this->summary_file : fname;
+    SplitCode* scn = this;
+    if (scn->sc_nest != nullptr) { // nest
+      while (true) {
+        if (scn->sc_nest == nullptr) {
+          scn->writeSummary(call, fname);
+          return;
+        } else {
+          scn = scn->sc_nest;
+        }
+      }
+    }
     if (fname.empty()) {
       return;
     }
@@ -406,6 +519,9 @@ struct SplitCode {
     if (nFiles <= 0) {
       std::cerr << "Error: nFiles must be set to a positive integer" << std::endl;
       exit(1);
+    }
+    if (thisIsParent && this->extract_str.empty() && !this->extract_str_og.empty() && this->sc_nest == nullptr) {
+      this->extract_str = extract_str_og; // Make sure we get the -x from the command line
     }
     // Process 5′/3′ end-trimming
     std::stringstream ss_trim_5(this->trim_5_str);
@@ -1524,6 +1640,9 @@ struct SplitCode {
     bool _keep_grp = false;
     bool _remove = false;
     bool _remove_grp = false;
+    bool is_already_x_only = x_only; // Check if --x-only was preset (if so, need to unset it until the deepest level if nesting)
+    bool set_x_only = false; // If x-only is newly set
+    this->set_assign_nested = false; // If user supplies @assign if there's nested levels
     while (std::getline(ss_above,line)) {
       if (line.size() == 0) {
         _keep = false;
@@ -1568,12 +1687,17 @@ struct SplitCode {
           this->quality_trimming_naive = true;
         } else if (field == "@phred64") {
           this->phred64 = true;
+        } else if (field == "@assign") { 
+          this->set_assign_nested = true;
         } else if (field == "@x-only") {
           if (no_x_out) {
-            std::cerr << "Error: Cannot specify x-only with --no-x-out in the file \"" << config_file << "\"" << std::endl;
+            std::cerr << "Error: Cannot specify x-only with --no-x-out in the config file" << std::endl;
             return false;
           }
           this->x_only = true;
+          set_x_only = true;
+        } else if (field == "@no-tags") {
+          this->no_tags = true;
         } else if (field == "@no-chain") {
           this->extract_no_chain = true;
           if (!value.empty()) {
@@ -1769,21 +1893,35 @@ struct SplitCode {
     if (!_keep_grp_str.empty()) addFilterListGroup(_keep_grp_str, false, true);
     if (!_remove_grp_str.empty()) addFilterListGroup(_remove_grp_str, true, true);
     
+    if (this->set_assign_nested) this->always_assign = false; // Make sure always_assign is false in the parent (aka we'll assign barcodes in the parent)
+    
+    
+    // If no child 
+    if (nest_index == -1) {
+      if (this->extract_str.empty()) {
+        this->extract_str = extract_str_og; // Set it to the sequence supplied via -x on the command-line if there are no (more) children and another extracting string was not set
+      }
+    }
+
     checkInit();
     
     if (nest_index != -1) { // If we need to create a new nested SplitCode object:
       int nfiles_ = 0;
-      if (!no_output_barcodes && outputb_file.empty() && (!always_assign || remultiplex)) {
-        nfiles_ += 1; // For the barcode
-      }
-      if (!umi_names.empty() && !no_x_out && !outbam) { // Write out extracted UMIs as needed
+      if (!umi_names.empty()) { // Write out extracted UMIs as needed
         nfiles_ += umi_names.size();
       }
+      if (!set_x_only) this->x_only = false; // Reset x-only for the current layer (if we didn't find it in the config file)
       nfiles_ += x_only ? 0 : nFiles;
-      sc_nest = new SplitCode(nfiles_);
-      sc_nest->setTrimOnly(this->always_assign);
-      sc_nest->addTags("", config_remainder, ++nest_level);
+      if (this->set_assign_nested) nfiles_ += 1; // For processing the extra barcode
+      sc_nest = new SplitCode(nfiles_, this);
+      sc_nest->x_only = is_already_x_only; // Preset x-only for the next layer
+      if (this->set_assign_nested) {
+        sc_nest->always_assign = true; // Make sure always_assign is true in the child (aka we won't assign barcodes in the child)
+      }
+
+      return sc_nest->addTags("", config_remainder, ++nest_level);
     }
+    
     return true;
   }
   
@@ -3843,6 +3981,17 @@ struct SplitCode {
   }
   
   void writeBarcodeMapping(std::string fname) {
+    SplitCode* scn = this;
+    if (scn->sc_nest != nullptr) { // nest
+      while (true) {
+        if (scn->sc_nest == nullptr) {
+          scn->writeBarcodeMapping(fname);
+          return;
+        } else {
+          scn = scn->sc_nest;
+        }
+      }
+    }
     std::ofstream of;
     of.open(fname);
     if (!of.is_open()) {
@@ -3857,6 +4006,16 @@ struct SplitCode {
   }
   
   std::string fetchNextBarcodeMapping() {
+    SplitCode* scn = this;
+    if (scn->sc_nest != nullptr) { // nest
+      while (true) {
+        if (scn->sc_nest == nullptr) {
+          return scn->fetchNextBarcodeMapping();
+        } else {
+          scn = scn->sc_nest;
+        }
+      }
+    }
     int i = curr_barcode_mapping_i;
     if (i >= idmap_getsize()) {
       curr_barcode_mapping_i = 0;
@@ -3963,6 +4122,42 @@ struct SplitCode {
     this->num_reads = num_reads;
     this->num_reads_set = true;
     this->max_num_reads = max_num_reads;
+  }
+  
+  int getNFiles() { // Get number of files (e.g. 2 for paired-end); if nested, returns the deepest layer's nfiles
+    SplitCode* scn = this;
+    while (true) {
+      if (scn->sc_nest == nullptr) {
+        return scn->nFiles;
+      } else {
+        scn = scn->sc_nest;
+      }
+    }
+  }
+  
+  int getNFilesUnassigned() { // Get (potential) number of files for unassigned reads
+    SplitCode* scn = this;
+    while (true) {
+      if (!scn->always_assign) {
+        return scn->nFiles;
+      }
+      if (scn->sc_nest == nullptr) {
+        return scn->nFiles;
+      } else {
+        scn = scn->sc_nest;
+      }
+    }
+  }
+
+  std::vector<std::string> get_umi_names() { // Get names of UMI-like sequences; if nested, returns the deepest layer's nfiles
+    SplitCode* scn = this;
+    while (true) {
+      if (scn->sc_nest == nullptr) {
+        return scn->umi_names;
+      } else {
+        scn = scn->sc_nest;
+      }
+    }
   }
   
   static std::string binaryToString(uint64_t x, size_t len) {
@@ -4130,6 +4325,7 @@ struct SplitCode {
   std::string barcode_prefix;
   std::string trim_5_str, trim_3_str;
   std::string extract_str;
+  std::string extract_str_og; // The extraction sequence supplied on command-line
   std::unordered_set<std::string> extract_no_chain_set;
   std::string filter_length_str;
   std::vector<std::pair<int,int>> trim_5_3_vec;
@@ -4184,6 +4380,9 @@ struct SplitCode {
   bool outbam;
   bool no_output_barcodes;
   bool remultiplex;
+  bool set_assign_nested;
+  bool no_tags;
+  bool thisIsParent;
   std::string outputb_file;
   int quality_trimming_threshold;
   int nFiles;

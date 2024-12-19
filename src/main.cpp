@@ -941,11 +941,11 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
           std::cerr << ERROR_STR << " --select must contain numbers >= 0" << std::endl;
           ret = false;
           break;
-        } else if (f >= opt.nfiles) {
+        } /*else if (f >= opt.nfiles) {
           std::cerr << ERROR_STR << " --select must contain numbers less than --nFastqs" << std::endl;
           ret = false;
           break;
-        }
+        }*/
         opt.select_output_files[f] = true;
       }
       for (int i = 0; i < opt.select_output_files.size(); i++) {
@@ -998,7 +998,7 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
       std::cerr << ERROR_STR << " Must either specify an output option or --no-output" << std::endl;
       ret = false;
     } else if (opt.x_only) {
-      if (opt.output_files.size() > 0 || opt.unassigned_files.size() > 0) {
+      if (opt.output_files.size() > 0/* || opt.unassigned_files.size() > 0*/) {
         std::cerr << ERROR_STR << " Cannot provide output files when --x-only is specified" << std::endl;
         ret = false;
       }
@@ -1006,15 +1006,15 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
       if (opt.output_files.size() > 0 || !opt.outputb_file.empty()) { // Still allow --unassigned with --pipe
         std::cerr << ERROR_STR << " Cannot provide output files when --pipe is specified" << std::endl;
         ret = false;
-      } else if (opt.unassigned_files.size() != 0 && opt.unassigned_files.size() % nf != 0 || opt.unassigned_files.size() > nf) {
+      } /* else if (opt.unassigned_files.size() != 0 && opt.unassigned_files.size() % nf != 0 || opt.unassigned_files.size() > nf) {
         std::cerr << ERROR_STR << " Incorrect number of --unassigned output files" << std::endl;
         ret = false;
-      }
+      } */ 
     } else {
-      if (opt.output_files.size() % nf != 0 || opt.unassigned_files.size() % nf != 0 || opt.output_files.size() > nf || opt.unassigned_files.size() > nf) {
+      /* if (opt.output_files.size() % nf != 0 || opt.unassigned_files.size() % nf != 0 || opt.output_files.size() > nf || opt.unassigned_files.size() > nf) {
         std::cerr << ERROR_STR << " Incorrect number of output files" << std::endl;
         ret = false;
-      }
+      }*/ 
     }
   }
   if (opt.trim_only && !opt.outputb_file.empty() && !opt.remultiplex) {
@@ -1474,6 +1474,24 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
       std::cerr << "Error: No tags found even though --assign specified" << std::endl;
       ret = false;
     }
+  }
+  
+  if (ret) { // Validate number of output files supplied
+    int nf = sc.getNFiles();
+    int nf_u = sc.getNFilesUnassigned();
+    if (opt.pipe) {
+      if (opt.unassigned_files.size() != 0 && opt.unassigned_files.size() % nf_u != 0 || opt.unassigned_files.size() > nf_u) {
+        std::cerr << ERROR_STR << " Incorrect number of --unassigned output files" << std::endl;
+        ret = false;
+      }
+    }
+    else {
+      if (opt.output_files.size() % nf != 0 || opt.unassigned_files.size() % nf_u != 0 || opt.output_files.size() > nf || opt.unassigned_files.size() > nf_u) {
+       std::cerr << ERROR_STR << " Incorrect number of output files" << std::endl;
+       ret = false;
+       }
+    }
+    opt.select_output_files.resize(nf, true);
   }
   
   return ret;
