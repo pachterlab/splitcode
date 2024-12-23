@@ -249,6 +249,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   int unmask_flag = 0;
   int keep_r1_r2_flag = 0;
   int webasm_flag = 0;
+  int show_not_found_flag = 0;
   bool trim_only_specified = false;
   
   // Some --lift specific options
@@ -267,7 +268,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
 
   optind=1; // Reset global variable in case we want to call ParseOptions multiple times
 
-  const char *opt_string = "t:N:n:b:d:D:i:l:f:F:e:c:o:O:u:m:k:r:A:L:R:E:g:y:Y:j:J:a:v:z:Z:5:3:w:x:P:q:s:S:M:U:X:C:Tph";
+  const char *opt_string = "t:N:n:b:B:d:D:i:l:f:F:e:c:o:O:u:m:k:r:A:L:R:E:g:y:Y:j:J:a:v:z:Z:5:3:w:x:P:q:s:S:M:U:X:C:Tph";
   /*static*/ struct option long_options[] = { // No static keyword because we may want to call ParseOptions multiple times
     // long args
     {"version", no_argument, &version_flag, 1},
@@ -300,6 +301,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"remultiplex", no_argument, &remultiplex_flag, 1},
     {"unmask", no_argument, &unmask_flag, 1},
     {"keep-r1-r2", no_argument, &keep_r1_r2_flag, 1},
+    {"show-not-found", no_argument, &show_not_found_flag, 1},
     {"webasm", no_argument, &webasm_flag, 1},
     {"lift", no_argument, &lift_flag, 1},
     {"diploid", no_argument, &lift_diploid, 1},
@@ -331,6 +333,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"maxFindsG", required_argument, 0, 'J'},
     {"minFindsG", required_argument, 0, 'j'},
     {"exclude", required_argument, 0, 'e'},
+    {"barcode-encode", required_argument, 0, 'B'},
     {"next", required_argument, 0, 'a'},
     {"after", required_argument, 0, 'a'},
     {"subs", required_argument, 0, 'U'},
@@ -431,6 +434,10 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
       if (opt.min_delta < 0) {
         opt.min_delta = -1;
       }
+      break;
+    }
+    case 'B': {
+      opt.optimize_assignment_str = optarg;
       break;
     }
     case 'l': {
@@ -739,6 +746,9 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   if (webasm_flag) {
     opt.threads = 1;
     opt.webasm = true;
+  }
+  if (show_not_found_flag) {
+    opt.show_not_found = true;
   }
   
   for (int i = optind; i < argc; i++) {
@@ -1508,7 +1518,7 @@ int main(int argc, char *argv[]) {
   ParseOptions(argc,argv,opt);
   SplitCode sc(opt.nfiles, opt.summary_file, opt.trim_only, opt.disable_n, opt.trim_5_str, opt.trim_3_str, opt.extract_str, opt.extract_no_chain, opt.barcode_prefix, opt.filter_length_str,
                opt.quality_trimming_5, opt.quality_trimming_3, opt.quality_trimming_pre, opt.quality_trimming_naive, opt.quality_trimming_threshold, opt.phred64, opt.write_locations, opt.sub_assign_vec, opt.bclen, opt.min_delta, !opt.summary_file.empty(),
-               opt.x_only, opt.no_x_out, opt.outbam, opt.no_output_barcodes, opt.outputb_file, opt.remultiplex);
+               opt.x_only, opt.no_x_out, opt.outbam, opt.no_output_barcodes, opt.outputb_file, opt.remultiplex, opt.optimize_assignment_str, opt.show_not_found);
   bool checkopts = CheckOptions(opt, sc);
   if (!checkopts) {
     usage();
