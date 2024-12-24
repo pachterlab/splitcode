@@ -1,4 +1,4 @@
-@extract {X}<xxx[5]>
+@extract {X}<./func_tests/xxx[5]>
 
 ids	tags	subs
 X	ATCG	GGGGG
