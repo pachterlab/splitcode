@@ -65,6 +65,17 @@ endif(ZLIBNG)
 
 
 if (USE_HTSLIB)
+if(ZLIBNG)
+    message("using htslib")
+    ExternalProject_Add(htslib
+    PREFIX ${PROJECT_SOURCE_DIR}/ext/htslib
+    SOURCE_DIR ${PROJECT_SOURCE_DIR}/ext/htslib
+    BUILD_IN_SOURCE 1
+    CONFIGURE_COMMAND ""
+    BUILD_COMMAND make CCFLAGS="-I../zlib-ng/zlib-ng" LDFLAGS="-L../zlib-ng/zlib-ng -l:libz.a" lib-static
+    INSTALL_COMMAND ""
+    )
+else()
     message("using htslib")
     ExternalProject_Add(htslib
     PREFIX ${PROJECT_SOURCE_DIR}/ext/htslib
@@ -74,6 +85,7 @@ if (USE_HTSLIB)
     BUILD_COMMAND make lib-static
     INSTALL_COMMAND ""
     )
+endif(ZLIBNG)
 else()
     set(NO_HTSLIB "ON")
     add_compile_definitions("NO_HTSLIB=ON")
