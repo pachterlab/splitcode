@@ -60,6 +60,16 @@ checkcmdoutput "cat $test_dir/out.nest.3.fq" 5da0ce90bdd9f45c71948fae908e12b1
 checkcmdoutput "$splitcode --trim-only -c $test_dir/nest_config_3.txt --x-only --empty=NNN --out-fasta --mod-names -N 2 $test_dir/nest.test.1.R1.fq $test_dir/nest.test.1.R2.fq $test_dir/nest.test.2.R1.fq $test_dir/nest.test.2.R2.fq" d41d8cd98f00b204e9800998ecf8427e
 checkcmdoutput "cat $test_dir/xx.fasta" 6dabc80d0b3d813d07ab68fd313d2772
 
+# Test some --barcode-encode
+
+checkcmdoutput "$splitcode -B "B,D,E" --show-not-found -c $test_dir/config_fastassign.txt --pipe --mod-names -u $test_dir/unassign.fq -m $test_dir/mx.txt $test_dir/nest.test.3.R1.fq" 4e9181c048e722c8fb69fb8ac58f726e
+checkcmdoutput "cat $test_dir/unassign.fq" 1cabc26681ceadaa4aff9d5d318ee44a
+checkcmdoutput "cat $test_dir/mx.txt" 129a22a29e2ee9ae3b29389a20ed0bff
+
+checkcmdoutput "$splitcode -B "B,D,E" --bclen=20 --show-not-found -c $test_dir/config_fastassign_2.txt --pipe --mod-names -u $test_dir/unassign.fq -m $test_dir/mx.txt $test_dir/nest.test.3.R1.fq" d3c5c22523d87e22ffdf11bf58adccba
+checkcmdoutput "cat $test_dir/unassign.fq" d41d8cd98f00b204e9800998ecf8427e
+checkcmdoutput "cat $test_dir/mx.txt" b95e8b332c8a0a7ffc0f91118e754302
+
 
 
 # Test lift workflow

@@ -206,6 +206,7 @@ void usage() {
        << "-s, --summary    File where summary statistics will be written to" << endl
        << "-h, --help       Displays usage information" << endl
        << "    --assign     Assign reads to a final barcode sequence identifier based on tags present" << endl
+       << "    --barcode-encode Optimize barcode assignment using a sequence of group names (e.g. group1,group2,group3)" << endl
        << "    --bclen      The length of the final barcode sequence identifier (default: 16)" << endl
        << "    --inleaved   Specifies that input is an interleaved FASTQ file" << endl
        << "    --keep-r1-r2 Use R1.fastq, R2.fastq, etc. file name formats when demultiplexing using --keep or --keep-grp" << endl
