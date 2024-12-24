@@ -1,0 +1,11 @@
+ids	tags	subs
+X	ATCG	GGGGG
+Y	CGCG
+Z	TTT
+
+@nest
+
+ids	tags	subs
+B	GTTT	AAA
+Y	CCCC
+Z	CGCGCG

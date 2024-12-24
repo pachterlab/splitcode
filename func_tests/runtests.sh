@@ -47,6 +47,19 @@ checkcmdoutput() {
 
 cmdexec "$splitcode --version"
 
+# Test some nesting workflows
+
+checkcmdoutput "$splitcode --trim-only -c $test_dir/nest_config.txt --pipe --mod-names $test_dir/nest.test.1.R1.fq $test_dir/nest.test.1.R1.fa" 20484a6b5ba1f3c10931417310925ca9
+checkcmdoutput "$splitcode --trim-only -c $test_dir/nest_config_2.txt --pipe --out-fasta --mod-names -N 2 $test_dir/nest.test.1.R1.fq $test_dir/nest.test.1.R2.fq $test_dir/nest.test.2.R1.fq $test_dir/nest.test.2.R2.fq" 9f1f430f7db125657c52653b298ee138
+checkcmdoutput "$splitcode --trim-only -s $test_dir/summary.nest.txt -c $test_dir/nest_config_3.txt --pipe --empty=NNN --out-fasta --mod-names -N 2 $test_dir/nest.test.1.R1.fq $test_dir/nest.test.1.R2.fq $test_dir/nest.test.2.R1.fq $test_dir/nest.test.2.R2.fq" 6dabc80d0b3d813d07ab68fd313d2772
+checkcmdoutput "cat $test_dir/summary.nest.txt|head -10|wc -l" 8fc4216241c8372cdcf964ecaf84b8fc
+checkcmdoutput "$splitcode --trim-only -c $test_dir/nest_config_2.txt -o $test_dir/out.nest.1.fq,$test_dir/out.nest.2.fq,$test_dir/out.nest.3.fq --mod-names -N 2 $test_dir/nest.test.1.R1.fq $test_dir/nest.test.1.R2.fq $test_dir/nest.test.2.R1.fq $test_dir/nest.test.2.R2.fq" d41d8cd98f00b204e9800998ecf8427e
+checkcmdoutput "cat $test_dir/out.nest.1.fq" 46e08a3f066c9ae5a741a31cf6d785fb
+checkcmdoutput "cat $test_dir/out.nest.2.fq" 547e739c16eaa5495d1e566146ca2b65
+checkcmdoutput "cat $test_dir/out.nest.3.fq" 5da0ce90bdd9f45c71948fae908e12b1
+
+
+
 # Test lift workflow
 
 checkcmdoutput "$splitcode --lift $test_dir/vcf_validation.fa.gz $test_dir/test_1.vcf.gz CAST_EiJ --kmer-length=31 --kmer-output=$test_dir/test.kmers.1.txt" 7e9c1d67efdf7113bfab367cb5d2d640
