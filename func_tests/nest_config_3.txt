@@ -1,4 +1,4 @@
-@extract {X}<./func_tests/xxx[5]>
+@extract {X}<xxx[5]>
 
 ids	tags	subs
 X	ATCG	GGGGG
@@ -15,7 +15,7 @@ Z	CGCGCG
 @nest
 
 @x-only
-@extract {GGA}<xx>1:-1
+@extract {GGA}<./func_tests/xx>1:-1
 
 tags	locations
 GGA	1

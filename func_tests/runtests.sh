@@ -57,6 +57,8 @@ checkcmdoutput "$splitcode --trim-only -c $test_dir/nest_config_2.txt -o $test_d
 checkcmdoutput "cat $test_dir/out.nest.1.fq" 46e08a3f066c9ae5a741a31cf6d785fb
 checkcmdoutput "cat $test_dir/out.nest.2.fq" 547e739c16eaa5495d1e566146ca2b65
 checkcmdoutput "cat $test_dir/out.nest.3.fq" 5da0ce90bdd9f45c71948fae908e12b1
+checkcmdoutput "$splitcode --trim-only -c $test_dir/nest_config_3.txt --x-only --empty=NNN --out-fasta --mod-names -N 2 $test_dir/nest.test.1.R1.fq $test_dir/nest.test.1.R2.fq $test_dir/nest.test.2.R1.fq $test_dir/nest.test.2.R2.fq" d41d8cd98f00b204e9800998ecf8427e
+checkcmdoutput "cat $test_dir/xx.fasta" 6dabc80d0b3d813d07ab68fd313d2772
 
 
 
