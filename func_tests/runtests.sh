@@ -59,6 +59,19 @@ checkcmdoutput "cat $test_dir/out.nest.2.fq" 547e739c16eaa5495d1e566146ca2b65
 checkcmdoutput "cat $test_dir/out.nest.3.fq" 5da0ce90bdd9f45c71948fae908e12b1
 checkcmdoutput "$splitcode --trim-only -c $test_dir/nest_config_3.txt --x-only --empty=NNN --out-fasta --mod-names -N 2 $test_dir/nest.test.1.R1.fq $test_dir/nest.test.1.R2.fq $test_dir/nest.test.2.R1.fq $test_dir/nest.test.2.R2.fq" d41d8cd98f00b204e9800998ecf8427e
 checkcmdoutput "cat $test_dir/xx.fasta" 6dabc80d0b3d813d07ab68fd313d2772
+checkcmdoutput "$splitcode --outb=$test_dir/bc -u $test_dir/a,$test_dir/b,$test_dir/c -o $test_dir/aa,$test_dir/bb,$test_dir/cc -m $test_dir/nest.mapping.txt -c $test_dir/nest_config_2.txt --out-fasta --mod-names --com-names -N 2 nest.test.1.R1.fq nest.test.1.R2.fq nest.test.2.R1.fq nest.test.2.R2.fq" d41d8cd98f00b204e9800998ecf8427e
+checkcmdoutput "cat $test_dir/a" c1c334bec88086eae1cafe58857e286b
+checkcmdoutput "cat $test_dir/b" 19f5e79683fdb9e96e3cc0981e13c0cb
+checkcmdoutput "cat $test_dir/c" 66d3a7966397c33fa9bc0c3e7f69ebda
+checkcmdoutput "cat $test_dir/aa" 0d81ab04a3ffef6cb904311f08f61e32
+checkcmdoutput "cat $test_dir/bb" edf67aa6dab16e0953fbd9895285fb8b
+checkcmdoutput "cat $test_dir/cc" 732e911683d3e5cd8ff2aad7fd1fafee
+checkcmdoutput "cat $test_dir/bc" e39b5fc29e0dc621ac15c24262fcf507
+checkcmdoutput "cat $test_dir/nest.mapping.txt" 562376738ccdb0645824021a1d91954b
+checkcmdoutput "$splitcode --no-outb --pipe -u $test_dir/a,$test_dir/b,$test_dir/c -m $test_dir/nest.mapping.txt -c $test_dir/nest_config_2.txt --out-fasta --mod-names -N 2 nest.test.1.R1.fq nest.test.1.R2.fq nest.test.2.R1.fq nest.test.2.R2.fq" 0634a9a8aeff98e586e0dbb91a0e8f04
+checkcmdoutput "cat $test_dir/b" 19f5e79683fdb9e96e3cc0981e13c0cb
+checkcmdoutput "cat $test_dir/nest.mapping.txt" 562376738ccdb0645824021a1d91954b
+
 
 # Test some --barcode-encode
 
