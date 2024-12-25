@@ -75,6 +75,8 @@ checkcmdoutput "$splitcode -m $test_dir/nest.mapping.txt --nFastqs=2 -c $test_di
 checkcmdoutput "cat $test_dir/bc" b4ef4481277e4aff5adaf3513c988e2b
 checkcmdoutput "cat $test_dir/a" f501b402785d361b968b7ef66aa6100e
 checkcmdoutput "cat $test_dir/b" 0f0a86618bd4b2fcf3996114ab437d42
+checkcmdoutput "$splitcode --trim-only --no-x-out -c $test_dir/nest_config_5.txt --pipe --empty=NNN --out-fasta --mod-names -N 2 $test_dir/nest.test.1.R1.fq $test_dir/nest.test.1.R2.fq $test_dir/nest.test.2.R1.fq $test_dir/nest.test.2.R2.fq" b5138c11c6250d138252f81925ad3778
+checkcmdoutput "$splitcode --trim-only -c $test_dir/nest_config_5.txt  --pipe --empty=NNN --out-fasta --mod-names -N 2 $test_dir/nest.test.1.R1.fq $test_dir/nest.test.1.R2.fq $test_dir/nest.test.2.R1.fq $test_dir/nest.test.2.R2.fq" 00667a64eb00f8b6993e2f2819e138d7
 
 
 
