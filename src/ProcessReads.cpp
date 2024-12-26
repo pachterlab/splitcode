@@ -166,7 +166,7 @@ void MasterProcessor::update(int n, std::vector<SplitCode::Results>& rv,
   std::unique_lock<std::mutex> lock(this->writer_lock);
   
   if (opt.max_num_reads != 0 && numreads+n > opt.max_num_reads) {
-    n = opt.max_num_reads-numreads;
+    n = static_cast<size_t>(opt.max_num_reads)-numreads;
     rv.resize(n);
   }
   

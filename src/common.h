@@ -21,7 +21,7 @@ struct ProgramOptions {
   int input_interleaved_nfiles;
   int quality_trimming_threshold;
   int min_delta;
-  int64_t max_num_reads;
+  size_t max_num_reads;
   int compress_level;
   int bclen;
   bool extract_no_chain;
