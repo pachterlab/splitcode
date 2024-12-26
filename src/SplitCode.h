@@ -41,6 +41,7 @@ struct SplitCode {
   enum dir {left, right, nodir};
   
   SplitCode() {
+    FAKE_BARCODE_LEN = FAKE_BARCODE_LEN_DEFAULT;
     init = false;
     sc_nest = nullptr;
     extract_seq_names = false;
@@ -156,7 +157,8 @@ struct SplitCode {
     this->quality_trimming_naive = false; // Only applies to parent
     this->quality_trimming_threshold = -1; // Only applies to parent
     
-    this->fake_bc_len_offset = sc->fake_bc_len_offset; sc->fake_bc_len_offset = 0; // Reset parent
+    this->fake_bc_len_offset = sc->fake_bc_len_offset;
+    this->FAKE_BARCODE_LEN = sc->FAKE_BARCODE_LEN;
     this->phred64 = sc->phred64;
     this->write_tag_location_information = sc->write_tag_location_information;
     this->sub_assign_vec = sc->sub_assign_vec; sc->sub_assign_vec.clear(); // Reset parent
@@ -190,6 +192,7 @@ struct SplitCode {
             bool write_tag_location_information = false, std::vector<size_t> sub_assign_vec = std::vector<size_t>(0), int fake_bc_len_override = 0, int min_delta = -1, bool do_qc = false,
             bool x_only = false, bool no_x_out = false, bool outbam = false, bool no_output_barcodes = false, std::string outputb_file = "", bool remultiplex = false,
             std::string optimize_assignment_str = "", bool opt_show_not_found = false) {
+    FAKE_BARCODE_LEN = (!optimize_assignment_str.empty() && fake_bc_len_override != 0) ? fake_bc_len_override : FAKE_BARCODE_LEN_DEFAULT;
     init = false;
     sc_nest = nullptr;
     extract_seq_names = false;
@@ -2161,27 +2164,69 @@ struct SplitCode {
   }
   
   int getNumTags() {
-    return tags_vec.size();
+    size_t s = tags_vec.size();
+    SplitCode* scn = this;
+    if (scn->sc_nest != nullptr) { // nest
+      while (true) {
+        if (scn->sc_nest == nullptr) {
+          s += scn->tags_vec.size();
+          break;
+        } else {
+          scn = scn->sc_nest;
+        }
+      }
+    }
+    return s;
   }
   
-  int getNumTagsOriginallyAdded() {
-    return n_tag_entries;
+  int getNumTagsOriginallyAdded() { // TODO: 
+    size_t s = n_tag_entries;
+    SplitCode* scn = this;
+    if (scn->sc_nest != nullptr) { // nest
+      while (true) {
+        if (scn->sc_nest == nullptr) {
+          s += n_tag_entries;
+          break;
+        } else {
+          scn = scn->sc_nest;
+        }
+      }
+    }
+    return s;
   }
   
-  int getMapSize(bool unique = true) {
+  int getMapSize(bool unique = true) { // TODO: 
     checkInit();
+    SplitCode* scn = this;
+    size_t s = 0;
     if (unique) {
-      return tags.size();
+      s = tags.size();
     } else {
       size_t map_size = 0;
       for (auto it : tags) {
         map_size += it.second.size();
       }
-      return map_size;
+      s = map_size;
     }
+
+    if (scn->sc_nest != nullptr) { // Check if nested object exists
+      s += scn->sc_nest->getMapSize(unique); // Recursive call on the nested object
+    }
+    return s;
   }
   
   int64_t getNumMapped() {
+    SplitCode* scn = this;
+    if (scn->sc_nest != nullptr) { // nest
+      while (true) {
+        if (scn->sc_nest == nullptr) {
+          return scn->getNumMapped();
+        } else {
+          scn = scn->sc_nest;
+        }
+      }
+    }
+    if (!rtable.empty()) return num_reads_assigned;
     int64_t nummapped = 0;
     for (auto& n : idcount) {
       nummapped += n;
@@ -3774,12 +3819,16 @@ struct SplitCode {
             u__.push_back(optimize_assignment_group_map[optimize_assignment_vec[i]]-1); // Denotes not found
           }
         }
-        int id = encodeMixedRadix(u__, rtable);
-        results.name_ids = std::move(u_);
-        if (id != -1 && j == group_v.size()) {
-          results.id = id;
-        } else {
+        if (u__.size() != rtable.size()) {
           results.discard = true;
+        } else {
+          int id = (int64_t) encodeMixedRadix(u__, rtable);
+          results.name_ids = std::move(u_);
+          if (j == group_v.size()) {
+            results.id = id;
+          } else {
+            results.discard = true;
+          }
         }
       } else {
         results.discard = true;
@@ -4399,7 +4448,41 @@ struct SplitCode {
       const std::vector<uint32_t>& optimize_assignment_vec,
       const std::unordered_map<uint32_t, std::size_t>& optimize_assignment_group_map)
   {
-    // We'll keep a running product in 64-bit to avoid overflow in intermediate steps.
+    
+    uint64_t finalProduct = 1; // Do a pass through the vector to make sure we don't overflow
+    for (auto groupId : optimize_assignment_vec) {
+      auto it = optimize_assignment_group_map.find(groupId);
+      if (it == optimize_assignment_group_map.end()) {
+        std::cerr << "Error: groupId " << groupId << " not found in map." << std::endl;
+        exit(1);
+      }
+      uint32_t domain = static_cast<uint32_t>(it->second);
+      if (domain == 0) {
+        std::cerr << "Error: domain cannot be 0 for groupId " << groupId << "." << std::endl;
+        exit(1);
+      }
+      // Check for potential overflow before multiplication
+      if (finalProduct > (std::numeric_limits<uint64_t>::max() / domain)) {
+        std::cerr << "Error: Cannot use optimized barcode encoding." << std::endl;
+        std::cerr << "Total domain product exceeds 2^64; cannot fit in 64-bit encoding." << std::endl;
+        exit(1);
+      }
+      finalProduct *= domain;
+    }
+    
+    if (finalProduct > static_cast<uint64_t>(1ULL << (2 * FAKE_BARCODE_LEN))) {
+      std::cerr << "Error: Cannot use optimized barcode encoding." << std::endl;
+      std::cerr << "Total domain product exceeds what is allowed for barcode length " << FAKE_BARCODE_LEN << std::endl;
+      std::cerr << "Please try a longer barcode length of at least ";
+      while (finalProduct > static_cast<uint64_t>(1ULL << (2 * FAKE_BARCODE_LEN))) {
+        FAKE_BARCODE_LEN++;
+      }
+      std::cerr << FAKE_BARCODE_LEN << "." << std::endl;
+      exit(1);
+    }
+    
+    
+    // We'll keep a running product
     uint64_t runningProduct = 1;
     
     rtable.reserve(optimize_assignment_vec.size());
@@ -4418,23 +4501,17 @@ struct SplitCode {
       rtable.push_back(info);
       
       // Update running product for the next tag
-      uint64_t next = runningProduct * domain;
-      if (next > static_cast<uint64_t>(std::numeric_limits<uint32_t>::max()) ) {
-        std::cerr << "Error: Cannot use optimized barcode encoding." << std::endl;
-        std::cerr << "Total domain product exceeds 2^32; cannot fit in 32-bit encoding." << std::endl;
-        exit(1);
-      }
-      runningProduct = next;
+      runningProduct *= domain;
     }
     
     return rtable;
   }
   
-  int encodeMixedRadix(
+  uint64_t encodeMixedRadix(
       const std::vector<uint32_t>& tagIDs,
       const std::vector<TagRadixInfo>& radixTable)
   {
-    if (tagIDs.size() > radixTable.size()) return -1;
+    //assert(tagIDs.size() == radixTable.size()); // Make sure this is true
     
     // We'll accumulate in a 64-bit integer to avoid intermediate overflow,
     // then cast to 32-bit at the end (we’ve already guarded that the total product <= 2^32).
@@ -4452,7 +4529,7 @@ struct SplitCode {
     
     //assert(encoded <= std::numeric_limits<uint32_t>::max());
     
-    return static_cast<uint32_t>(encoded);
+    return static_cast<uint64_t>(encoded);
   }
 
   
@@ -4574,7 +4651,8 @@ struct SplitCode {
   size_t max_seq_len; // Length of longest tag sequence excluding homopolymers
   int fake_bc_len_offset;
   static const int MAX_K = 32;
-  static const size_t FAKE_BARCODE_LEN = 16;
+  size_t FAKE_BARCODE_LEN;
+  static const size_t FAKE_BARCODE_LEN_DEFAULT = 16;
   static const char QUAL = 'K';
 };
 
