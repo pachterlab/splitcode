@@ -694,6 +694,7 @@ struct SplitCode {
         }
       }
       for (auto group : optimize_assignment_vec) { // Populate the map
+        if (optimize_assignment_group_map[group] != 0) continue;
         for (size_t tag_id = 0; tag_id < tags_vec.size(); tag_id++) {
           auto& tag = tags_vec[tag_id]; 
           if (group == tag.group) {
@@ -4400,7 +4401,7 @@ struct SplitCode {
   {
     // We'll keep a running product in 64-bit to avoid overflow in intermediate steps.
     uint64_t runningProduct = 1;
-
+    
     rtable.reserve(optimize_assignment_vec.size());
 
     for (auto groupId : optimize_assignment_vec) {
