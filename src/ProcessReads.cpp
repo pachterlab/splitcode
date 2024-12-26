@@ -574,7 +574,7 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
         if (opt.gzip && outu_gz[jj] != nullptr) {
           if (!hasChild) gzwrite(outu_gz[jj], ostr.c_str(), ostr_len);
           else ns_store(ns, outu_gz[jj], ostr, ostr_len);
-        } else if (outu[jj] != nullptr) {
+        } else if (!opt.gzip && outu[jj] != nullptr) {
           if (!hasChild) fwrite(ostr.c_str(), 1, ostr_len, outu[jj]);
           else ns_store(ns, ostr, ostr_len, outu[jj]);
         }
