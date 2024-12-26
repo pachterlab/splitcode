@@ -4124,20 +4124,9 @@ struct SplitCode {
       std::cerr << "Error: Couldn't open file: " << fname << std::endl;
       exit(1);
     }
-    if (rtable.size() == 0) {
-      std::string o;
-      while ((o = fetchNextBarcodeMapping()) != "") {
-        of << o;
-      }
-    } else {
-      for (auto& info : rtable) {
-        for (size_t tag_id = 0; tag_id < tags_vec.size(); tag_id++) {
-          auto& tag = tags_vec[tag_id]; 
-          if (info.groupId == tag.group) {
-            of << group_names[info.groupId] << "\t" << names[tag.name_id] << "\t" << info.domain << "\t" << info.radix << "\n";
-          }
-        }
-      }
+    std::string o;
+    while ((o = fetchNextBarcodeMapping()) != "") {
+      of << o;
     }
     of.close();
   }
@@ -4152,6 +4141,23 @@ struct SplitCode {
           scn = scn->sc_nest;
         }
       }
+    }
+    if (rtable.size() != 0) {
+      int i = curr_barcode_mapping_i;
+      if (i >= rtable.size()) {
+        curr_barcode_mapping_i = 0;
+        return "";
+      }
+      auto &info = rtable[i];
+      std::stringstream ss;
+      for (size_t tag_id = 0; tag_id < tags_vec.size(); tag_id++) {
+        auto& tag = tags_vec[tag_id]; 
+        if (info.groupId == tag.group) {
+          ss << group_names[info.groupId] << "\t" << names[tag.name_id] << "\t" << info.domain << "\t" << info.radix << "\n";
+        }
+      }
+      ++curr_barcode_mapping_i;
+      return ss.str();
     }
     int i = curr_barcode_mapping_i;
     if (i >= idmap_getsize()) {
