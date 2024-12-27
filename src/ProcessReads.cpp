@@ -268,13 +268,13 @@ void MasterProcessor::update(int n, std::vector<SplitCode::Results>& rv,
       ns_prep_write(ns);
       lock.lock();
       sc_nest->update(rv);
+      numreads += n;
       while (readbatch_id != curr_readbatch_id && !parallel_read) {
         cv.wait(lock, [this, readbatch_id]{ return readbatch_id == curr_readbatch_id; });
       }
       writeOutput(rv, seqs_, names_, quals_, flags, ns, sc_nest); // ns is overwritten
       // Write out anything remaining that's stored:
       ns_queue.push(std::move(ns));
-      numreads += n;
       curr_readbatch_id++;
       lock.unlock(); // releases the lock
       cv.notify_all(); // Alert all other threads to check their readbatch_id's!
