@@ -167,6 +167,7 @@ void MasterProcessor::update(int n, std::vector<SplitCode::Results>& rv,
   
   if (opt.max_num_reads != 0 && numreads+n > opt.max_num_reads) {
     n = static_cast<size_t>(opt.max_num_reads)-numreads;
+    if (n <= 0) { rv.clear(); lock.unlock(); cv.notify_all(); return; }
     rv.resize(n);
   }
   
@@ -177,11 +178,11 @@ void MasterProcessor::update(int n, std::vector<SplitCode::Results>& rv,
   
   
   if (write_output_fastq && !hasChild) {
+    numreads += n;
     while (readbatch_id != curr_readbatch_id && !parallel_read) {
       cv.wait(lock, [this, readbatch_id]{ return readbatch_id == curr_readbatch_id; });
     }
     writeOutput(rv, seqs, names, quals, flags, ns);
-    numreads += n;
     curr_readbatch_id++;
     lock.unlock(); // releases the lock
     cv.notify_all(); // Alert all other threads to check their readbatch_id's!
