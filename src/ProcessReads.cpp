@@ -167,8 +167,11 @@ void MasterProcessor::update(int n, std::vector<SplitCode::Results>& rv,
   
   if (opt.max_num_reads != 0 && numreads+n > opt.max_num_reads) {
     n = static_cast<size_t>(opt.max_num_reads)-numreads;
-    if (n <= 0) { rv.clear(); lock.unlock(); cv.notify_all(); return; }
+    if (n <= 0) n = 0;
     rv.resize(n);
+    seqs.resize(n);
+    quals.resize(n);
+    flags.resize(n);
   }
   
   sc.update(rv);
