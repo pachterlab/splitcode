@@ -4087,7 +4087,7 @@ struct SplitCode {
   std::string getNameString(Results& r) {
     std::string names_str = "";
     for (int n : r.name_ids) {
-      if (n == std::numeric_limits<uint32_t>::max() && opt_show_not_found) names_str += "[NOT_FOUND]";
+      if (n == std::numeric_limits<uint32_t>::max() && opt_show_not_found) names_str += "[NOT_FOUND]"; // Feature not implemented
       else names_str += "[" + names[n] + "]";
     }
     return names_str;
