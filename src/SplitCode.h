@@ -3800,35 +3800,22 @@ struct SplitCode {
     }
     if (!rtable.empty()) {
       if (group_v.size() <= optimize_assignment_vec.size()) {
-        std::vector<uint32_t> u_; // tag name IDs
         std::vector<uint32_t> u__; // tag IDs (zero-indexed within group)
-        u_.reserve(u.size());
-        u__.reserve(u.size());
-        int j = 0;
-        for (int i = 0; i < optimize_assignment_vec.size(); i++) {
-          if (j < group_v.size() && optimize_assignment_vec[i] == group_v[j]) {
-            // we have a match with the next element in group_v
-            u_.push_back(u[i]);
-            u__.push_back(optimize_assignment_tag_map[u[i]]);
-            // optimize_assignment_tag_map
-            ++j;
-          } else {
-            // no match
-            //++j;
-            u_.push_back(std::numeric_limits<uint32_t>::max()); // Denotes not found
-            u__.push_back(optimize_assignment_group_map[optimize_assignment_vec[i]]-1); // Denotes not found
+        u__.reserve(results.name_ids.size());
+        bool is_assigned = false;
+        if (group_v.size() == optimize_assignment_vec.size()) {
+          for (int i = 0; i < optimize_assignment_vec.size(); i++) {
+            if (optimize_assignment_vec[i] == group_v[i]) {
+              u__.push_back(optimize_assignment_tag_map[results.name_ids[i]]);
+            }
           }
         }
-        if (u__.size() != rtable.size()) {
+        is_assigned = (u__.size() == optimize_assignment_vec.size());
+        if (!is_assigned) {
           results.discard = true;
         } else {
           int id = (int64_t) encodeMixedRadix(u__, rtable);
-          results.name_ids = std::move(u_);
-          if (j == group_v.size()) {
-            results.id = id;
-          } else {
-            results.discard = true;
-          }
+          results.id = id;
         }
       } else {
         results.discard = true;
