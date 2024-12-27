@@ -811,6 +811,7 @@ void ReadProcessor::operator()() {
     }
     clear();
     if (mp.opt.max_num_reads != 0 && mp.numreads >= mp.opt.max_num_reads) {
+      mp.cv.notify_all();
       return;
     }
   }
