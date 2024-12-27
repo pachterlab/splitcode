@@ -2219,6 +2219,7 @@ struct SplitCode {
     SplitCode* scn = this;
     if (scn->sc_nest != nullptr) { // nest
       while (true) {
+        if (scn->num_reads_assigned != 0) return scn->num_reads_assigned;
         if (scn->sc_nest == nullptr) {
           return scn->getNumMapped();
         } else {
