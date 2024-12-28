@@ -1778,6 +1778,8 @@ struct SplitCode {
             return false;
           }
           this->barcode_prefix = value;
+        } else if (field == "@barcode-encode") {
+          this->optimize_assignment_str = value;
         } else if (field == "@sub-assign") {
           if (!this->sub_assign_vec.empty()) {
             std::cerr << "Error: The file \"" << config_file << "\" specifies @sub-assign which was already previously set" << std::endl;
@@ -4095,17 +4097,6 @@ struct SplitCode {
   }
   
   void writeBarcodeMapping(std::string fname) {
-    SplitCode* scn = this;
-    if (scn->sc_nest != nullptr) { // nest
-      while (true) {
-        if (scn->sc_nest == nullptr) {
-          scn->writeBarcodeMapping(fname);
-          return;
-        } else {
-          scn = scn->sc_nest;
-        }
-      }
-    }
     std::ofstream of;
     of.open(fname);
     if (!of.is_open()) {
@@ -4123,13 +4114,21 @@ struct SplitCode {
     SplitCode* scn = this;
     if (scn->sc_nest != nullptr) { // nest
       while (true) {
+        if (!scn->always_assign && (scn->idmap16.size() > 0 || scn->idmap.size() > 0 || scn->rtable.size() > 0)) {
+          return scn->fetchNextBarcodeMapping_helper();
+        }
         if (scn->sc_nest == nullptr) {
-          return scn->fetchNextBarcodeMapping();
+          return scn->fetchNextBarcodeMapping_helper();
         } else {
           scn = scn->sc_nest;
         }
       }
     }
+    std::cout << "DD" << std::endl;
+    return fetchNextBarcodeMapping_helper();
+  }
+  
+  std::string fetchNextBarcodeMapping_helper() {
     if (rtable.size() != 0) {
       int i = curr_barcode_mapping_i;
       if (i >= rtable.size()) {
