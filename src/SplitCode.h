@@ -4124,7 +4124,6 @@ struct SplitCode {
         }
       }
     }
-    std::cout << "DD" << std::endl;
     return fetchNextBarcodeMapping_helper();
   }
   
