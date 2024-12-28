@@ -165,13 +165,13 @@ void MasterProcessor::update(int n, std::vector<SplitCode::Results>& rv,
   // acquire the writer lock
   std::unique_lock<std::mutex> lock(this->writer_lock);
   
+  bool resize = false;
+  
   if (opt.max_num_reads != 0 && numreads+n > opt.max_num_reads) {
     n = static_cast<size_t>(opt.max_num_reads)-numreads;
     if (n <= 0) n = 0;
     rv.resize(n);
-    seqs.resize(n);
-    quals.resize(n);
-    flags.resize(n);
+    resize = true;
   }
   
   sc.update(rv);
@@ -181,6 +181,11 @@ void MasterProcessor::update(int n, std::vector<SplitCode::Results>& rv,
   
   
   if (write_output_fastq && !hasChild) {
+    if (resize) {
+      seqs.resize(n * nfiles);
+      quals.resize(n * nfiles);
+      flags.resize(n * nfiles);
+    }
     numreads += n;
     while (readbatch_id != curr_readbatch_id && !parallel_read) {
       cv.wait(lock, [this, readbatch_id]{ return readbatch_id == curr_readbatch_id; });
