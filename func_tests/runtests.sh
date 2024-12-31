@@ -104,6 +104,16 @@ checkcmdoutput "$splitcode --lift --snv-only $test_dir/vcf_validation.fa.gz $tes
 checkcmdoutput "$splitcode --lift --kmer-sj $test_dir/vcf_validation.fa.gz $test_dir/example.SJ.tab --kmer-length=31 --kmer-header=X_ --kmer-header-num" 1e88d0b72323a6c11faa73e19007fc5f
 
 
+# Test from-name, random, and revcomp
+
+checkcmdoutput "$splitcode --trim-only --pipe --from-name=0,0,2,:: $test_dir/from_name.fq" e0b141cd0e6348d3cd64d23d61f67d09
+checkcmdoutput "$splitcode --trim-only --pipe --from-name=\"0,0,0,::;0,0,0,::+\" -b GTTTA -d 1 --revcomp=1 --mod-names $test_dir/from_name.fq" 83b2f368aea4e889ad5995dbaef6f744
+checkcmdoutput "$splitcode --trim-only --pipe --random=0,2,25 $test_dir/from_name.fq" 669d8dbda3e81f74159e1ce280686d49
+checkcmdoutput "$splitcode --trim-only --pipe  -x \"<umi{:}>\" --random=0,-1,25 $test_dir/from_name.fq" 30b84f54f195c1e499cafb33acb1b2bf
+checkcmdoutput "$splitcode --trim-only --pipe --from-name=\"0,0,-1,::;0,0,-1,::+\" -x \"<umi{:}>,<umi{:}>\" $test_dir/from_name.fq" 21f22aeb47e01c059f957fddb28a01aa
+checkcmdoutput "$splitcode --trim-only --pipe --from-name=\"0,0,-1,::;0,0,-1,::+\" -x \"<umi{:}>,<umi2{:}>\" $test_dir/from_name.fq" c5456433bca2f5599d15f0785637149e
+
+
 
 # Test SPRITE config files
 
