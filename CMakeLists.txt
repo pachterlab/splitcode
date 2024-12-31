@@ -51,8 +51,9 @@ include(ExternalProject)
 
 
 
-if (ZLIBNG)
+if (NOT ZLIBNG_DISABLE)
     message("zlib-ng enabled.")
+    set(ZLIBNG "ON")
     ExternalProject_Add(zlib-ng
     PREFIX ${PROJECT_SOURCE_DIR}/ext/zlib-ng
     SOURCE_DIR ${PROJECT_SOURCE_DIR}/ext/zlib-ng
@@ -61,7 +62,7 @@ if (ZLIBNG)
     BUILD_COMMAND cd zlib-ng && make
     INSTALL_COMMAND ""
     )
-endif(ZLIBNG)
+endif(ZLIBNG_DISABLE)
 
 
 if (USE_HTSLIB)
