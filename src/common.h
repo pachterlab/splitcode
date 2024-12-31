@@ -73,6 +73,7 @@ struct ProgramOptions {
   std::string max_finds_group_str;
   std::string min_finds_group_str;
   std::string exclude_str;
+  std::string revcomp_str;
   std::string after_str;
   std::string before_str;
   std::string partial5_str;

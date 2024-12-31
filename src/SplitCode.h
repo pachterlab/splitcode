@@ -1085,6 +1085,7 @@ struct SplitCode {
     uint16_t extra_after2;
     bool partial5;
     bool partial3;
+    bool revcomp;
     std::string substitution;
   };
 
@@ -1329,7 +1330,7 @@ struct SplitCode {
               int16_t file, int32_t pos_start, int32_t pos_end,
               uint16_t max_finds, uint16_t min_finds, bool not_include_in_barcode,
               dir trim, int trim_offset, std::string after_str, std::string before_str,
-              int partial5_min_match, double partial5_mismatch_freq, int partial3_min_match, double partial3_mismatch_freq, std::string subs_str, bool seq_is_file = false) {
+              int partial5_min_match, double partial5_mismatch_freq, int partial3_min_match, double partial3_mismatch_freq, std::string subs_str, bool revcomp = false, bool seq_is_file = false) {
     if (init) {
       std::cerr << "Error: Already initialized" << std::endl;
       return false;
@@ -1427,7 +1428,7 @@ struct SplitCode {
                  file, pos_start, pos_end,
                  max_finds, min_finds, not_include_in_barcode,
                  trim, trim_offset, after_str, before_str,
-                 partial5_min_match, partial5_mismatch_freq, partial3_min_match, partial3_mismatch_freq, subs_str, true);
+                 partial5_min_match, partial5_mismatch_freq, partial3_min_match, partial3_mismatch_freq, subs_str, revcomp, true);
                 if (!ret) {
                   return false;
                 }
@@ -1510,6 +1511,23 @@ struct SplitCode {
     new_tag.has_before_group = false;
     new_tag.partial5 = false;
     new_tag.partial3 = false;
+    new_tag.revcomp = revcomp;
+    
+    
+    auto revcomp_ = [](const std::string s) {
+      std::string r(s);
+      std::transform(s.rbegin(), s.rend(), r.begin(), [](char c) {
+        switch(c) {
+        case 'A': return 'T';
+        case 'C': return 'G';
+        case 'G': return 'C';
+        case 'T': return 'A';
+        default: return 'N';
+        }
+        return 'N';
+      });
+      return r;
+    };
     
     // Now deal with adding the actual sequence:
     if (nFiles <= 0 && new_tag.file == -1) { // Make sure we have nFiles set if tag can belong to any file
@@ -1523,6 +1541,7 @@ struct SplitCode {
     for (file = start_file; file < end_file; file++) {
       new_tag.file = file;
       char delimeter = '/'; // Sequence can be delimited by '/' if the user gives multiple sequences for one tag record
+      if (new_tag.revcomp) new_tag_seq += '/' + revcomp_(new_tag_seq);
       std::stringstream ss(new_tag_seq);
       int num_seqs = 0;
       auto new_tag_index_original = new_tag_index;
@@ -1907,6 +1926,7 @@ struct SplitCode {
       uint16_t min_finds = 0;
       uint16_t max_finds_g = 0;
       uint16_t min_finds_g = 0;
+      bool revcomp = false;
       bool trim_left, trim_right;
       int trim_left_offset, trim_right_offset;
       parseTrimStr("", trim_left, trim_left_offset); // Set up default values
@@ -1937,6 +1957,8 @@ struct SplitCode {
           std::stringstream(field) >> min_finds_g;
         } else if (h[i] == "MAXFINDSG") {
           std::stringstream(field) >> max_finds_g;
+        } else if (h[i] == "REVCOMP") {
+          std::stringstream(field) >> revcomp;
         } else if (h[i] == "EXCLUDE") {
           std::stringstream(field) >> exclude;
         } else if (h[i] == "SUBS" || h[i] == "SUB") {
@@ -1966,7 +1988,7 @@ struct SplitCode {
       }
       auto trim_dir = trim_left ? left : (trim_right ? right : nodir);
       auto trim_offset = trim_left ? trim_left_offset : (trim_right ? trim_right_offset : 0);
-      if (!ret || !addTag(bc, name.empty() ? bc : name, group, mismatch, indel, total_dist, file, pos_start, pos_end, max_finds, min_finds, exclude, trim_dir, trim_offset, after_str, before_str, partial5_min_match, partial5_mismatch_freq, partial3_min_match, partial3_mismatch_freq, subs_str)) {
+      if (!ret || !addTag(bc, name.empty() ? bc : name, group, mismatch, indel, total_dist, file, pos_start, pos_end, max_finds, min_finds, exclude, trim_dir, trim_offset, after_str, before_str, partial5_min_match, partial5_mismatch_freq, partial3_min_match, partial3_mismatch_freq, subs_str, revcomp)) {
         std::cerr << "Error: The file \"" << config_file << "\" contains an error" << std::endl;
         return false;
       }

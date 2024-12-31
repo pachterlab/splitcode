@@ -145,6 +145,7 @@ void usage() {
        << "-U, --subs       Specifies sequence to substitute tag with when found in read (. = original sequence) (comma-separated)" << endl
        << "-z, --partial5   Specifies tag may be truncated at the 5′ end (comma-separated min_match:mismatch_freq)" << endl
        << "-Z, --partial3   Specifies tag may be truncated at the 3′ end (comma-separated min_match:mismatch_freq)" << endl
+       << "    --revcomp    Specifies tag may be reverse complemented" << endl
        << "Read modification and extraction options (for configuring on the command-line):" << endl
        << "-x, --extract    Pattern(s) describing how to extract UMI and UMI-like sequences from reads" << endl
        << "                 (E.g. {bc}2<umi_1[5]> means extract a 5-bp UMI sequence, called umi_1, 2 base pairs following the tag named 'bc')" << endl
@@ -370,6 +371,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"sub-assign", required_argument, 0, 'X'},
     {"compress", required_argument, 0, 'C'},
     {"bclen", required_argument, 0, '9'},
+    {"revcomp", required_argument, 0, 0},
     {"from-name", required_argument, 0, 0},
     {"random", required_argument, 0, 0},
     {"ref-gtf", required_argument, 0, 0},
@@ -393,6 +395,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     
     switch (c) {
     case 0:
+      if (strcmp(long_options[option_index].name,"revcomp") == 0) opt.revcomp_str = optarg;
       if (strcmp(long_options[option_index].name,"from-name") == 0) opt.from_header_str = optarg;
       if (strcmp(long_options[option_index].name,"random") == 0) opt.random_str = optarg;
       if (strcmp(long_options[option_index].name,"ref-gtf") == 0) lift_ref_gtf = optarg;
@@ -1077,10 +1080,12 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
     stringstream ss13(opt.partial5_str);
     stringstream ss14(opt.partial3_str);
     stringstream ss15(opt.subs_str);
+    stringstream ss16(opt.revcomp_str);
     while (ss1.good()) {
       uint16_t max_finds = 0;
       uint16_t min_finds = 0;
       bool exclude = false;
+      bool revcomp = false;
       string name = "";
       string group = "";
       string location = "";
@@ -1185,6 +1190,16 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
         string f;
         getline(ss7, f, ',');
         stringstream(f) >> exclude;
+      }
+      if (!opt.revcomp_str.empty()) {
+        if (!ss16.good()) {
+          std::cerr << ERROR_STR << " Number of values in --revcomp is less than that in --tags" << std::endl;
+          ret = false;
+          break;
+        }
+        string f;
+        getline(ss16, f, ',');
+        stringstream(f) >> revcomp;
       }
       if (!opt.left_str.empty()) {
         auto currpos = ss8.tellg();
@@ -1300,7 +1315,7 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
         }
         getline(ss15, subs_str, ',');
       }
-      if (!sc.addTag(bc, name.empty() ? bc : name, group, mismatch, indel, total_dist, file, pos_start, pos_end, max_finds, min_finds, exclude, trim_dir, trim_offset, after_str, before_str, partial5_min_match, partial5_mismatch_freq, partial3_min_match, partial3_mismatch_freq, subs_str)) {
+      if (!sc.addTag(bc, name.empty() ? bc : name, group, mismatch, indel, total_dist, file, pos_start, pos_end, max_finds, min_finds, exclude, trim_dir, trim_offset, after_str, before_str, partial5_min_match, partial5_mismatch_freq, partial3_min_match, partial3_mismatch_freq, subs_str, revcomp)) {
         std::cerr << ERROR_STR << " Could not finish processing supplied tags list" << std::endl;
         ret = false;
         break;
@@ -1328,6 +1343,10 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
     }
     if (ret && !opt.exclude_str.empty() && ss7.good()) {
       std::cerr << ERROR_STR << " Number of values in --exclude is greater than that in --tags" << std::endl;
+      ret = false;
+    }
+    if (ret && !opt.revcomp_str.empty() && ss16.good()) {
+      std::cerr << ERROR_STR << " Number of values in --revcomp is greater than that in --tags" << std::endl;
       ret = false;
     }
     if (ret && !opt.left_str.empty() && ss8.good()) {
@@ -1379,6 +1398,9 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
     ret = false;
   } else if (!opt.exclude_str.empty()) {
     std::cerr << ERROR_STR << " --exclude cannot be supplied unless --tags is" << std::endl;
+    ret = false;
+  } else if (!opt.revcomp_str.empty()) {
+    std::cerr << ERROR_STR << " --revcomp cannot be supplied unless --tags is" << std::endl;
     ret = false;
   } else if (!opt.left_str.empty()) {
     std::cerr << ERROR_STR << " --left cannot be supplied unless --tags is" << std::endl;
