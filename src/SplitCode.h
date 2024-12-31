@@ -171,6 +171,8 @@ struct SplitCode {
     this->no_output_barcodes = sc->no_output_barcodes; sc->no_output_barcodes = false; // Reset parent
     this->outputb_file = sc->outputb_file; sc->outputb_file = ""; // Reset parent
     this->remultiplex = sc->remultiplex; sc->remultiplex = false; // Reset parent
+    this->from_header_str = ""; // Reset parent
+    this->random_str = ""; // Reset parent
     early_termination_maxFindsG = -1;
     max_seq_len = 0;
     this->set_assign_nested = false; // Will set this later
@@ -191,7 +193,7 @@ struct SplitCode {
             bool quality_trimming_pre = false, bool quality_trimming_naive = false, int quality_trimming_threshold = -1, bool phred64 = false,
             bool write_tag_location_information = false, std::vector<size_t> sub_assign_vec = std::vector<size_t>(0), int fake_bc_len_override = 0, int min_delta = -1, bool do_qc = false,
             bool x_only = false, bool no_x_out = false, bool outbam = false, bool no_output_barcodes = false, std::string outputb_file = "", bool remultiplex = false,
-            std::string optimize_assignment_str = "", bool opt_show_not_found = false) {
+            std::string optimize_assignment_str = "", std::string from_header_str = "", std::string random_str = "", bool opt_show_not_found = false) {
     FAKE_BARCODE_LEN = (!optimize_assignment_str.empty() && fake_bc_len_override != 0) ? fake_bc_len_override : FAKE_BARCODE_LEN_DEFAULT;
     init = false;
     sc_nest = nullptr;
@@ -242,6 +244,8 @@ struct SplitCode {
     this->set_assign_nested = false;
     this->optimize_assignment_str = optimize_assignment_str;
     this->opt_show_not_found = opt_show_not_found;
+    this->from_header_str = from_header_str;
+    this->random_str = random_str;
     early_termination_maxFindsG = -1;
     max_seq_len = 0;
     setNFiles(nFiles);
@@ -534,6 +538,23 @@ struct SplitCode {
     }
     if (thisIsParent && this->extract_str.empty() && !this->extract_str_og.empty() && !this->isNested) {
       this->extract_str = extract_str_og; // Make sure we get the -x from the command line
+    }
+    std::string randstr = "";
+    if (!random_str.empty()) { // Valid input to random
+      bool ret = true;
+      std::string input = random_str;
+      size_t firstComma = input.find(',');
+      if (firstComma == std::string::npos) ret = false;
+      size_t secondComma = input.find(',', firstComma + 1);
+      if (secondComma == std::string::npos) ret = false;
+      if (!ret) {
+        std::cerr << "Error:" << " random is invalid" << std::endl;
+        exit(1);
+      }
+      randstr = random_str + "," + "RANDOM;";
+    }
+    if (!parseFromHeaderStr(randstr + from_header_str, placement_vec, nFiles)) {
+      exit(1);
     }
     // Process 5′/3′ end-trimming
     std::stringstream ss_trim_5(this->trim_5_str);
@@ -1137,6 +1158,13 @@ struct SplitCode {
     int32_t trim_right;
   };
   
+  struct placement_struct { // struct for placing certain sequences (e.g. sequences from header names)
+    int file; // Which FASTQ file
+    int output_file; // Which output file
+    int output_pos; // What position in output file to put it
+    std::string pattern; // Extraction pattern (e.g. ::, ::+, etc.)
+  };
+  
   
   void generate_hamming_mismatches(std::string seq, int dist, std::unordered_map<std::string,int>& results, bool use_N = false, int initial_dist = 0, std::vector<size_t> pos = std::vector<size_t>()) {
     if (dist == 0) {
@@ -1519,6 +1547,7 @@ struct SplitCode {
         
         std::unordered_map<std::string,int> mismatches;
         generate_indels_hamming_mismatches(seq, mismatch_dist, indel_dist, total_dist, mismatches);
+
         for (auto mm : mismatches) {
           std::string mismatch_seq = mm.first;
           int error = mm.second; // The number of substitutions, insertions, or deletions
@@ -1808,7 +1837,25 @@ struct SplitCode {
             return false;
           }
           this->filter_length_str = value;
-        } else if (field == "@qtrim") {
+        } else if (field == "@from-name") {
+          if (!this->from_header_str.empty()) {
+            std::cerr << "Error: The file \"" << config_file << "\" specifies @from-name which was already previously set" << std::endl;
+            return false;
+          } else if (!thisIsParent) {
+            std::cerr << "Error: Cannot set @from-name in a nested region of config file" << std::endl;
+            return false;
+          }
+          this->from_header_str = value;
+        } else if (field == "@random") {
+          if (!this->random_str.empty()) {
+            std::cerr << "Error: The file \"" << config_file << "\" specifies @random which was already previously set" << std::endl;
+            return false;
+          } else if (!thisIsParent) {
+            std::cerr << "Error: Cannot set @random in a nested region of config file" << std::endl;
+            return false;
+          }
+          this->random_str = value;
+        }  else if (field == "@qtrim") {
           if (this->quality_trimming_threshold >= 0) {
             std::cerr << "Error: The file \"" << config_file << "\" specifies @qtrim which was already previously set" << std::endl;
             return false;
@@ -2265,6 +2312,73 @@ struct SplitCode {
     } catch (std::exception &e) {
       std::cerr << "Error: Could not convert \"" << trim_attribute << "\" to int in trim string" << std::endl;
       return false;
+    }
+    return true;
+  }
+  
+  static bool parseFromHeaderStr(std::string from_header_str, std::vector<placement_struct>& placement_vec, int nFiles) {
+    if (from_header_str.empty()) return true;
+    // Split by semicolons
+    std::stringstream ss(from_header_str);
+    std::string chunk;
+    while (std::getline(ss, chunk, ';')) {
+      // Skip empty chunks (e.g. trailing ';')
+      if (chunk.empty()) {
+        continue;
+      }
+      
+      // We expect at least 3 commas for the first three fields
+      // (file, output_file, output_pos). The rest is pattern.
+      std::string fields[4]; 
+      size_t startPos = 0;
+      bool valid = true;
+      
+      for (int i = 0; i < 3; ++i) {
+        size_t commaPos = chunk.find(',', startPos);
+        if (commaPos == std::string::npos) {
+          valid = false;
+          break;
+        }
+        fields[i] = chunk.substr(startPos, commaPos - startPos);
+        startPos = commaPos + 1;
+      }
+      if (!valid) {
+        std::cerr << "Error in from-name: invalid chunk (not enough commas): " << chunk << "\n";
+        return false;
+      }
+      
+      // Everything after the third comma is the pattern
+      fields[3] = chunk.substr(startPos);
+
+      bool do_random = false;
+      if (fields[3] == "RANDOM") { // Special case, we have out_file:out_pos:length:RANDOM
+        do_random = true;
+        fields[3] = "R" + fields[2];
+        fields[2] = fields[1];
+        fields[1] = fields[0];
+        fields[0] = "0";
+      }
+      
+      // Parse into placement_struct
+      placement_struct ps;
+      try {
+        ps.file        = std::stoi(fields[0]);
+        ps.output_file = std::stoi(fields[1]);
+        ps.output_pos  = std::stoi(fields[2]);
+        ps.pattern     = fields[3];
+      }
+      catch (...) {
+        if (!do_random) std::cerr << "Error in from-name parsing numeric fields in chunk: " << chunk << "\n";
+        else  std::cerr << "Error in random: length invalid" << "\n";
+        return false;
+      }
+      
+      if (ps.file >= nFiles) {
+        if (!do_random) std::cerr << "Error in from-name: invalid chunk (file number invalid): " << chunk << "\n";
+        else std::cerr << "Error in random: file number invalid" << "\n";
+      }
+      
+      placement_vec.push_back(ps);
     }
     return true;
   }
@@ -2975,6 +3089,9 @@ struct SplitCode {
           extract_seq_names_umi = umi;
           ret = true;
         }
+      } else if (special_extraction && name1.length() > 0 && name1[0] == ':' && thisIsParent) { // A special case where we extract inserted placement elements e.g. <umi{*0}>, <umi{*1}>
+        placement_umis.push_back(umi);
+        ret = true;
       } else { // Typical use case
         ret = process_umi(name1, true, false) && process_umi(name2, false, false) && process_umi(name1, true, true) && process_umi(name2, false, true);
       }
@@ -3402,6 +3519,48 @@ struct SplitCode {
     }
   }
   
+  void doUMIExtractionPlacement(std::vector<std::string>& insertion_placement_vec, std::vector<std::string>& umi_data) {
+    auto extract_no_chain = this->extract_no_chain;
+    auto& extract_no_chain_set = this->extract_no_chain_set;
+    auto& umi_names = this->umi_names;
+    auto revcomp = [](const std::string s) {
+      std::string r(s);
+      std::transform(s.rbegin(), s.rend(), r.begin(), [](char c) {
+        switch(c) {
+        case 'A': return 'T';
+        case 'C': return 'G';
+        case 'G': return 'C';
+        case 'T': return 'A';
+        default: return 'N';
+        }
+        return 'N';
+      });
+      return r;
+    };
+    auto addToUmiData = [extract_no_chain, &extract_no_chain_set, &umi_names, &umi_data, &revcomp](const UMI& u, const std::string& extracted_umi) {
+      bool extract_no_chain_ = extract_no_chain;
+      if (extract_no_chain_ && !extract_no_chain_set.empty()) {
+        extract_no_chain_ = false;
+        if (extract_no_chain_set.find(umi_names[u.name_id]) != extract_no_chain_set.end()) {
+          extract_no_chain_ = true;
+        }
+      }
+      umi_data[u.name_id] += extract_no_chain_ && !umi_data[u.name_id].empty() ? "" : (!u.rev_comp ? u.prepend+extracted_umi+u.append : u.prepend+revcomp(extracted_umi)+u.append);
+    };
+    int i = 0;
+    for (auto & pumi : placement_umis) {
+      const auto &u = pumi; // Need options to extract together and separately under a single UMI tag
+      auto extract_min_len = u.length_range_start;
+      auto extract_max_len = u.length_range_end;
+      if (i >= insertion_placement_vec.size()) break;
+      const std::string& extracted_umi = insertion_placement_vec[i];
+      i++;
+      if (extract_max_len == 0 || (extracted_umi.length() >= extract_min_len && extracted_umi.length() <= extract_max_len)) { // if a length range is supplied, just make sure the extracted string fits within the range
+        addToUmiData(u, extracted_umi);
+      }
+    }
+  }
+  
   std::pair<int,int> trimQuality(const char*& s, int& l, const char*& q) {
     // Same "partial sum" algorithm used by cutadapt
     int phred_offset = phred64 ? -64 : -33;
@@ -3469,10 +3628,11 @@ struct SplitCode {
   
   void processRead(std::vector<const char*>& s, std::vector<int>& l, int jmax, Results& results) {
     std::vector<const char*> q(0);
-    processRead(s, l, jmax, results, q);
+    std::vector<std::string> ss(0);
+    processRead(s, l, jmax, results, q, ss);
   }
   
-  void processRead(std::vector<const char*>& s, std::vector<int>& l, int jmax, Results& results, std::vector<const char*>& q) {
+  void processRead(std::vector<const char*>& s, std::vector<int>& l, int jmax, Results& results, std::vector<const char*>& q, std::vector<std::string>& insertion_placement_vec) {
     // Note: s and l may end up being trimmed/modified (even if the read ends up becoming unassigned)
     results.id = -1;
     results.subassign_id = -1;
@@ -3751,6 +3911,9 @@ struct SplitCode {
     }
     if (do_extract && extract_seq_names) {
       doUMIExtractionSeqNames(extract_seq_names_umi.use_read_sequence || extract_seq_names_umi.use_sub ? results.identified_tags_seqs_ : results.identified_tags_seqs, umi_data);
+    }
+    if (do_extract && insertion_placement_vec.size() != 0) {
+      doUMIExtractionPlacement(insertion_placement_vec, umi_data);
     }
     for (auto& it : min_finds) {
       if (it.second > 0) {
@@ -4600,10 +4763,16 @@ struct SplitCode {
   
   bool extract_seq_names;
   UMI extract_seq_names_umi;
+  std::vector<UMI> placement_umis;
+  
+  std::string random_str;
   
   std::vector<size_t> sub_assign_vec;
   
   std::string _keep_str, _keep_grp_str, _remove_str, _remove_grp_str;
+
+  std::vector<placement_struct> placement_vec;
+  std::string from_header_str;
   
   std::vector<std::unordered_set<size_t>> k_expansions; // Keeps track of all possible substring/k-mer lengths for each file (file number is the index)
   

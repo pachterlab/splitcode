@@ -160,6 +160,9 @@ void usage() {
        << "    --phred64    Use phred+64 encoded quality scores" << endl
        << "-P, --prefix     Bases that will prefix each final barcode sequence (useful for merging separate experiments)" << endl
        << "-D, --min-delta  When matching tags error-tolerantly, specifies how much worse the next best match must be than the best match" << endl
+       << "    --from-name  Extract sequences from FASTQ header comments. Format: fastq_number,output_file_number,output_position,pattern." << endl
+       << "                 (Example: 0,0,0,::;0,0,0,::+ will extract the nucleotides from 1:N:ATCCC+ATCG and put it into the R1 output)" << endl
+       << "    --random     Insert a random sequence. Format: output_file_number,output_position,length." << endl
        << "Options (configurations supplied in a file):" << endl
        << "-c, --config     Configuration file" << endl
        << "Output Options:" << endl
@@ -367,6 +370,8 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"sub-assign", required_argument, 0, 'X'},
     {"compress", required_argument, 0, 'C'},
     {"bclen", required_argument, 0, '9'},
+    {"from-name", required_argument, 0, 0},
+    {"random", required_argument, 0, 0},
     {"ref-gtf", required_argument, 0, 0},
     {"out-gtf", required_argument, 0, 0},
     {"kmer-length", required_argument, 0, 0},
@@ -388,6 +393,8 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     
     switch (c) {
     case 0:
+      if (strcmp(long_options[option_index].name,"from-name") == 0) opt.from_header_str = optarg;
+      if (strcmp(long_options[option_index].name,"random") == 0) opt.random_str = optarg;
       if (strcmp(long_options[option_index].name,"ref-gtf") == 0) lift_ref_gtf = optarg;
       if (strcmp(long_options[option_index].name,"out-gtf") == 0) lift_out_gtf = optarg;
       if (strcmp(long_options[option_index].name,"kmer-length") == 0) lift_kmer_length = optarg;
@@ -1519,7 +1526,7 @@ int main(int argc, char *argv[]) {
   ParseOptions(argc,argv,opt);
   SplitCode sc(opt.nfiles, opt.summary_file, opt.trim_only, opt.disable_n, opt.trim_5_str, opt.trim_3_str, opt.extract_str, opt.extract_no_chain, opt.barcode_prefix, opt.filter_length_str,
                opt.quality_trimming_5, opt.quality_trimming_3, opt.quality_trimming_pre, opt.quality_trimming_naive, opt.quality_trimming_threshold, opt.phred64, opt.write_locations, opt.sub_assign_vec, opt.bclen, opt.min_delta, !opt.summary_file.empty(),
-               opt.x_only, opt.no_x_out, opt.outbam, opt.no_output_barcodes, opt.outputb_file, opt.remultiplex, opt.optimize_assignment_str, opt.show_not_found);
+               opt.x_only, opt.no_x_out, opt.outbam, opt.no_output_barcodes, opt.outputb_file, opt.remultiplex, opt.optimize_assignment_str, opt.from_header_str, opt.random_str, opt.show_not_found);
   bool checkopts = CheckOptions(opt, sc);
   if (!checkopts) {
     usage();

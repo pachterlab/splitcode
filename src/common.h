@@ -95,6 +95,8 @@ struct ProgramOptions {
   std::string select_output_files_str;
   std::string optimize_assignment_str;
   std::string outbamfile;
+  std::string from_header_str;
+  std::string random_str;
   std::vector<bool> select_output_files;
   std::vector<std::vector<std::string> > sam_tags;
   std::vector<size_t> sub_assign_vec;
