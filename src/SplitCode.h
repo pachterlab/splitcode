@@ -455,16 +455,17 @@ struct SplitCode {
     of << "\n";
     if (do_qc) {
       of << "\t" << "\"tag_qc\": " << "[" << "\n";
+      bool first = true;
       for (int i = 0; i < qc.size(); i++) {
         if (qc[i].size() == 0) continue;
         for (int j = 0; j < qc[i].size(); j++) {
+          if (!first) of << ",";
+          if (!first) of << "\n";
+          first = false;
           of << "\t\t{\"tag\": \"" << names[i] << "\", \"distance\": " << j << ", \"count\": " << qc[i][j] << "}";
-          if (!(i == qc.size()-1 && j == qc[i].size()-1)) {
-            of << ",";
-          }
-          of << "\n";
         }
       }
+      if (!first) of << "\n";
       of << "\t" << "]" << "\n";
     }
     of << "}" << std::endl;
