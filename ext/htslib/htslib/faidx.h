@@ -58,7 +58,7 @@ extern "C" {
 	  @return     0 on success; or -1 on failure
 	  @discussion File "fn.fai" will be generated.
 	 */
-	int fai_build(const char *fn);
+	int fai_build(const char *fn, const char* fai_file);
 
 	/*!
 	  @abstract    Distroy a faidx_t struct.
@@ -70,7 +70,7 @@ extern "C" {
 	  @abstract   Load index from "fn.fai".
 	  @param  fn  File name of the FASTA file
 	 */
-	faidx_t *fai_load(const char *fn);
+	faidx_t *fai_load(const char *fn, const char* fai_file);
 
 	/*!
 	  @abstract    Fetch the sequence in a region.

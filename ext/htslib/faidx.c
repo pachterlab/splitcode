@@ -171,14 +171,14 @@ void fai_destroy(faidx_t *fai)
 	free(fai);
 }
 
-int fai_build(const char *fn)
+int fai_build(const char *fn, const char* fai_file)
 {
 	char *str;
 	BGZF *bgzf;
 	FILE *fp;
 	faidx_t *fai;
-	str = (char*)calloc(strlen(fn) + 5, 1);
-	sprintf(str, "%s.fai", fn);
+	str = (char*)calloc(strlen(fai_file) + 1, 1);
+	sprintf(str, "%s", fai_file);
 	bgzf = bgzf_open(fn, "r");
 	if ( !bgzf ) {
 		fprintf(stderr, "[fai_build] fail to open the FASTA file %s\n",fn);
@@ -243,13 +243,13 @@ FILE *download_and_open(const char *fn)
 }
 #endif
 
-faidx_t *fai_load(const char *fn)
+faidx_t *fai_load(const char *fn, const char* fai_file)
 {
 	char *str;
 	FILE *fp;
 	faidx_t *fai;
-	str = (char*)calloc(strlen(fn) + 5, 1);
-	sprintf(str, "%s.fai", fn);
+	str = (char*)calloc(strlen(fai_file) + 1, 1);
+	sprintf(str, "%s", fai_file);
 
 #ifdef _USE_KNETFILE
     if (strstr(fn, "ftp://") == fn || strstr(fn, "http://") == fn)
@@ -267,7 +267,7 @@ faidx_t *fai_load(const char *fn)
         fp = fopen(str, "rb");
 	if (fp == 0) {
 		fprintf(stderr, "[fai_load] build FASTA index.\n");
-		fai_build(fn);
+		fai_build(fn, fai_file);
 		fp = fopen(str, "rb");
 		if (fp == 0) {
 			fprintf(stderr, "[fai_load] fail to open FASTA index.\n");

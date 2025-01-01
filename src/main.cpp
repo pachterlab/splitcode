@@ -15,6 +15,7 @@
 #include "common.h"
 #include "ProcessReads.h"
 #include "SplitCode.h"
+#include "LiftWorkflow.h"
 
 
 //#define ERROR_STR "\033[1mError:\033[0m"
@@ -144,6 +145,7 @@ void usage() {
        << "-U, --subs       Specifies sequence to substitute tag with when found in read (. = original sequence) (comma-separated)" << endl
        << "-z, --partial5   Specifies tag may be truncated at the 5′ end (comma-separated min_match:mismatch_freq)" << endl
        << "-Z, --partial3   Specifies tag may be truncated at the 3′ end (comma-separated min_match:mismatch_freq)" << endl
+       << "    --revcomp    Specifies tag may be reverse complemented" << endl
        << "Read modification and extraction options (for configuring on the command-line):" << endl
        << "-x, --extract    Pattern(s) describing how to extract UMI and UMI-like sequences from reads" << endl
        << "                 (E.g. {bc}2<umi_1[5]> means extract a 5-bp UMI sequence, called umi_1, 2 base pairs following the tag named 'bc')" << endl
@@ -159,6 +161,9 @@ void usage() {
        << "    --phred64    Use phred+64 encoded quality scores" << endl
        << "-P, --prefix     Bases that will prefix each final barcode sequence (useful for merging separate experiments)" << endl
        << "-D, --min-delta  When matching tags error-tolerantly, specifies how much worse the next best match must be than the best match" << endl
+       << "    --from-name  Extract sequences from FASTQ header comments. Format: fastq_number,output_file_number,output_position,pattern." << endl
+       << "                 (Example: 0,0,0,::;0,0,0,::+ will extract the nucleotides from 1:N:ATCCC+ATCG and put it into the R1 output)" << endl
+       << "    --random     Insert a random sequence. Format: output_file_number,output_position,length." << endl
        << "Options (configurations supplied in a file):" << endl
        << "-c, --config     Configuration file" << endl
        << "Output Options:" << endl
@@ -205,11 +210,13 @@ void usage() {
        << "-s, --summary    File where summary statistics will be written to" << endl
        << "-h, --help       Displays usage information" << endl
        << "    --assign     Assign reads to a final barcode sequence identifier based on tags present" << endl
+       << "    --barcode-encode Optimize barcode assignment using a sequence of group names (e.g. group1,group2,group3)" << endl
        << "    --bclen      The length of the final barcode sequence identifier (default: 16)" << endl
        << "    --inleaved   Specifies that input is an interleaved FASTQ file" << endl
        << "    --keep-r1-r2 Use R1.fastq, R2.fastq, etc. file name formats when demultiplexing using --keep or --keep-grp" << endl
        << "    --remultiplex  Turn on remultiplexing mode" << endl
        << "    --unmask       Turn on unmasking mode (extract differences from a masked vs. unmasked FASTA)" << endl
+       << "    --lift         Turn lift mode (make variant genomes from VCF files)" << endl
        << "    --version    Prints version number" << endl
        << "    --cite       Prints citation information" << endl;
 }
@@ -247,11 +254,26 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   int unmask_flag = 0;
   int keep_r1_r2_flag = 0;
   int webasm_flag = 0;
+  int show_not_found_flag = 0;
   bool trim_only_specified = false;
+  
+  // Some --lift specific options
+  int lift_flag = 0;
+  int lift_diploid = 0;
+  int lift_rename = 0;
+  int lift_snvonly = 0;
+  int lift_filter = 0;
+  std::string lift_ref_gtf;
+  std::string lift_out_gtf;
+  std::string lift_kmer_length;
+  std::string lift_kmer_output;
+  std::string lift_kmer_header;
+  int lift_kmer_header_num = 0;
+  int lift_kmer_sj = 0;
 
   optind=1; // Reset global variable in case we want to call ParseOptions multiple times
 
-  const char *opt_string = "t:N:n:b:d:D:i:l:f:F:e:c:o:O:u:m:k:r:A:L:R:E:g:y:Y:j:J:a:v:z:Z:5:3:w:x:P:q:s:S:M:U:X:C:Tph";
+  const char *opt_string = "t:N:n:b:B:d:D:i:l:f:F:e:c:o:O:u:m:k:r:A:L:R:E:g:y:Y:j:J:a:v:z:Z:5:3:w:x:P:q:s:S:M:U:X:C:Tph";
   /*static*/ struct option long_options[] = { // No static keyword because we may want to call ParseOptions multiple times
     // long args
     {"version", no_argument, &version_flag, 1},
@@ -284,7 +306,15 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"remultiplex", no_argument, &remultiplex_flag, 1},
     {"unmask", no_argument, &unmask_flag, 1},
     {"keep-r1-r2", no_argument, &keep_r1_r2_flag, 1},
+    {"show-not-found", no_argument, &show_not_found_flag, 1},
     {"webasm", no_argument, &webasm_flag, 1},
+    {"lift", no_argument, &lift_flag, 1},
+    {"diploid", no_argument, &lift_diploid, 1},
+    {"rename", no_argument, &lift_rename, 1},
+    {"snv-only", no_argument, &lift_snvonly, 1},
+    {"filter", no_argument, &lift_filter, 1},
+    {"kmer-header-num", no_argument, &lift_kmer_header_num, 1},
+    {"kmer-sj", no_argument, &lift_kmer_sj, 1},
     // short args
     {"help", no_argument, 0, 'h'},
     {"pipe", no_argument, 0, 'p'},
@@ -308,6 +338,7 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"maxFindsG", required_argument, 0, 'J'},
     {"minFindsG", required_argument, 0, 'j'},
     {"exclude", required_argument, 0, 'e'},
+    {"barcode-encode", required_argument, 0, 'B'},
     {"next", required_argument, 0, 'a'},
     {"after", required_argument, 0, 'a'},
     {"subs", required_argument, 0, 'U'},
@@ -340,6 +371,14 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     {"sub-assign", required_argument, 0, 'X'},
     {"compress", required_argument, 0, 'C'},
     {"bclen", required_argument, 0, '9'},
+    {"revcomp", required_argument, 0, 0},
+    {"from-name", required_argument, 0, 0},
+    {"random", required_argument, 0, 0},
+    {"ref-gtf", required_argument, 0, 0},
+    {"out-gtf", required_argument, 0, 0},
+    {"kmer-length", required_argument, 0, 0},
+    {"kmer-output", required_argument, 0, 0},
+    {"kmer-header", required_argument, 0, 0},
     {0,0,0,0}
   };
   
@@ -356,6 +395,14 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     
     switch (c) {
     case 0:
+      if (strcmp(long_options[option_index].name,"revcomp") == 0) opt.revcomp_str = optarg;
+      if (strcmp(long_options[option_index].name,"from-name") == 0) opt.from_header_str = optarg;
+      if (strcmp(long_options[option_index].name,"random") == 0) opt.random_str = optarg;
+      if (strcmp(long_options[option_index].name,"ref-gtf") == 0) lift_ref_gtf = optarg;
+      if (strcmp(long_options[option_index].name,"out-gtf") == 0) lift_out_gtf = optarg;
+      if (strcmp(long_options[option_index].name,"kmer-length") == 0) lift_kmer_length = optarg;
+      if (strcmp(long_options[option_index].name,"kmer-output") == 0) lift_kmer_output = optarg;
+      if (strcmp(long_options[option_index].name,"kmer-header") == 0) lift_kmer_header = optarg;
       break;
     case 'h': {
       help_flag = 1;
@@ -398,6 +445,10 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
       if (opt.min_delta < 0) {
         opt.min_delta = -1;
       }
+      break;
+    }
+    case 'B': {
+      opt.optimize_assignment_str = optarg;
       break;
     }
     case 'l': {
@@ -516,6 +567,9 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
       std::string filename;
       while (std::getline(ss, filename, ',')) { 
         opt.unassigned_files.push_back(filename);
+      }
+      if (!files.empty() && files.back() == ',') {
+        opt.unassigned_files.push_back(""); // Allow an unspecified file (i.e. no file name)
       }
       break;
     }
@@ -704,6 +758,9 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
     opt.threads = 1;
     opt.webasm = true;
   }
+  if (show_not_found_flag) {
+    opt.show_not_found = true;
+  }
   
   for (int i = optind; i < argc; i++) {
     opt.files.push_back(argv[i]);
@@ -713,6 +770,10 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
   // Now for specialized workflows not part of the main "splitcode" workflow
   if (unmask_flag) {
     runUnmaskingWorkflow(opt);
+    exit(0);
+  } else if (lift_flag) {
+    LiftWorkflow lf(opt.files, (bool)lift_diploid, (bool)lift_rename, (bool)lift_snvonly, lift_ref_gtf, lift_out_gtf, (bool)lift_filter, lift_kmer_length.empty() ? 0 : std::atoi(lift_kmer_length.c_str()), lift_kmer_output, lift_kmer_header, (bool)lift_kmer_header_num, (bool)lift_kmer_sj);
+    lf.modify_fasta();
     exit(0);
   }
 }
@@ -904,11 +965,11 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
           std::cerr << ERROR_STR << " --select must contain numbers >= 0" << std::endl;
           ret = false;
           break;
-        } else if (f >= opt.nfiles) {
+        } /*else if (f >= opt.nfiles) {
           std::cerr << ERROR_STR << " --select must contain numbers less than --nFastqs" << std::endl;
           ret = false;
           break;
-        }
+        }*/
         opt.select_output_files[f] = true;
       }
       for (int i = 0; i < opt.select_output_files.size(); i++) {
@@ -961,7 +1022,7 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
       std::cerr << ERROR_STR << " Must either specify an output option or --no-output" << std::endl;
       ret = false;
     } else if (opt.x_only) {
-      if (opt.output_files.size() > 0 || opt.unassigned_files.size() > 0) {
+      if (opt.output_files.size() > 0/* || opt.unassigned_files.size() > 0*/) {
         std::cerr << ERROR_STR << " Cannot provide output files when --x-only is specified" << std::endl;
         ret = false;
       }
@@ -969,15 +1030,15 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
       if (opt.output_files.size() > 0 || !opt.outputb_file.empty()) { // Still allow --unassigned with --pipe
         std::cerr << ERROR_STR << " Cannot provide output files when --pipe is specified" << std::endl;
         ret = false;
-      } else if (opt.unassigned_files.size() != 0 && opt.unassigned_files.size() % nf != 0 || opt.unassigned_files.size() > nf) {
+      } /* else if (opt.unassigned_files.size() != 0 && opt.unassigned_files.size() % nf != 0 || opt.unassigned_files.size() > nf) {
         std::cerr << ERROR_STR << " Incorrect number of --unassigned output files" << std::endl;
         ret = false;
-      }
+      } */ 
     } else {
-      if (opt.output_files.size() % nf != 0 || opt.unassigned_files.size() % nf != 0 || opt.output_files.size() > nf || opt.unassigned_files.size() > nf) {
+      /* if (opt.output_files.size() % nf != 0 || opt.unassigned_files.size() % nf != 0 || opt.output_files.size() > nf || opt.unassigned_files.size() > nf) {
         std::cerr << ERROR_STR << " Incorrect number of output files" << std::endl;
         ret = false;
-      }
+      }*/ 
     }
   }
   if (opt.trim_only && !opt.outputb_file.empty() && !opt.remultiplex) {
@@ -1019,10 +1080,12 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
     stringstream ss13(opt.partial5_str);
     stringstream ss14(opt.partial3_str);
     stringstream ss15(opt.subs_str);
+    stringstream ss16(opt.revcomp_str);
     while (ss1.good()) {
       uint16_t max_finds = 0;
       uint16_t min_finds = 0;
       bool exclude = false;
+      bool revcomp = false;
       string name = "";
       string group = "";
       string location = "";
@@ -1127,6 +1190,16 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
         string f;
         getline(ss7, f, ',');
         stringstream(f) >> exclude;
+      }
+      if (!opt.revcomp_str.empty()) {
+        if (!ss16.good()) {
+          std::cerr << ERROR_STR << " Number of values in --revcomp is less than that in --tags" << std::endl;
+          ret = false;
+          break;
+        }
+        string f;
+        getline(ss16, f, ',');
+        stringstream(f) >> revcomp;
       }
       if (!opt.left_str.empty()) {
         auto currpos = ss8.tellg();
@@ -1242,7 +1315,7 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
         }
         getline(ss15, subs_str, ',');
       }
-      if (!sc.addTag(bc, name.empty() ? bc : name, group, mismatch, indel, total_dist, file, pos_start, pos_end, max_finds, min_finds, exclude, trim_dir, trim_offset, after_str, before_str, partial5_min_match, partial5_mismatch_freq, partial3_min_match, partial3_mismatch_freq, subs_str)) {
+      if (!sc.addTag(bc, name.empty() ? bc : name, group, mismatch, indel, total_dist, file, pos_start, pos_end, max_finds, min_finds, exclude, trim_dir, trim_offset, after_str, before_str, partial5_min_match, partial5_mismatch_freq, partial3_min_match, partial3_mismatch_freq, subs_str, revcomp)) {
         std::cerr << ERROR_STR << " Could not finish processing supplied tags list" << std::endl;
         ret = false;
         break;
@@ -1270,6 +1343,10 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
     }
     if (ret && !opt.exclude_str.empty() && ss7.good()) {
       std::cerr << ERROR_STR << " Number of values in --exclude is greater than that in --tags" << std::endl;
+      ret = false;
+    }
+    if (ret && !opt.revcomp_str.empty() && ss16.good()) {
+      std::cerr << ERROR_STR << " Number of values in --revcomp is greater than that in --tags" << std::endl;
       ret = false;
     }
     if (ret && !opt.left_str.empty() && ss8.good()) {
@@ -1321,6 +1398,9 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
     ret = false;
   } else if (!opt.exclude_str.empty()) {
     std::cerr << ERROR_STR << " --exclude cannot be supplied unless --tags is" << std::endl;
+    ret = false;
+  } else if (!opt.revcomp_str.empty()) {
+    std::cerr << ERROR_STR << " --revcomp cannot be supplied unless --tags is" << std::endl;
     ret = false;
   } else if (!opt.left_str.empty()) {
     std::cerr << ERROR_STR << " --left cannot be supplied unless --tags is" << std::endl;
@@ -1439,6 +1519,24 @@ bool CheckOptions(ProgramOptions& opt, SplitCode& sc) {
     }
   }
   
+  if (ret) { // Validate number of output files supplied
+    int nf = sc.getNFiles();
+    int nf_u = sc.getNFilesUnassigned();
+    if (opt.pipe) {
+      if (opt.unassigned_files.size() != 0 && opt.unassigned_files.size() % nf_u != 0 || opt.unassigned_files.size() > nf_u) {
+        std::cerr << ERROR_STR << " Incorrect number of --unassigned output files" << std::endl;
+        ret = false;
+      }
+    }
+    else {
+      if (opt.output_files.size() % nf != 0 || opt.unassigned_files.size() % nf_u != 0 || opt.output_files.size() > nf || opt.unassigned_files.size() > nf_u) {
+       std::cerr << ERROR_STR << " Incorrect number of output files" << std::endl;
+       ret = false;
+       }
+    }
+    opt.select_output_files.resize(nf, true);
+  }
+  
   return ret;
 }
 
@@ -1449,7 +1547,8 @@ int main(int argc, char *argv[]) {
   ProgramOptions opt;
   ParseOptions(argc,argv,opt);
   SplitCode sc(opt.nfiles, opt.summary_file, opt.trim_only, opt.disable_n, opt.trim_5_str, opt.trim_3_str, opt.extract_str, opt.extract_no_chain, opt.barcode_prefix, opt.filter_length_str,
-               opt.quality_trimming_5, opt.quality_trimming_3, opt.quality_trimming_pre, opt.quality_trimming_naive, opt.quality_trimming_threshold, opt.phred64, opt.write_locations, opt.sub_assign_vec, opt.bclen, opt.min_delta, !opt.summary_file.empty());
+               opt.quality_trimming_5, opt.quality_trimming_3, opt.quality_trimming_pre, opt.quality_trimming_naive, opt.quality_trimming_threshold, opt.phred64, opt.write_locations, opt.sub_assign_vec, opt.bclen, opt.min_delta, !opt.summary_file.empty(),
+               opt.x_only, opt.no_x_out, opt.outbam, opt.no_output_barcodes, opt.outputb_file, opt.remultiplex, opt.optimize_assignment_str, opt.from_header_str, opt.random_str, opt.show_not_found);
   bool checkopts = CheckOptions(opt, sc);
   if (!checkopts) {
     usage();

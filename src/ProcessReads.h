@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <iostream>
 #include <fstream>
+#include <queue>
 
 #include <thread>
 #include <mutex>
@@ -63,6 +64,20 @@ public:
   int readbatch_id = -1;
 };
 
+
+
+struct NestStorage {
+  SplitCode* sc;
+  size_t nseqs_pipe;
+  std::string oss;
+  size_t readnum;
+  bool isParent;
+  std::unordered_map<FILE*,std::string> write_storage; // file : contents
+  std::unordered_map<gzFile,std::string> write_storage_gz; // file : contents
+  std::unordered_map<FILE*,size_t> write_storage_len; // file : content length
+  std::unordered_map<gzFile,size_t> write_storage_gz_len; // file : content length
+};
+
 class FastqSequenceReader : public SequenceReader {
 public:
   
@@ -108,6 +123,7 @@ public:
 
     SR = new FastqSequenceReader(opt);
     verbose = opt.verbose;
+    use_ns_queue = (sc.sc_nest != nullptr); // Only check the queue if doing nesting
     nfiles = opt.input_interleaved_nfiles == 0 ? opt.nfiles : opt.input_interleaved_nfiles;
     const std::string suffix = opt.output_fasta ? ".fasta" : ".fastq";
     const std::string suffix_gz = opt.output_fasta ? ".fasta.gz" : ".fastq.gz";
@@ -122,13 +138,15 @@ public:
     }
     for (auto f : opt.unassigned_files) {
       if (opt.gzip) {
-        outu_gz.push_back(gzopen(f.c_str(), gz_out_str));
+        if (f.length() == 0) outu_gz.push_back(nullptr);
+        else outu_gz.push_back(gzopen(f.c_str(), gz_out_str));
       } else {
-        outu.push_back(fopen(f.c_str(), "wb"));
+        if (f.length() == 0) outu.push_back(nullptr);
+        else outu.push_back(fopen(f.c_str(), "wb"));
       }
     }
     if (!opt.pipe && !opt.no_x_out && !opt.no_output) {
-      for (auto f : sc.umi_names) {
+      for (auto f : sc.get_umi_names()) {
         if (opt.gzip) {
           outumi_gz.push_back(gzopen((f+suffix_gz).c_str(), gz_out_str));
         } else {
@@ -261,7 +279,7 @@ public:
       fclose(of);
     }
     for (auto& of : outu) {
-      fclose(of);
+      if (of != nullptr) fclose(of);
     }
     for (auto& of : outumi) {
       fclose(of);
@@ -270,7 +288,7 @@ public:
       gzclose(of);
     }
     for (auto& of : outu_gz) {
-      gzclose(of);
+      if (of != nullptr) gzclose(of);
     }
     for (auto& of : outumi_gz) {
       gzclose(of);
@@ -309,7 +327,10 @@ public:
   std::vector<std::mutex> parallel_reader_locks;
   bool parallel_read;
   std::mutex writer_lock;
+  std::mutex ns_queue_lock;
+  bool use_ns_queue;
   std::condition_variable cv;
+  std::queue<NestStorage> ns_queue;
   
   std::vector<FILE*> out;
   std::vector<gzFile> out_gz;
@@ -352,7 +373,9 @@ public:
                    std::vector<std::pair<const char*, int>>& seqs,
                    std::vector<std::pair<const char*, int>>& names,
                    std::vector<std::pair<const char*, int>>& quals,
-                   std::vector<uint32_t>& flags);
+                   std::vector<uint32_t>& flags,
+                   NestStorage& ns,
+                   SplitCode* sc_current = nullptr);
   void writeBam(const std::string& s, int readNameLen=0, int readPair=0);
 };
 

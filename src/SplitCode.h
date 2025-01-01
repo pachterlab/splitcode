@@ -1,7 +1,7 @@
 #ifndef SPLITCODE_H
 #define SPLITCODE_H
 
-#define SPLITCODE_VERSION "0.30.0"
+#define SPLITCODE_VERSION "0.31.0"
 
 #include <string>
 #include <iostream>
@@ -18,6 +18,7 @@
 #include <stack>
 #include <cmath>
 #include <iomanip>
+#include <cstdint>
 
 #if defined(_MSVC_LANG)
 #define SPLITCODE_CPP_VERSION _MSVC_LANG
@@ -41,7 +42,9 @@ struct SplitCode {
   enum dir {left, right, nodir};
   
   SplitCode() {
+    FAKE_BARCODE_LEN = FAKE_BARCODE_LEN_DEFAULT;
     init = false;
+    sc_nest = nullptr;
     extract_seq_names = false;
     discard_check = false;
     keep_check = false;
@@ -70,14 +73,62 @@ struct SplitCode {
     fake_bc_len_offset = 0;
     setNFiles(0);
     early_termination_maxFindsG = -1;
+    x_only = false;
+    no_x_out = false;
+    outbam = false;
+    no_output_barcodes = false;
+    remultiplex = false;
+    no_tags = false;
+    set_assign_nested = false;
+    always_assign = true;
+    thisIsParent = true;
+    isNested = false;
+    opt_show_not_found = false;
   }
   
-  SplitCode(int nFiles, std::string summary_file = "", bool trim_only = false, bool disable_n = true,
-            std::string trim_5_str = "", std::string trim_3_str = "", std::string extract_str = "", bool extract_no_chain = false, std::string barcode_prefix = "",
-            std::string filter_length_str = "", bool quality_trimming_5 = false, bool quality_trimming_3 = false,
-            bool quality_trimming_pre = false, bool quality_trimming_naive = false, int quality_trimming_threshold = -1, bool phred64 = false,
-            bool write_tag_location_information = false, std::vector<size_t> sub_assign_vec = std::vector<size_t>(0), int fake_bc_len_override = 0, int min_delta = -1, bool do_qc = false) {
+  SplitCode(int nFiles, SplitCode* sc) { // nesting
     init = false;
+    sc_nest = nullptr;
+    extract_seq_names = false;
+    discard_check = false;
+    keep_check = false;
+    discard_check_group = false;
+    keep_check_group = false;
+    always_assign = false;
+    random_replacement = false;
+    do_extract = false;
+    extract_no_chain = false;
+    use_16 = false;
+    n_tag_entries = 0;
+    curr_barcode_mapping_i = 0;
+    curr_umi_id_i = 0;
+    quality_trimming_5 = false;
+    quality_trimming_3 = false;
+    quality_trimming_pre = false;
+    quality_trimming_naive = false;
+    write_tag_location_information = false;
+    quality_trimming_threshold = -1;
+    phred64 = false;
+    num_reads_set = false;
+    num_reads_assigned = 0;
+    summary_n_reads_filtered = 0;
+    summary_n_reads_filtered_assigned = 0;
+    max_seq_len = 0;
+    fake_bc_len_offset = 0;
+    setNFiles(0);
+    early_termination_maxFindsG = -1;
+    x_only = false;
+    no_x_out = false;
+    outbam = false;
+    no_output_barcodes = false;
+    remultiplex = false;
+    no_tags = false;
+    thisIsParent = false;
+    isNested = false;
+    always_assign = true;
+    
+    init = false;
+    sc_nest = nullptr;
     extract_seq_names = false;
     discard_check = false;
     keep_check = false;
@@ -92,10 +143,82 @@ struct SplitCode {
     num_reads_assigned = 0;
     summary_n_reads_filtered = 0;
     summary_n_reads_filtered_assigned = 0;
+    this->summary_file = sc->summary_file;
+
+    this->trim_5_str = ""; // Only applies to parent
+    this->trim_3_str = ""; // Only applies to parent
+
+    this->extract_str = ""; // Will set this later
+    this->extract_no_chain = false; // Will set this later
+    this->barcode_prefix = sc->barcode_prefix; sc->barcode_prefix = ""; // Reset parent
+    this->filter_length_str = ""; // Only applies to parent
+    this->quality_trimming_5 = false; // Only applies to parent
+    this->quality_trimming_3 = false; // Only applies to parent
+    this->quality_trimming_pre = false; // Only applies to parent
+    this->quality_trimming_naive = false; // Only applies to parent
+    this->quality_trimming_threshold = -1; // Only applies to parent
+    
+    this->fake_bc_len_offset = sc->fake_bc_len_offset;
+    this->FAKE_BARCODE_LEN = sc->FAKE_BARCODE_LEN;
+    this->phred64 = sc->phred64;
+    this->write_tag_location_information = sc->write_tag_location_information;
+    this->sub_assign_vec = sc->sub_assign_vec; sc->sub_assign_vec.clear(); // Reset parent
+    this->min_delta = sc->min_delta;
+    this->do_qc = sc->do_qc;
+    this->extract_str_og = sc->extract_str_og;
+    this->x_only = false; // Will set this later
+    this->no_x_out = sc->no_x_out; sc->no_x_out = false; // Reset parent
+    this->outbam = sc->outbam; sc->outbam = false; // Reset parent
+    this->no_output_barcodes = sc->no_output_barcodes; sc->no_output_barcodes = false; // Reset parent
+    this->outputb_file = sc->outputb_file; sc->outputb_file = ""; // Reset parent
+    this->remultiplex = sc->remultiplex; sc->remultiplex = false; // Reset parent
+    this->from_header_str = ""; // Reset parent
+    this->random_str = ""; // Reset parent
+    early_termination_maxFindsG = -1;
+    max_seq_len = 0;
+    this->set_assign_nested = false; // Will set this later
+    if (sc->set_assign_nested) { // Parent is where the "assign" will occur
+      this->always_assign = true; // So this one should have assign turned off
+    } else {
+      this->always_assign = sc->always_assign; sc->always_assign = true; // Reset parent
+    }
+    this->random_replacement = sc->random_replacement;
+    this->optimize_assignment_str = sc->optimize_assignment_str;
+    this->opt_show_not_found = sc->opt_show_not_found;
+    setNFiles(nFiles);
+  }
+  
+  SplitCode(int nFiles, std::string summary_file = "", bool trim_only = false, bool disable_n = true,
+            std::string trim_5_str = "", std::string trim_3_str = "", std::string extract_str = "", bool extract_no_chain = false, std::string barcode_prefix = "",
+            std::string filter_length_str = "", bool quality_trimming_5 = false, bool quality_trimming_3 = false,
+            bool quality_trimming_pre = false, bool quality_trimming_naive = false, int quality_trimming_threshold = -1, bool phred64 = false,
+            bool write_tag_location_information = false, std::vector<size_t> sub_assign_vec = std::vector<size_t>(0), int fake_bc_len_override = 0, int min_delta = -1, bool do_qc = false,
+            bool x_only = false, bool no_x_out = false, bool outbam = false, bool no_output_barcodes = false, std::string outputb_file = "", bool remultiplex = false,
+            std::string optimize_assignment_str = "", std::string from_header_str = "", std::string random_str = "", bool opt_show_not_found = false) {
+    FAKE_BARCODE_LEN = (!optimize_assignment_str.empty() && fake_bc_len_override != 0) ? fake_bc_len_override : FAKE_BARCODE_LEN_DEFAULT;
+    init = false;
+    sc_nest = nullptr;
+    extract_seq_names = false;
+    discard_check = false;
+    keep_check = false;
+    discard_check_group = false;
+    keep_check_group = false;
+    do_extract = false;
+    use_16 = false;
+    n_tag_entries = 0;
+    curr_barcode_mapping_i = 0;
+    curr_umi_id_i = 0;
+    num_reads_set = false;
+    num_reads_assigned = 0;
+    summary_n_reads_filtered = 0;
+    summary_n_reads_filtered_assigned = 0;
+    no_tags = false;
+    thisIsParent = true;
+    isNested = false;
     this->summary_file = summary_file;
     this->trim_5_str = trim_5_str;
     this->trim_3_str = trim_3_str;
-    this->extract_str = extract_str;
+    this->extract_str_og = extract_str;
     this->extract_no_chain = extract_no_chain;
     this->barcode_prefix = barcode_prefix;
     this->filter_length_str = filter_length_str;
@@ -113,6 +236,17 @@ struct SplitCode {
     this->sub_assign_vec = sub_assign_vec;
     this->min_delta = min_delta;
     this->do_qc = do_qc;
+    this->x_only = x_only;
+    this->no_x_out = no_x_out;
+    this->outbam = outbam;
+    this->no_output_barcodes = no_output_barcodes;
+    this->outputb_file = outputb_file;
+    this->remultiplex = remultiplex;
+    this->set_assign_nested = false;
+    this->optimize_assignment_str = optimize_assignment_str;
+    this->opt_show_not_found = opt_show_not_found;
+    this->from_header_str = from_header_str;
+    this->random_str = random_str;
     early_termination_maxFindsG = -1;
     max_seq_len = 0;
     setNFiles(nFiles);
@@ -120,8 +254,23 @@ struct SplitCode {
     setRandomReplacement(!disable_n);
   }
   
+  ~SplitCode() {
+    if (sc_nest != nullptr) delete sc_nest;
+  }
+  
   void writeSummary(std::string call = "", std::string fname = "") {
     fname = fname.empty() ? this->summary_file : fname;
+    SplitCode* scn = this;
+    if (scn->sc_nest != nullptr) { // nest
+      while (true) {
+        if (scn->sc_nest == nullptr) {
+          scn->writeSummary(call, fname);
+          return;
+        } else {
+          scn = scn->sc_nest;
+        }
+      }
+    }
     if (fname.empty()) {
       return;
     }
@@ -307,16 +456,17 @@ struct SplitCode {
     of << "\n";
     if (do_qc) {
       of << "\t" << "\"tag_qc\": " << "[" << "\n";
+      bool first = true;
       for (int i = 0; i < qc.size(); i++) {
         if (qc[i].size() == 0) continue;
         for (int j = 0; j < qc[i].size(); j++) {
+          if (!first) of << ",";
+          if (!first) of << "\n";
+          first = false;
           of << "\t\t{\"tag\": \"" << names[i] << "\", \"distance\": " << j << ", \"count\": " << qc[i][j] << "}";
-          if (!(i == qc.size()-1 && j == qc[i].size()-1)) {
-            of << ",";
-          }
-          of << "\n";
         }
       }
+      if (!first) of << "\n";
       of << "\t" << "]" << "\n";
     }
     of << "}" << std::endl;
@@ -386,6 +536,26 @@ struct SplitCode {
     }
     if (nFiles <= 0) {
       std::cerr << "Error: nFiles must be set to a positive integer" << std::endl;
+      exit(1);
+    }
+    if (thisIsParent && this->extract_str.empty() && !this->extract_str_og.empty() && !this->isNested) {
+      this->extract_str = extract_str_og; // Make sure we get the -x from the command line
+    }
+    std::string randstr = "";
+    if (!random_str.empty()) { // Valid input to random
+      bool ret = true;
+      std::string input = random_str;
+      size_t firstComma = input.find(',');
+      if (firstComma == std::string::npos) ret = false;
+      size_t secondComma = input.find(',', firstComma + 1);
+      if (secondComma == std::string::npos) ret = false;
+      if (!ret) {
+        std::cerr << "Error:" << " random is invalid" << std::endl;
+        exit(1);
+      }
+      randstr = random_str + "," + "RANDOM;";
+    }
+    if (!parseFromHeaderStr(randstr + from_header_str, placement_vec, nFiles)) {
       exit(1);
     }
     // Process 5′/3′ end-trimming
@@ -535,6 +705,35 @@ struct SplitCode {
     }
     before_after_vec.clear();
     before_after_vec.shrink_to_fit();
+    // Process optimize-assignment (aka barcode-encode) option
+    if (!optimize_assignment_str.empty() && !this->always_assign) { 
+      optimize_assignment_tag_map.resize(names.size(), 0);
+      std::stringstream ss(optimize_assignment_str);
+      std::string gname;
+      while (std::getline(ss, gname, ',')) {
+        const auto& itnames = std::find(group_names.begin(), group_names.end(), gname);
+        if (itnames == group_names.end()) {
+          std::cerr << "Error: Could not process \"" << optimize_assignment_str << "\" because group \"" << gname << "\" does not exist" << std::endl;
+          exit(1);
+        } else {
+          optimize_assignment_vec.push_back(itnames - group_names.begin());
+        }
+      }
+      for (auto group : optimize_assignment_vec) { // Populate the map
+        if (optimize_assignment_group_map[group] != 0) continue;
+        for (size_t tag_id = 0; tag_id < tags_vec.size(); tag_id++) {
+          auto& tag = tags_vec[tag_id]; 
+          if (group == tag.group) {
+            if (optimize_assignment_group_map[group] == 0) {
+              optimize_assignment_group_map[group]++; // To account for allowing the tag at the position not being found
+            }
+            optimize_assignment_tag_map[tag.name_id] = (optimize_assignment_group_map[group]++) - 1; // Create a mapping from tag ID to 0,1,2,3,4,5,etc. within a group
+          }
+        }
+      }
+      auto rtable = buildRadixTable(optimize_assignment_vec, optimize_assignment_group_map);
+    }
+    
     // Fill in k-mer sizes by location (e.g. search for k-mers of length n at positions a-b in file c):
     // (we have to be sure to merge overlapping intervals and having intervals in sorted order which is what most of what the code below does)
     int POS_MAX = std::numeric_limits<std::int32_t>::max();
@@ -888,6 +1087,7 @@ struct SplitCode {
     uint16_t extra_after2;
     bool partial5;
     bool partial3;
+    bool revcomp;
     std::string substitution;
   };
 
@@ -959,6 +1159,13 @@ struct SplitCode {
     int error;
     int32_t trim_left;
     int32_t trim_right;
+  };
+  
+  struct placement_struct { // struct for placing certain sequences (e.g. sequences from header names)
+    int file; // Which FASTQ file
+    int output_file; // Which output file
+    int output_pos; // What position in output file to put it
+    std::string pattern; // Extraction pattern (e.g. ::, ::+, etc.)
   };
   
   
@@ -1125,7 +1332,7 @@ struct SplitCode {
               int16_t file, int32_t pos_start, int32_t pos_end,
               uint16_t max_finds, uint16_t min_finds, bool not_include_in_barcode,
               dir trim, int trim_offset, std::string after_str, std::string before_str,
-              int partial5_min_match, double partial5_mismatch_freq, int partial3_min_match, double partial3_mismatch_freq, std::string subs_str, bool seq_is_file = false) {
+              int partial5_min_match, double partial5_mismatch_freq, int partial3_min_match, double partial3_mismatch_freq, std::string subs_str, bool revcomp = false, bool seq_is_file = false) {
     if (init) {
       std::cerr << "Error: Already initialized" << std::endl;
       return false;
@@ -1223,7 +1430,7 @@ struct SplitCode {
                  file, pos_start, pos_end,
                  max_finds, min_finds, not_include_in_barcode,
                  trim, trim_offset, after_str, before_str,
-                 partial5_min_match, partial5_mismatch_freq, partial3_min_match, partial3_mismatch_freq, subs_str, true);
+                 partial5_min_match, partial5_mismatch_freq, partial3_min_match, partial3_mismatch_freq, subs_str, revcomp, true);
                 if (!ret) {
                   return false;
                 }
@@ -1306,6 +1513,23 @@ struct SplitCode {
     new_tag.has_before_group = false;
     new_tag.partial5 = false;
     new_tag.partial3 = false;
+    new_tag.revcomp = revcomp;
+    
+    
+    auto revcomp_ = [](const std::string s) {
+      std::string r(s);
+      std::transform(s.rbegin(), s.rend(), r.begin(), [](char c) {
+        switch(c) {
+        case 'A': return 'T';
+        case 'C': return 'G';
+        case 'G': return 'C';
+        case 'T': return 'A';
+        default: return 'N';
+        }
+        return 'N';
+      });
+      return r;
+    };
     
     // Now deal with adding the actual sequence:
     if (nFiles <= 0 && new_tag.file == -1) { // Make sure we have nFiles set if tag can belong to any file
@@ -1319,6 +1543,7 @@ struct SplitCode {
     for (file = start_file; file < end_file; file++) {
       new_tag.file = file;
       char delimeter = '/'; // Sequence can be delimited by '/' if the user gives multiple sequences for one tag record
+      if (new_tag.revcomp) new_tag_seq += '/' + revcomp_(new_tag_seq);
       std::stringstream ss(new_tag_seq);
       int num_seqs = 0;
       auto new_tag_index_original = new_tag_index;
@@ -1343,6 +1568,7 @@ struct SplitCode {
         
         std::unordered_map<std::string,int> mismatches;
         generate_indels_hamming_mismatches(seq, mismatch_dist, indel_dist, total_dist, mismatches);
+
         for (auto mm : mismatches) {
           std::string mismatch_seq = mm.first;
           int error = mm.second; // The number of substitutions, insertions, or deletions
@@ -1452,7 +1678,7 @@ struct SplitCode {
     }
   }
   
-  bool addTags(std::string config_file) {
+  bool addTags(std::string config_file, std::string config_remainder = "", int nest_level = 0) {
     if (init) {
       std::cerr << "Error: Already initialized" << std::endl;
       return false;
@@ -1462,20 +1688,54 @@ struct SplitCode {
       return false;
     }
     struct stat stFileInfo;
-    auto intstat = stat(config_file.c_str(), &stFileInfo);
-    if (intstat != 0) {
-      std::cerr << "Error: file not found " << config_file << std::endl;
-      return false;
+    if (config_file != "") {
+      auto intstat = stat(config_file.c_str(), &stFileInfo);
+      if (intstat != 0) {
+        std::cerr << "Error: file not found " << config_file << std::endl;
+        return false;
+      }
     }
     std::ifstream cfile(config_file);
     std::string line;
+    std::vector<std::string> lines;
+    int nest_index = -1;
+    int nest_count = 0;
+    if (config_file != "") {
+      while (std::getline(cfile, line)) lines.push_back(line);
+      cfile.close();
+      for (int i = 0; i < lines.size(); ++i) {
+        if (lines[i].size() > 0 && lines[i][0] == '@' && lines[i].substr(0, lines[i].find_last_not_of(' ') + 1) == "@nest") {
+          nest_index = i;
+          break;
+        }
+      }
+    } else {
+      std::stringstream ss(config_remainder);
+      while (std::getline(ss, line)) lines.push_back(line);
+      for (int i = 0; i < lines.size(); ++i) {
+        if (lines[i].size() > 0 && lines[i][0] == '@' && lines[i].substr(0, lines[i].find_last_not_of(' ') + 1) == "@nest") {
+          nest_index = i;
+          break;
+        }
+      }
+    }
+    
+
+    config_remainder = "";
+
+    std::stringstream ss_above; // Above @nest
+    for (int i = 0; i < (nest_index == -1 ? lines.size() : nest_index); ++i) ss_above << lines[i] << "\n";
+    for (int i = nest_index + 1; i < lines.size() && nest_index != -1; ++i) config_remainder += lines[i] + "\n";
     bool header_read = false;
     std::vector<std::string> h;
     bool _keep = false;
     bool _keep_grp = false;
     bool _remove = false;
     bool _remove_grp = false;
-    while (std::getline(cfile,line)) {
+    bool is_already_x_only = x_only; // Check if --x-only was preset (if so, need to unset it until the deepest level if nesting)
+    bool set_x_only = false; // If x-only is newly set
+    this->set_assign_nested = false; // If user supplies @assign if there's nested levels
+    while (std::getline(ss_above,line)) {
       if (line.size() == 0) {
         _keep = false;
         _keep_grp = false;
@@ -1519,6 +1779,17 @@ struct SplitCode {
           this->quality_trimming_naive = true;
         } else if (field == "@phred64") {
           this->phred64 = true;
+        } else if (field == "@assign") { 
+          this->set_assign_nested = true;
+        } else if (field == "@x-only") {
+          if (no_x_out) {
+            std::cerr << "Error: Cannot specify x-only with --no-x-out in the config file" << std::endl;
+            return false;
+          }
+          this->x_only = true;
+          set_x_only = true;
+        } else if (field == "@no-tags") {
+          this->no_tags = true;
         } else if (field == "@no-chain") {
           this->extract_no_chain = true;
           if (!value.empty()) {
@@ -1557,6 +1828,8 @@ struct SplitCode {
             return false;
           }
           this->barcode_prefix = value;
+        } else if (field == "@barcode-encode") {
+          this->optimize_assignment_str = value;
         } else if (field == "@sub-assign") {
           if (!this->sub_assign_vec.empty()) {
             std::cerr << "Error: The file \"" << config_file << "\" specifies @sub-assign which was already previously set" << std::endl;
@@ -1585,7 +1858,25 @@ struct SplitCode {
             return false;
           }
           this->filter_length_str = value;
-        } else if (field == "@qtrim") {
+        } else if (field == "@from-name") {
+          if (!this->from_header_str.empty()) {
+            std::cerr << "Error: The file \"" << config_file << "\" specifies @from-name which was already previously set" << std::endl;
+            return false;
+          } else if (!thisIsParent) {
+            std::cerr << "Error: Cannot set @from-name in a nested region of config file" << std::endl;
+            return false;
+          }
+          this->from_header_str = value;
+        } else if (field == "@random") {
+          if (!this->random_str.empty()) {
+            std::cerr << "Error: The file \"" << config_file << "\" specifies @random which was already previously set" << std::endl;
+            return false;
+          } else if (!thisIsParent) {
+            std::cerr << "Error: Cannot set @random in a nested region of config file" << std::endl;
+            return false;
+          }
+          this->random_str = value;
+        }  else if (field == "@qtrim") {
           if (this->quality_trimming_threshold >= 0) {
             std::cerr << "Error: The file \"" << config_file << "\" specifies @qtrim which was already previously set" << std::endl;
             return false;
@@ -1637,6 +1928,7 @@ struct SplitCode {
       uint16_t min_finds = 0;
       uint16_t max_finds_g = 0;
       uint16_t min_finds_g = 0;
+      bool revcomp = false;
       bool trim_left, trim_right;
       int trim_left_offset, trim_right_offset;
       parseTrimStr("", trim_left, trim_left_offset); // Set up default values
@@ -1667,6 +1959,8 @@ struct SplitCode {
           std::stringstream(field) >> min_finds_g;
         } else if (h[i] == "MAXFINDSG") {
           std::stringstream(field) >> max_finds_g;
+        } else if (h[i] == "REVCOMP") {
+          std::stringstream(field) >> revcomp;
         } else if (h[i] == "EXCLUDE") {
           std::stringstream(field) >> exclude;
         } else if (h[i] == "SUBS" || h[i] == "SUB") {
@@ -1696,7 +1990,7 @@ struct SplitCode {
       }
       auto trim_dir = trim_left ? left : (trim_right ? right : nodir);
       auto trim_offset = trim_left ? trim_left_offset : (trim_right ? trim_right_offset : 0);
-      if (!ret || !addTag(bc, name.empty() ? bc : name, group, mismatch, indel, total_dist, file, pos_start, pos_end, max_finds, min_finds, exclude, trim_dir, trim_offset, after_str, before_str, partial5_min_match, partial5_mismatch_freq, partial3_min_match, partial3_mismatch_freq, subs_str)) {
+      if (!ret || !addTag(bc, name.empty() ? bc : name, group, mismatch, indel, total_dist, file, pos_start, pos_end, max_finds, min_finds, exclude, trim_dir, trim_offset, after_str, before_str, partial5_min_match, partial5_mismatch_freq, partial3_min_match, partial3_mismatch_freq, subs_str, revcomp)) {
         std::cerr << "Error: The file \"" << config_file << "\" contains an error" << std::endl;
         return false;
       }
@@ -1708,13 +2002,44 @@ struct SplitCode {
       }
     }
     
+    
     // Do some final processing: i.e. if the keep/discard text corpus were provided in the config file, process them now
     if (!_keep_str.empty()) addFilterList(_keep_str, false, true);
     if (!_remove_str.empty()) addFilterList(_remove_str, true, true);
     if (!_keep_grp_str.empty()) addFilterListGroup(_keep_grp_str, false, true);
     if (!_remove_grp_str.empty()) addFilterListGroup(_remove_grp_str, true, true);
     
+    if (this->set_assign_nested) this->always_assign = false; // Make sure always_assign is false in the parent (aka we'll assign barcodes in the parent)
+    
+
+    // If no child 
+    if (nest_index == -1) {
+      if (this->extract_str.empty()) {
+        this->extract_str = extract_str_og; // Set it to the sequence supplied via -x on the command-line if there are no (more) children and another extracting string was not set
+      }
+    } else {
+      isNested = true;
+    }
+
     checkInit();
+    
+    if (nest_index != -1) { // If we need to create a new nested SplitCode object:
+      int nfiles_ = 0;
+      if (!umi_names.empty()) { // Write out extracted UMIs as needed
+        nfiles_ += umi_names.size();
+      }
+      if (!set_x_only) this->x_only = false; // Reset x-only for the current layer (if we didn't find it in the config file)
+      nfiles_ += x_only ? 0 : nFiles;
+      if (this->set_assign_nested) nfiles_ += 1; // For processing the extra barcode
+      sc_nest = new SplitCode(nfiles_, this);
+      sc_nest->x_only = is_already_x_only; // Preset x-only for the next layer
+      if (this->set_assign_nested) {
+        sc_nest->always_assign = true; // Make sure always_assign is true in the child (aka we won't assign barcodes in the child)
+      }
+
+      return sc_nest->addTags("", config_remainder, ++nest_level);
+    }
+    
     return true;
   }
   
@@ -1912,27 +2237,70 @@ struct SplitCode {
   }
   
   int getNumTags() {
-    return tags_vec.size();
+    size_t s = tags_vec.size();
+    SplitCode* scn = this;
+    if (scn->sc_nest != nullptr) { // nest
+      while (true) {
+        if (scn->sc_nest == nullptr) {
+          s += scn->tags_vec.size();
+          break;
+        } else {
+          scn = scn->sc_nest;
+        }
+      }
+    }
+    return s;
   }
   
-  int getNumTagsOriginallyAdded() {
-    return n_tag_entries;
+  int getNumTagsOriginallyAdded() { // TODO: 
+    size_t s = n_tag_entries;
+    SplitCode* scn = this;
+    if (scn->sc_nest != nullptr) { // nest
+      while (true) {
+        if (scn->sc_nest == nullptr) {
+          s += n_tag_entries;
+          break;
+        } else {
+          scn = scn->sc_nest;
+        }
+      }
+    }
+    return s;
   }
   
-  int getMapSize(bool unique = true) {
+  int getMapSize(bool unique = true) { // TODO: 
     checkInit();
+    SplitCode* scn = this;
+    size_t s = 0;
     if (unique) {
-      return tags.size();
+      s = tags.size();
     } else {
       size_t map_size = 0;
       for (auto it : tags) {
         map_size += it.second.size();
       }
-      return map_size;
+      s = map_size;
     }
+
+    if (scn->sc_nest != nullptr) { // Check if nested object exists
+      s += scn->sc_nest->getMapSize(unique); // Recursive call on the nested object
+    }
+    return s;
   }
   
   int64_t getNumMapped() {
+    SplitCode* scn = this;
+    if (scn->sc_nest != nullptr) { // nest
+      while (true) {
+        if (scn->num_reads_assigned != 0) return scn->num_reads_assigned;
+        if (scn->sc_nest == nullptr) {
+          return scn->getNumMapped();
+        } else {
+          scn = scn->sc_nest;
+        }
+      }
+    }
+    if (!rtable.empty()) return num_reads_assigned;
     int64_t nummapped = 0;
     for (auto& n : idcount) {
       nummapped += n;
@@ -1968,6 +2336,73 @@ struct SplitCode {
     } catch (std::exception &e) {
       std::cerr << "Error: Could not convert \"" << trim_attribute << "\" to int in trim string" << std::endl;
       return false;
+    }
+    return true;
+  }
+  
+  static bool parseFromHeaderStr(std::string from_header_str, std::vector<placement_struct>& placement_vec, int nFiles) {
+    if (from_header_str.empty()) return true;
+    // Split by semicolons
+    std::stringstream ss(from_header_str);
+    std::string chunk;
+    while (std::getline(ss, chunk, ';')) {
+      // Skip empty chunks (e.g. trailing ';')
+      if (chunk.empty()) {
+        continue;
+      }
+      
+      // We expect at least 3 commas for the first three fields
+      // (file, output_file, output_pos). The rest is pattern.
+      std::string fields[4]; 
+      size_t startPos = 0;
+      bool valid = true;
+      
+      for (int i = 0; i < 3; ++i) {
+        size_t commaPos = chunk.find(',', startPos);
+        if (commaPos == std::string::npos) {
+          valid = false;
+          break;
+        }
+        fields[i] = chunk.substr(startPos, commaPos - startPos);
+        startPos = commaPos + 1;
+      }
+      if (!valid) {
+        std::cerr << "Error in from-name: invalid chunk (not enough commas): " << chunk << "\n";
+        return false;
+      }
+      
+      // Everything after the third comma is the pattern
+      fields[3] = chunk.substr(startPos);
+
+      bool do_random = false;
+      if (fields[3] == "RANDOM") { // Special case, we have out_file:out_pos:length:RANDOM
+        do_random = true;
+        fields[3] = "R" + fields[2];
+        fields[2] = fields[1];
+        fields[1] = fields[0];
+        fields[0] = "0";
+      }
+      
+      // Parse into placement_struct
+      placement_struct ps;
+      try {
+        ps.file        = std::stoi(fields[0]);
+        ps.output_file = std::stoi(fields[1]);
+        ps.output_pos  = std::stoi(fields[2]);
+        ps.pattern     = fields[3];
+      }
+      catch (...) {
+        if (!do_random) std::cerr << "Error in from-name parsing numeric fields in chunk: " << chunk << "\n";
+        else  std::cerr << "Error in random: length invalid" << "\n";
+        return false;
+      }
+      
+      if (ps.file >= nFiles) {
+        if (!do_random) std::cerr << "Error in from-name: invalid chunk (file number invalid): " << chunk << "\n";
+        else std::cerr << "Error in random: file number invalid" << "\n";
+      }
+      
+      placement_vec.push_back(ps);
     }
     return true;
   }
@@ -2678,6 +3113,9 @@ struct SplitCode {
           extract_seq_names_umi = umi;
           ret = true;
         }
+      } else if (special_extraction && name1.length() > 0 && name1[0] == ':' && thisIsParent) { // A special case where we extract inserted placement elements e.g. <umi{*0}>, <umi{*1}>
+        placement_umis.push_back(umi);
+        ret = true;
       } else { // Typical use case
         ret = process_umi(name1, true, false) && process_umi(name2, false, false) && process_umi(name1, true, true) && process_umi(name2, false, true);
       }
@@ -3105,6 +3543,48 @@ struct SplitCode {
     }
   }
   
+  void doUMIExtractionPlacement(std::vector<std::string>& insertion_placement_vec, std::vector<std::string>& umi_data) {
+    auto extract_no_chain = this->extract_no_chain;
+    auto& extract_no_chain_set = this->extract_no_chain_set;
+    auto& umi_names = this->umi_names;
+    auto revcomp = [](const std::string s) {
+      std::string r(s);
+      std::transform(s.rbegin(), s.rend(), r.begin(), [](char c) {
+        switch(c) {
+        case 'A': return 'T';
+        case 'C': return 'G';
+        case 'G': return 'C';
+        case 'T': return 'A';
+        default: return 'N';
+        }
+        return 'N';
+      });
+      return r;
+    };
+    auto addToUmiData = [extract_no_chain, &extract_no_chain_set, &umi_names, &umi_data, &revcomp](const UMI& u, const std::string& extracted_umi) {
+      bool extract_no_chain_ = extract_no_chain;
+      if (extract_no_chain_ && !extract_no_chain_set.empty()) {
+        extract_no_chain_ = false;
+        if (extract_no_chain_set.find(umi_names[u.name_id]) != extract_no_chain_set.end()) {
+          extract_no_chain_ = true;
+        }
+      }
+      umi_data[u.name_id] += extract_no_chain_ && !umi_data[u.name_id].empty() ? "" : (!u.rev_comp ? u.prepend+extracted_umi+u.append : u.prepend+revcomp(extracted_umi)+u.append);
+    };
+    int i = 0;
+    for (auto & pumi : placement_umis) {
+      const auto &u = pumi; // Need options to extract together and separately under a single UMI tag
+      auto extract_min_len = u.length_range_start;
+      auto extract_max_len = u.length_range_end;
+      if (i >= insertion_placement_vec.size()) break;
+      const std::string& extracted_umi = insertion_placement_vec[i];
+      i++;
+      if (extract_max_len == 0 || (extracted_umi.length() >= extract_min_len && extracted_umi.length() <= extract_max_len)) { // if a length range is supplied, just make sure the extracted string fits within the range
+        addToUmiData(u, extracted_umi);
+      }
+    }
+  }
+  
   std::pair<int,int> trimQuality(const char*& s, int& l, const char*& q) {
     // Same "partial sum" algorithm used by cutadapt
     int phred_offset = phred64 ? -64 : -33;
@@ -3172,10 +3652,11 @@ struct SplitCode {
   
   void processRead(std::vector<const char*>& s, std::vector<int>& l, int jmax, Results& results) {
     std::vector<const char*> q(0);
-    processRead(s, l, jmax, results, q);
+    std::vector<std::string> ss(0);
+    processRead(s, l, jmax, results, q, ss);
   }
   
-  void processRead(std::vector<const char*>& s, std::vector<int>& l, int jmax, Results& results, std::vector<const char*>& q) {
+  void processRead(std::vector<const char*>& s, std::vector<int>& l, int jmax, Results& results, std::vector<const char*>& q, std::vector<std::string>& insertion_placement_vec) {
     // Note: s and l may end up being trimmed/modified (even if the read ends up becoming unassigned)
     results.id = -1;
     results.subassign_id = -1;
@@ -3187,7 +3668,7 @@ struct SplitCode {
     auto min_finds_group = min_finds_group_map; // copy
     auto max_finds_group = max_finds_group_map; // copy
     auto early_termination_G = early_termination_maxFindsG; // copy
-    bool check_group = keep_check_group || discard_check_group;
+    bool check_group = keep_check_group || discard_check_group || !rtable.empty();
     auto it_umi_loc = umi_loc_map.begin();
     std::vector<uint32_t> group_v(0);
     std::vector<std::pair<uint32_t,short>> qc_vec;
@@ -3455,6 +3936,9 @@ struct SplitCode {
     if (do_extract && extract_seq_names) {
       doUMIExtractionSeqNames(extract_seq_names_umi.use_read_sequence || extract_seq_names_umi.use_sub ? results.identified_tags_seqs_ : results.identified_tags_seqs, umi_data);
     }
+    if (do_extract && insertion_placement_vec.size() != 0) {
+      doUMIExtractionPlacement(insertion_placement_vec, umi_data);
+    }
     for (auto& it : min_finds) {
       if (it.second > 0) {
         results.name_ids.clear(); // minFinds not met
@@ -3503,6 +3987,29 @@ struct SplitCode {
     if (discard_check_group && groupmapinv_discard.find(group_v) != groupmapinv_discard.end()) {
       results.discard = true;
       return;
+    }
+    if (!rtable.empty()) {
+      if (group_v.size() <= optimize_assignment_vec.size()) {
+        std::vector<uint32_t> u__; // tag IDs (zero-indexed within group)
+        u__.reserve(results.name_ids.size());
+        bool is_assigned = false;
+        if (group_v.size() == optimize_assignment_vec.size()) {
+          for (int i = 0; i < optimize_assignment_vec.size(); i++) {
+            if (optimize_assignment_vec[i] == group_v[i]) {
+              u__.push_back(optimize_assignment_tag_map[results.name_ids[i]]);
+            }
+          }
+        }
+        is_assigned = (u__.size() == optimize_assignment_vec.size());
+        if (!is_assigned) {
+          results.discard = true;
+        } else {
+          int id = (int64_t) encodeMixedRadix(u__, rtable);
+          results.id = id;
+        }
+      } else {
+        results.discard = true;
+      }
     }
     if (do_qc && !u.empty()) { // Now, store the QC
       for (auto &q : qc_vec) {
@@ -3733,17 +4240,19 @@ struct SplitCode {
       if (u.empty() || !isAssigned(r) || always_assign) {
         continue;
       }
-      int id = idmap_find(u);
-      if (id != -1) {
-        idcount[id]++;
-      } else {
-        id = idmap_getsize();
-        // DEBUG hash function:
-        //VectorHasher h;
-        //std::cout << h(u) << std::endl;
-        idmap_insert(u,1);
+      if (rtable.empty()) { // If we aren't using the encoding table, assign a numerical barcode ID here
+        int id = idmap_find(u);
+        if (id != -1) {
+          idcount[id]++;
+        } else {
+          id = idmap_getsize();
+          // DEBUG hash function:
+          //VectorHasher h;
+          //std::cout << h(u) << std::endl;
+          idmap_insert(u,1);
+        }
+        r.id = id;
       }
-      r.id = id;
       if (!sub_assign_vec.empty()) {
         int s_id = idmap_find(u, true);
         if (s_id == -1) {
@@ -3768,7 +4277,8 @@ struct SplitCode {
   std::string getNameString(Results& r) {
     std::string names_str = "";
     for (int n : r.name_ids) {
-      names_str += "[" + names[n] + "]";
+      if (n == std::numeric_limits<uint32_t>::max() && opt_show_not_found) names_str += "[NOT_FOUND]"; // Feature not implemented
+      else names_str += "[" + names[n] + "]";
     }
     return names_str;
   }
@@ -3788,6 +4298,40 @@ struct SplitCode {
   }
   
   std::string fetchNextBarcodeMapping() {
+    SplitCode* scn = this;
+    if (scn->sc_nest != nullptr) { // nest
+      while (true) {
+        if (!scn->always_assign && (scn->idmap16.size() > 0 || scn->idmap.size() > 0 || scn->rtable.size() > 0)) {
+          return scn->fetchNextBarcodeMapping_helper();
+        }
+        if (scn->sc_nest == nullptr) {
+          return scn->fetchNextBarcodeMapping_helper();
+        } else {
+          scn = scn->sc_nest;
+        }
+      }
+    }
+    return fetchNextBarcodeMapping_helper();
+  }
+  
+  std::string fetchNextBarcodeMapping_helper() {
+    if (rtable.size() != 0) {
+      int i = curr_barcode_mapping_i;
+      if (i >= rtable.size()) {
+        curr_barcode_mapping_i = 0;
+        return "";
+      }
+      auto &info = rtable[i];
+      std::stringstream ss;
+      for (size_t tag_id = 0; tag_id < tags_vec.size(); tag_id++) {
+        auto& tag = tags_vec[tag_id]; 
+        if (info.groupId == tag.group) {
+          ss << group_names[info.groupId] << "\t" << names[tag.name_id] << "\t" << info.domain << "\t" << info.radix << "\n";
+        }
+      }
+      ++curr_barcode_mapping_i;
+      return ss.str();
+    }
     int i = curr_barcode_mapping_i;
     if (i >= idmap_getsize()) {
       curr_barcode_mapping_i = 0;
@@ -3818,6 +4362,7 @@ struct SplitCode {
   }
   
   int idmap_find(const std::vector<uint32_t>& u, bool sub_assign = false) {
+    
     const auto &idmapinv16_ = !sub_assign ? idmapinv16 : subassign_idmapinv16;
     const auto &idmapinv_ = !sub_assign ? idmapinv : subassign_idmapinv;
     std::vector<uint32_t> u_sub;
@@ -3894,6 +4439,42 @@ struct SplitCode {
     this->num_reads = num_reads;
     this->num_reads_set = true;
     this->max_num_reads = max_num_reads;
+  }
+  
+  int getNFiles() { // Get number of files (e.g. 2 for paired-end); if nested, returns the deepest layer's nfiles
+    SplitCode* scn = this;
+    while (true) {
+      if (scn->sc_nest == nullptr) {
+        return scn->nFiles;
+      } else {
+        scn = scn->sc_nest;
+      }
+    }
+  }
+  
+  int getNFilesUnassigned() { // Get (potential) number of files for unassigned reads
+    SplitCode* scn = this;
+    while (true) {
+      if (!scn->always_assign) {
+        return scn->nFiles;
+      }
+      if (scn->sc_nest == nullptr) {
+        return scn->nFiles;
+      } else {
+        scn = scn->sc_nest;
+      }
+    }
+  }
+
+  std::vector<std::string> get_umi_names() { // Get names of UMI-like sequences; if nested, returns the deepest layer's nfiles
+    SplitCode* scn = this;
+    while (true) {
+      if (scn->sc_nest == nullptr) {
+        return scn->umi_names;
+      } else {
+        scn = scn->sc_nest;
+      }
+    }
   }
   
   static std::string binaryToString(uint64_t x, size_t len) {
@@ -4019,10 +4600,130 @@ struct SplitCode {
     }
   };
   
+  /**
+   *   Precomputed info per tag for mixed-radix encoding:
+   *   - radix: the “multiplier” for this tag’s value,
+   *   - domain: the maximum valid value is domain-1,
+   *   - groupId: optional, if you want to store or debug it.
+   */
+  struct TagRadixInfo {
+    uint64_t radix;       // product of domains of tags *before* this one
+    uint32_t domain;      // N for this tag
+    uint32_t groupId;       // for reference/logging
+  };
+  
+  /**
+   *        Given (a) the ordered list of tag IDs and (b) a map from groupId -> domain size,
+   *        build a mixed-radix table so we can do fast encoding.
+   *
+   *        We also verify that the total product of all domains does NOT exceed 2^32
+   *        (since we’re storing the final encoding in a 32-bit integer).
+   *
+   * optimize_assignment_vec  The ordered list of group IDs (size k).
+   * optimize_assignment_group_map  Maps groupID -> domain size (N).
+   * A vector of TagRadixInfo, one entry for each tag in the order they appear.
+   */
+  std::vector<TagRadixInfo> buildRadixTable(
+      const std::vector<uint32_t>& optimize_assignment_vec,
+      const std::unordered_map<uint32_t, std::size_t>& optimize_assignment_group_map)
+  {
+    
+    uint64_t finalProduct = 1; // Do a pass through the vector to make sure we don't overflow
+    for (auto groupId : optimize_assignment_vec) {
+      auto it = optimize_assignment_group_map.find(groupId);
+      if (it == optimize_assignment_group_map.end()) {
+        std::cerr << "Error: groupId " << groupId << " not found in map." << std::endl;
+        exit(1);
+      }
+      uint32_t domain = static_cast<uint32_t>(it->second);
+      if (domain == 0) {
+        std::cerr << "Error: domain cannot be 0 for groupId " << groupId << "." << std::endl;
+        exit(1);
+      }
+      // Check for potential overflow before multiplication
+      if (finalProduct > (std::numeric_limits<uint64_t>::max() / domain)) {
+        std::cerr << "Error: Cannot use optimized barcode encoding." << std::endl;
+        std::cerr << "Total domain product exceeds 2^64; cannot fit in 64-bit encoding." << std::endl;
+        exit(1);
+      }
+      finalProduct *= domain;
+    }
+    
+    if (finalProduct > static_cast<uint64_t>(1ULL << (2 * FAKE_BARCODE_LEN))) {
+      std::cerr << "Error: Cannot use optimized barcode encoding." << std::endl;
+      std::cerr << "Total domain product exceeds what is allowed for barcode length " << FAKE_BARCODE_LEN << std::endl;
+      std::cerr << "Please try a longer barcode length of at least ";
+      while (finalProduct > static_cast<uint64_t>(1ULL << (2 * FAKE_BARCODE_LEN))) {
+        FAKE_BARCODE_LEN++;
+      }
+      std::cerr << FAKE_BARCODE_LEN << "." << std::endl;
+      exit(1);
+    }
+    
+    
+    // We'll keep a running product
+    uint64_t runningProduct = 1;
+    
+    rtable.reserve(optimize_assignment_vec.size());
+
+    for (auto groupId : optimize_assignment_vec) {
+      auto it = optimize_assignment_group_map.find(groupId);
+      //assert(it != optimize_assignment_group_map.end()) {
+      uint32_t domain = static_cast<uint32_t>(it->second);
+      
+      // This entry's "radix" is the product of all previous domains
+      TagRadixInfo info;
+      info.groupId = groupId;
+      info.radix = runningProduct;
+      info.domain = domain;
+      
+      rtable.push_back(info);
+      
+      // Update running product for the next tag
+      runningProduct *= domain;
+    }
+    
+    return rtable;
+  }
+  
+  uint64_t encodeMixedRadix(
+      const std::vector<uint32_t>& tagIDs,
+      const std::vector<TagRadixInfo>& radixTable)
+  {
+    //assert(tagIDs.size() == radixTable.size()); // Make sure this is true
+    
+    // We'll accumulate in a 64-bit integer to avoid intermediate overflow,
+    // then cast to 32-bit at the end (we’ve already guarded that the total product <= 2^32).
+    uint64_t encoded = 0;
+    
+    for (std::size_t i = 0; i < tagIDs.size(); ++i) {
+      uint32_t val = tagIDs[i];
+      const auto& info = radixTable[i];
+      
+      //assert(val < info.domain);
+      
+      // Add val * (the product of all previous domains)
+      encoded += static_cast<uint64_t>(val) * info.radix;
+    }
+    
+    //assert(encoded <= std::numeric_limits<uint32_t>::max());
+    
+    return static_cast<uint64_t>(encoded);
+  }
+
+  
+  SplitCode* sc_nest; // Used for nesting
+  std::string config_remainder;
+  
   std::vector<SplitCodeTag> tags_vec;
   splitcode_u_map_<SeqString, std::vector<tval>, SeqStringHasher> tags;
   std::vector<std::string> names;
   std::vector<std::string> group_names;
+  
+  std::vector<TagRadixInfo> rtable; // For encoding
+  std::vector<size_t> optimize_assignment_tag_map; // map tag IDs to zero-indexed tag numbers for optimized barcode encoding assignment
+  std::vector<uint32_t> optimize_assignment_vec; // vector of group IDs
+  std::unordered_map<uint32_t, size_t> optimize_assignment_group_map; // map group IDs to number of tags in that group
   
   std::vector<std::pair<uint32_t,std::pair<bool,std::string>>> before_after_vec;
   
@@ -4056,8 +4757,10 @@ struct SplitCode {
   std::vector<std::vector<std::pair<int,int>>> kmer_size_locations;
   
   std::string barcode_prefix;
+  std::string optimize_assignment_str;
   std::string trim_5_str, trim_3_str;
   std::string extract_str;
+  std::string extract_str_og; // The extraction sequence supplied on command-line
   std::unordered_set<std::string> extract_no_chain_set;
   std::string filter_length_str;
   std::vector<std::pair<int,int>> trim_5_3_vec;
@@ -4084,10 +4787,16 @@ struct SplitCode {
   
   bool extract_seq_names;
   UMI extract_seq_names_umi;
+  std::vector<UMI> placement_umis;
+  
+  std::string random_str;
   
   std::vector<size_t> sub_assign_vec;
   
   std::string _keep_str, _keep_grp_str, _remove_str, _remove_grp_str;
+
+  std::vector<placement_struct> placement_vec;
+  std::string from_header_str;
   
   std::vector<std::unordered_set<size_t>> k_expansions; // Keeps track of all possible substring/k-mer lengths for each file (file number is the index)
   
@@ -4107,6 +4816,17 @@ struct SplitCode {
   bool quality_trimming_naive;
   bool phred64;
   bool write_tag_location_information;
+  bool x_only;
+  bool no_x_out;
+  bool outbam;
+  bool no_output_barcodes;
+  bool remultiplex;
+  bool set_assign_nested;
+  bool no_tags;
+  bool thisIsParent; // Whether object is the "parent" one
+  bool isNested; // Whether object contains children/descendants
+  bool opt_show_not_found; // Whether to display [NOT_FOUND] in --mod-names if using optimized barcode encoding
+  std::string outputb_file;
   int quality_trimming_threshold;
   int nFiles;
   int n_tag_entries;
@@ -4116,7 +4836,8 @@ struct SplitCode {
   size_t max_seq_len; // Length of longest tag sequence excluding homopolymers
   int fake_bc_len_offset;
   static const int MAX_K = 32;
-  static const size_t FAKE_BARCODE_LEN = 16;
+  size_t FAKE_BARCODE_LEN;
+  static const size_t FAKE_BARCODE_LEN_DEFAULT = 16;
   static const char QUAL = 'K';
 };
 

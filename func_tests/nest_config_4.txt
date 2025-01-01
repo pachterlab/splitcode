@@ -1,0 +1,17 @@
+
+@assign
+
+@keep:
+R,R2
+
+ids	tags	locations
+R	AAAAAA	1:0:10
+R2	GGGGGG	1:10
+
+
+@nest
+
+@x-only
+@no-tags
+@filter-len 0,24,17
+

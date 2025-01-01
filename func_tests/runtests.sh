@@ -47,6 +47,74 @@ checkcmdoutput() {
 
 cmdexec "$splitcode --version"
 
+# Test some nesting workflows
+
+checkcmdoutput "$splitcode --trim-only -c $test_dir/nest_config.txt --pipe --mod-names $test_dir/nest.test.1.R1.fq $test_dir/nest.test.1.R1.fa" 20484a6b5ba1f3c10931417310925ca9
+checkcmdoutput "$splitcode --trim-only -c $test_dir/nest_config_2.txt --pipe --out-fasta --mod-names -N 2 $test_dir/nest.test.1.R1.fq $test_dir/nest.test.1.R2.fq $test_dir/nest.test.2.R1.fq $test_dir/nest.test.2.R2.fq" 9f1f430f7db125657c52653b298ee138
+checkcmdoutput "$splitcode --trim-only -s $test_dir/summary.nest.txt -c $test_dir/nest_config_3.txt --pipe --empty=NNN --out-fasta --mod-names -N 2 $test_dir/nest.test.1.R1.fq $test_dir/nest.test.1.R2.fq $test_dir/nest.test.2.R1.fq $test_dir/nest.test.2.R2.fq" 6dabc80d0b3d813d07ab68fd313d2772
+checkcmdoutput "cat $test_dir/summary.nest.txt|head -10|wc -l|tr -d '\n'|tr -d '\r'|tr -d ' '" d3d9446802a44259755d38e6d163e820
+checkcmdoutput "$splitcode --trim-only -c $test_dir/nest_config_2.txt -o $test_dir/out.nest.1.fq,$test_dir/out.nest.2.fq,$test_dir/out.nest.3.fq --mod-names -N 2 $test_dir/nest.test.1.R1.fq $test_dir/nest.test.1.R2.fq $test_dir/nest.test.2.R1.fq $test_dir/nest.test.2.R2.fq" d41d8cd98f00b204e9800998ecf8427e
+checkcmdoutput "cat $test_dir/out.nest.1.fq" 46e08a3f066c9ae5a741a31cf6d785fb
+checkcmdoutput "cat $test_dir/out.nest.2.fq" 547e739c16eaa5495d1e566146ca2b65
+checkcmdoutput "cat $test_dir/out.nest.3.fq" 5da0ce90bdd9f45c71948fae908e12b1
+checkcmdoutput "$splitcode --trim-only -c $test_dir/nest_config_3.txt --x-only --empty=NNN --out-fasta --mod-names -N 2 $test_dir/nest.test.1.R1.fq $test_dir/nest.test.1.R2.fq $test_dir/nest.test.2.R1.fq $test_dir/nest.test.2.R2.fq" d41d8cd98f00b204e9800998ecf8427e
+checkcmdoutput "cat $test_dir/xx.fasta" 6dabc80d0b3d813d07ab68fd313d2772
+checkcmdoutput "$splitcode --outb=$test_dir/bc -u $test_dir/a,$test_dir/b,$test_dir/c -o $test_dir/aa,$test_dir/bb,$test_dir/cc -m $test_dir/nest.mapping.txt -c $test_dir/nest_config_2.txt --out-fasta --mod-names --com-names -N 2 $test_dir/nest.test.1.R1.fq $test_dir/nest.test.1.R2.fq $test_dir/nest.test.2.R1.fq $test_dir/nest.test.2.R2.fq" d41d8cd98f00b204e9800998ecf8427e
+checkcmdoutput "cat $test_dir/a" c1c334bec88086eae1cafe58857e286b
+checkcmdoutput "cat $test_dir/b" 19f5e79683fdb9e96e3cc0981e13c0cb
+checkcmdoutput "cat $test_dir/c" 66d3a7966397c33fa9bc0c3e7f69ebda
+checkcmdoutput "cat $test_dir/aa" 0d81ab04a3ffef6cb904311f08f61e32
+checkcmdoutput "cat $test_dir/bb" edf67aa6dab16e0953fbd9895285fb8b
+checkcmdoutput "cat $test_dir/cc" 732e911683d3e5cd8ff2aad7fd1fafee
+checkcmdoutput "cat $test_dir/bc" e39b5fc29e0dc621ac15c24262fcf507
+checkcmdoutput "cat $test_dir/nest.mapping.txt" 562376738ccdb0645824021a1d91954b
+checkcmdoutput "$splitcode --no-outb --pipe -u $test_dir/a,$test_dir/b,$test_dir/c -m $test_dir/nest.mapping.txt -c $test_dir/nest_config_2.txt --out-fasta --mod-names -N 2 $test_dir/nest.test.1.R1.fq $test_dir/nest.test.1.R2.fq $test_dir/nest.test.2.R1.fq $test_dir/nest.test.2.R2.fq" 0634a9a8aeff98e586e0dbb91a0e8f04
+checkcmdoutput "cat $test_dir/b" 19f5e79683fdb9e96e3cc0981e13c0cb
+checkcmdoutput "cat $test_dir/nest.mapping.txt" 562376738ccdb0645824021a1d91954b
+checkcmdoutput "$splitcode -m $test_dir/nest.mapping.txt --nFastqs=2 -c $test_dir/nest_config_4.txt --mod-names --empty=N --outb=$test_dir/bc --x-only -u $test_dir/a,$test_dir/b $test_dir/nest.test.3.R1.fq $test_dir/nest.test.3.R2.fq" d41d8cd98f00b204e9800998ecf8427e
+checkcmdoutput "cat $test_dir/bc" b4ef4481277e4aff5adaf3513c988e2b
+checkcmdoutput "cat $test_dir/a" f501b402785d361b968b7ef66aa6100e
+checkcmdoutput "cat $test_dir/b" 0f0a86618bd4b2fcf3996114ab437d42
+checkcmdoutput "$splitcode --trim-only --no-x-out -c $test_dir/nest_config_5.txt --pipe --empty=NNN --out-fasta --mod-names -N 2 $test_dir/nest.test.1.R1.fq $test_dir/nest.test.1.R2.fq $test_dir/nest.test.2.R1.fq $test_dir/nest.test.2.R2.fq" b5138c11c6250d138252f81925ad3778
+checkcmdoutput "$splitcode --trim-only -c $test_dir/nest_config_5.txt  --pipe --empty=NNN --out-fasta --mod-names -N 2 $test_dir/nest.test.1.R1.fq $test_dir/nest.test.1.R2.fq $test_dir/nest.test.2.R1.fq $test_dir/nest.test.2.R2.fq" 00667a64eb00f8b6993e2f2819e138d7
+
+
+
+# Test some --barcode-encode
+
+checkcmdoutput "$splitcode -B "B,D,E" -c $test_dir/config_fastassign.txt --pipe --mod-names -u $test_dir/unassign.fq -m $test_dir/mx.txt $test_dir/nest.test.3.R1.fq" 4e9181c048e722c8fb69fb8ac58f726e
+checkcmdoutput "cat $test_dir/unassign.fq" 0eb7dccdeac130ea6c33e5174a7d189a
+checkcmdoutput "cat $test_dir/mx.txt" 129a22a29e2ee9ae3b29389a20ed0bff
+
+checkcmdoutput "$splitcode -B "B,D,E" --bclen=20 -c $test_dir/config_fastassign_2.txt --pipe --mod-names -u $test_dir/unassign.fq -m $test_dir/mx.txt $test_dir/nest.test.3.R1.fq" d3c5c22523d87e22ffdf11bf58adccba
+checkcmdoutput "cat $test_dir/unassign.fq" d41d8cd98f00b204e9800998ecf8427e
+checkcmdoutput "cat $test_dir/mx.txt" b95e8b332c8a0a7ffc0f91118e754302
+
+
+
+# Test lift workflow
+
+checkcmdoutput "$splitcode --lift $test_dir/vcf_validation.fa.gz $test_dir/test_1.vcf.gz CAST_EiJ --kmer-length=31 --kmer-output=$test_dir/test.kmers.1.txt" 7e9c1d67efdf7113bfab367cb5d2d640
+checkcmdoutput "$splitcode --lift $test_dir/vcf_validation.fa.gz $test_dir/test_2.vcf.gz CAST_EiJ --rename --kmer-length=31 --kmer-output=$test_dir/test.kmers.2.txt" c9a91833da19b20383d6bd1d3e32ff8f
+checkcmdoutput "cat $test_dir/test.kmers.1.txt" 54d189f4549f6b35ea80ec5c167332b7
+checkcmdoutput "cat $test_dir/test.kmers.2.txt" 9982de087ed358724580836600cc9ba7
+checkcmdoutput "$splitcode --lift $test_dir/vcf_validation.fa.gz $test_dir/test_2.vcf.gz CAST_EiJ --diploid --kmer-length=31 --kmer-output=$test_dir/test.kmers.2.txt" 6c33bd3ba7cd9aaefeca5cbaa272cdfe
+checkcmdoutput "cat $test_dir/test.kmers.2.txt" a4c73b67a0ad6e5094ff7f2dfdda15bc
+checkcmdoutput "$splitcode --lift --snv-only $test_dir/vcf_validation.fa.gz $test_dir/test_2.vcf.gz CAST_EiJ" 4bdcaf9f34da45033d477651d8845bf2
+checkcmdoutput "$splitcode --lift --kmer-sj $test_dir/vcf_validation.fa.gz $test_dir/example.SJ.tab --kmer-length=31 --kmer-header=X_ --kmer-header-num" 1e88d0b72323a6c11faa73e19007fc5f
+
+
+# Test from-name, random, and revcomp
+
+checkcmdoutput "$splitcode --trim-only --pipe --from-name=0,0,2,:: $test_dir/from_name.fq" e0b141cd0e6348d3cd64d23d61f67d09
+checkcmdoutput "$splitcode --trim-only --pipe --from-name=\"0,0,0,::;0,0,0,::+\" -b GTTTA -d 1 --revcomp=1 --mod-names $test_dir/from_name.fq" 83b2f368aea4e889ad5995dbaef6f744
+checkcmdoutput "$splitcode --trim-only --pipe --random=0,2,25 $test_dir/from_name.fq" 669d8dbda3e81f74159e1ce280686d49
+checkcmdoutput "$splitcode --trim-only --pipe  -x \"<umi{:}>\" --random=0,-1,25 $test_dir/from_name.fq" 30b84f54f195c1e499cafb33acb1b2bf
+checkcmdoutput "$splitcode --trim-only --pipe --from-name=\"0,0,-1,::;0,0,-1,::+\" -x \"<umi{:}>,<umi{:}>\" $test_dir/from_name.fq" 21f22aeb47e01c059f957fddb28a01aa
+checkcmdoutput "$splitcode --trim-only --pipe --from-name=\"0,0,-1,::;0,0,-1,::+\" -x \"<umi{:}>,<umi2{:}>\" $test_dir/from_name.fq" c5456433bca2f5599d15f0785637149e
+
+
+
 # Test SPRITE config files
 
 cmdexec "$splitcode -t 1 -o "$test_dir/A_out_1.fastq.gz,$test_dir/A_out_2.fastq.gz" -O $test_dir/A_out_barcodes.fastq.gz -N 2 -c $test_dir/splitcode_example_config.txt -y <(echo "DPM,Y,ODD,EVEN,ODD") --mod-names --gzip -m $test_dir/A_out_mapping.txt.gz $test_dir/A_1.fastq.gz $test_dir/A_2.fastq.gz"

@@ -21,7 +21,7 @@ struct ProgramOptions {
   int input_interleaved_nfiles;
   int quality_trimming_threshold;
   int min_delta;
-  int64_t max_num_reads;
+  size_t max_num_reads;
   int compress_level;
   int bclen;
   bool extract_no_chain;
@@ -58,6 +58,7 @@ struct ProgramOptions {
   bool outbampipe;
   bool mod_names_bam;
   bool keep_r1_r2;
+  bool show_not_found;
   std::vector<std::string> files;
   std::vector<std::string> output_files;
   std::string outputb_file;
@@ -72,6 +73,7 @@ struct ProgramOptions {
   std::string max_finds_group_str;
   std::string min_finds_group_str;
   std::string exclude_str;
+  std::string revcomp_str;
   std::string after_str;
   std::string before_str;
   std::string partial5_str;
@@ -92,7 +94,10 @@ struct ProgramOptions {
   std::string summary_file;
   std::string subs_str;
   std::string select_output_files_str;
+  std::string optimize_assignment_str;
   std::string outbamfile;
+  std::string from_header_str;
+  std::string random_str;
   std::vector<bool> select_output_files;
   std::vector<std::vector<std::string> > sam_tags;
   std::vector<size_t> sub_assign_vec;
@@ -140,7 +145,8 @@ struct ProgramOptions {
     outbam(false),
     outbampipe(false),
     mod_names_bam(false),
-    keep_r1_r2(false)
+    keep_r1_r2(false),
+    show_not_found(false)
   {
     const char* sam_tags_default[7] = {"CB:Z:", "RX:Z:", "BI:i:", "SI:i:", "BC:Z:", "LX:Z:", "YM:Z:"};
     sam_tags.push_back(std::vector<std::string>(1, std::string(sam_tags_default[0])));

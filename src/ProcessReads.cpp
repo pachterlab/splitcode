@@ -5,6 +5,8 @@
 #include "kseq.h"
 #include "common.h"
 #include <unordered_set>
+#include <random>
+#include <algorithm>
 
 std::string pretty_num(size_t num) {
   auto s = std::to_string(num);
@@ -30,6 +32,115 @@ std::string pretty_num(size_t num) {
   
   return ret;
 }
+
+static inline bool isBase(char c) {
+  switch (c) {
+  case 'A': case 'C': case 'G': case 'T': case 'N':
+  case 'a': case 'c': case 'g': case 't': case 'n':
+    return true;
+  default:
+    return false;
+  }
+}
+
+// A small struct to represent an insertion we want to do (for string placements):
+//   pos   = where in the output string to insert
+//   value = what string to insert
+struct insertion_info {
+  int pos;
+  int file;
+  std::string value;
+};
+
+
+std::string extract_name_substring(const char* n_, int nl, const std::string& pattern)
+{
+  if (pattern.size() > 1 && pattern[0] == 'R') { // Random string generator if pattern starts with R (and is followed by length of string to be generated)
+    std::string substr = pattern.substr(1);
+    int len = std::atoi(substr.c_str());
+    if (len > 0) {
+      const std::string characters = "ATCG";
+      std::random_device rd;
+      std::mt19937 generator(42);
+      std::string randomString;
+      for (size_t i = 0; i < len; ++i) {
+        randomString += characters[generator() % characters.size()];
+      }
+      return randomString;
+    } else {
+      return "";
+    }
+  }
+  // Safety check
+  if (!n_ || nl <= 0) {
+    return "";
+  }
+  
+  int beginning = 0; // Migrate to the comment section of the FASTQ header
+  while (beginning < nl && !(n_[beginning] == '\t' || n_[beginning] == ' ')) {
+    beginning++;
+  }
+  while (n_[beginning] == '\t' || n_[beginning] == ' ') beginning++;
+  
+  const char* n = n_ + beginning;
+  nl -= beginning;
+  
+  // Case 1: If no pattern is supplied,
+  // return everything from the start of the string
+  // until the first non-base character.
+  if (pattern.empty()) {
+    int start = 0;
+    // If no pattern is supplied, return everything
+    // from the start of the string to the first non-ATCGN character.
+    // So we gather from index 0 as long as isBase(n[i]) is true.
+    while (start < nl && isBase(n[start])) {
+      start++;
+    }
+    // The extracted substring is from index 0 up to (but not including) 'start'
+    return std::string(n, start);
+  }
+  
+  // Case 2: We have a pattern. For example, pattern = "::+"
+  // We need to find each pattern character in order, skipping anything that doesn't match.
+  // Once the entire pattern is matched, we collect bases until the first non-base.
+  int pattern_len = static_cast<int>(pattern.size());
+  int pat_idx = 0;         // which character in 'pattern' we're looking for
+  int i = 0;               // index in the input string
+  
+  while (i < nl && pat_idx < pattern_len) {
+    if (n[i] == pattern[pat_idx]) {
+      // We found the next character in the pattern
+      pat_idx++;
+    }
+    // whether matched or not, move on
+    i++;
+  }
+  
+  // If we exit this loop and pat_idx != pattern_len,
+  // it means we never found all pattern characters in sequence
+  if (pat_idx < pattern_len) {
+    return "";
+  }
+  
+  // At this point, 'i' is one past the last matched pattern character.
+  // We want to collect bases from 'i' onward.
+  // But note that i might have already moved to i+1 inside the loop if we matched
+  // the last pattern char at the previous position. So i is indeed correct to start from.
+  
+  int start = i;  // first base
+  while (i < nl && isBase(n[i])) {
+    i++;
+  }
+  // i is now at the first non-base or end of string
+  if (start >= nl) {
+    // no base characters at all after pattern
+    return "";
+  }
+  
+  // Return the slice of consecutive bases
+  return std::string(n + start, i - start);
+}
+
 
 
 //methods
@@ -122,6 +233,39 @@ void MasterProcessor::processReads() {
   }
 }
 
+
+
+void ns_store(NestStorage& ns, gzFile gzfile, const std::string& data, size_t len) {
+  ns.write_storage_gz[gzfile].reserve(131072);
+  ns.write_storage_gz[gzfile] += data;
+  ns.write_storage_gz_len[gzfile] += len;
+}
+
+void ns_store(NestStorage& ns, const std::string& data, size_t len, FILE* file) {
+  ns.write_storage[file].reserve(131072);
+  ns.write_storage[file] += data;
+  ns.write_storage_len[file] += len;
+}
+
+// Could speed this up by rewriting logic so that this is not necessary
+void ns_prep_write(NestStorage& ns) { // Replace \0 with \n
+  for (auto & _ns : ns.write_storage_gz) {
+    std::replace(_ns.second.begin(), _ns.second.end(), '\0', '\n');
+  }
+  for (auto & _ns : ns.write_storage) {
+    std::replace(_ns.second.begin(), _ns.second.end(), '\0', '\n');
+  }
+}
+
+void ns_write(NestStorage& ns) {
+  for (auto & _ns : ns.write_storage_gz) {
+    gzwrite(_ns.first, _ns.second.c_str(), ns.write_storage_gz_len[_ns.first]);
+  }
+  for (auto & _ns : ns.write_storage) {
+    fwrite(_ns.second.c_str(), 1, ns.write_storage_len[_ns.first], _ns.first);
+  }
+}
+
 void MasterProcessor::update(int n, std::vector<SplitCode::Results>& rv,
                              std::vector<std::pair<const char*, int>>& seqs,
                              std::vector<std::pair<const char*, int>>& names,
@@ -131,96 +275,233 @@ void MasterProcessor::update(int n, std::vector<SplitCode::Results>& rv,
   // acquire the writer lock
   std::unique_lock<std::mutex> lock(this->writer_lock);
   
+  bool resize = false;
+  
   if (opt.max_num_reads != 0 && numreads+n > opt.max_num_reads) {
-    n = opt.max_num_reads-numreads;
+    n = static_cast<size_t>(opt.max_num_reads)-numreads;
+    if (n <= 0) n = 0;
     rv.resize(n);
+    resize = true;
   }
   
   sc.update(rv);
+  bool hasChild = sc.sc_nest != nullptr;
+  NestStorage ns;
+  ns.nseqs_pipe = 0;
   
-  if (write_output_fastq) {
+  
+  if (write_output_fastq && !hasChild) {
+    if (resize) {
+      seqs.resize(n * nfiles);
+      quals.resize(n * nfiles);
+      flags.resize(n * nfiles);
+    }
+    numreads += n;
     while (readbatch_id != curr_readbatch_id && !parallel_read) {
       cv.wait(lock, [this, readbatch_id]{ return readbatch_id == curr_readbatch_id; });
     }
-    writeOutput(rv, seqs, names, quals, flags);
+    writeOutput(rv, seqs, names, quals, flags, ns);
+    curr_readbatch_id++;
+    lock.unlock(); // releases the lock
+    cv.notify_all(); // Alert all other threads to check their readbatch_id's!
+    return; // We are done here
   }
+  if (!write_output_fastq) return;
 
-  numreads += n;
-  curr_readbatch_id++;
-  lock.unlock(); // releases the lock
-  cv.notify_all(); // Alert all other threads to check their readbatch_id's!
+  lock.unlock();
+  
+  writeOutput(rv, seqs, names, quals, flags, ns);
+
+  // BEGIN: PROCESS OUTPUT FROM ABOVE IF NESTED (WHICH DOESN'T NEED TO BE LOCKED)
+  // Note: If nested, no output should have been written
+  std::vector<std::pair<const char*, int>> seqs_;
+  std::vector<std::pair<const char*, int>> quals_;
+  std::vector<std::pair<const char*, int>> names_;
+  while (true) {
+    auto sc = ns.sc;
+    auto nseqs_pipe = ns.nseqs_pipe;
+    std::string oss = std::move(ns.oss);
+    ns.oss = "";
+    auto readnum = ns.readnum;
+    auto isParent = ns.isParent;
+    
+    int jmax = sc->sc_nest->nFiles;
+    SplitCode* sc_nest = sc->sc_nest;
+    int incf = jmax-1;
+    std::vector<const char*> s(jmax, nullptr);
+    std::vector<int> l(jmax,0);
+    std::vector<const char*> q(jmax, nullptr);
+    auto seqs_size = nseqs_pipe;
+    rv.clear();
+    
+    seqs_.clear();
+    quals_.clear();
+    names_.clear();
+    seqs_.reserve(seqs_size*jmax);
+    quals_.reserve(seqs_size*jmax);
+    names_.reserve(seqs_size*jmax);
+    //std::replace(oss.begin(), oss.end(), '\n', '\0');
+    const char* data = oss.data();
+    const char* end = data + oss.size();
+    const char* pos = data; // Current position in oss
+    
+    int i_ = 0;
+    for (int i = 0; i + incf < seqs_size && (i_ < readnum || !isParent); i++,i_++) { // Iterate through sequences again
+      for (int record = 0; record < jmax; ++record) { // Go through FASTQ records in stored string
+        const char* header_start = pos;
+        while (pos < end && *pos != '\0') ++pos; // Skip Header Line
+        const char* header_end = pos;
+        names_.emplace_back(header_start+1, static_cast<int>(header_end - header_start - 1));
+        if (pos < end) ++pos; // Move past '\n'
+        const char* seq_start = pos;
+        while (pos < end && *pos != '\0') ++pos; // Record sequence line
+        const char* seq_end = pos;
+        if (pos < end) ++pos; // Move past '\n'
+        s[record] = seq_start;
+        l[record] = static_cast<int>(seq_end - seq_start);
+        seqs_.emplace_back(s[record], l[record]);
+        while (pos < end && *pos != '\0') ++pos; // Skip separator line '+'
+        if (pos < end) ++pos; // Move past '\n'
+        const char* qual_start = pos;
+        while (pos < end && *pos != '\0') ++pos;
+        if (pos < end) ++pos; // Move past '\n'
+        q[record] = qual_start;
+        quals_.emplace_back(q[record], l[record]);
+      }
+      SplitCode::Results results;
+      std::vector<std::string> insertion_placement_vec; // empty vec
+      sc_nest->processRead(s, l, jmax, results, q, insertion_placement_vec);
+      i += incf;
+      if (sc_nest->isAssigned(results)) {
+        sc_nest->modifyRead(seqs_, quals_, i-incf, results, true); // What to do about the incf
+      }
+      rv.push_back(results);
+    }
+    
+    if (sc_nest->sc_nest != nullptr) { // Still more children, no need to lock
+      lock.lock();
+      sc_nest->update(rv); // Still need to lock this though...
+      lock.unlock();
+      writeOutput(rv, seqs_, names_, quals_, flags, ns, sc_nest); // ns is overwritten
+    } else { // No more children, time to end
+      ns_prep_write(ns);
+      lock.lock();
+      sc_nest->update(rv);
+      numreads += n;
+      while (readbatch_id != curr_readbatch_id && !parallel_read) {
+        cv.wait(lock, [this, readbatch_id]{ return readbatch_id == curr_readbatch_id; });
+      }
+      writeOutput(rv, seqs_, names_, quals_, flags, ns, sc_nest); // ns is overwritten
+      // Write out anything remaining that's stored:
+      ns_queue.push(std::move(ns));
+      curr_readbatch_id++;
+      lock.unlock(); // releases the lock
+      cv.notify_all(); // Alert all other threads to check their readbatch_id's!
+      return; // We're done here
+    }
+  }
+  // END NESTING LOGIC
+  
 }
 
 void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
                                   std::vector<std::pair<const char*, int>>& seqs,
                                   std::vector<std::pair<const char*, int>>& names,
                                   std::vector<std::pair<const char*, int>>& quals,
-                                  std::vector<uint32_t>& flags) {
+                                  std::vector<uint32_t>& flags,
+                                  NestStorage& ns,
+                                  SplitCode* sc_current) {
   // Write out fastq
   int incf, jmax;
+  
+  bool isParent = (sc_current == nullptr); // The parent if nested
+  SplitCode* sc = isParent ? &(this->sc) : sc_current;
+  bool hasChild = (sc->sc_nest != nullptr); // If parent has child
+  bool writeToSS = hasChild; // Write to an intermediate output string to be stored
+  bool no_x_out = opt.no_x_out && !hasChild;
+  bool no_output_barcodes = hasChild || opt.no_output_barcodes;
+  if (sc->set_assign_nested) no_output_barcodes = false; // Override when @assign in config file
+  bool outbam = opt.outbam && !hasChild;
+  bool do_mod_name = !sc->no_tags;
+  char break_char = writeToSS ? '\0' : '\n';
+
   incf = nfiles-1;
   jmax = nfiles;
+  
+  if (!isParent) {
+    jmax = sc->nFiles;
+    incf = jmax - 1;
+  }
   
   std::vector<const char*> s(jmax, nullptr);
   std::vector<const char*> n(jmax, nullptr);
   std::vector<const char*> nl(jmax, nullptr);
   std::vector<const char*> q(jmax, nullptr);
   std::vector<int> l(jmax,0);
-  char start_char = opt.output_fasta ? '>' : '@';
-  bool include_quals = !opt.output_fasta;
+
+  char start_char = opt.output_fasta && !writeToSS ? '>' : '@';
+  bool include_quals = !opt.output_fasta || writeToSS;
+  std::string& oss = ns.oss; // contains the output stored string (i.e. the intermediate)
+  if (hasChild) {
+    oss.reserve(bufsize);
+  }
+  bool remultiplex = sc->remultiplex;
+  bool x_only = sc->x_only;
+  bool empty_remove = opt.empty_remove && !hasChild;
+  size_t nseqs_pipe = 0;
   
   size_t readnum = 0;
-  for (int i = 0; i + incf < seqs.size() && readnum < rv.size(); i++, readnum++) {
+  for (int i = 0; i + incf < seqs.size() && (readnum < rv.size() || !isParent); i++, readnum++) {
     auto& r = rv[readnum];
     if (!r.passes_filter) {
       i += incf;
       continue;
     }
     auto& umi_vec = r.umi_data;
-    bool assigned = sc.isAssigned(r); // Note: r.discard and assigned will both true be in the case of sc.always_assign==true but the read doesn't pass our keep/discard filter (if !sc.always_assign, assigned will be false if r.discard is false)
-    bool assigned2 = sc.isAssigned(r, true); // Unlike assigned, assigned2 is false if sc.always_assign==true but the read doesn't pass the keep/discard filter; basically, it's equivalent to: (assigned && !r.discard)
-    bool use_pipe = opt.pipe && (r.ofile.empty() || (!r.ofile.empty() && !r.ofile_keep)); // Conditions under which we'll write to stdout
+    bool assigned = sc->isAssigned(r); // Note: r.discard and assigned will both true be in the case of sc->always_assign==true but the read doesn't pass our keep/discard filter (if !sc->always_assign, assigned will be false if r.discard is false)
+    bool assigned2 = sc->isAssigned(r, true); // Unlike assigned, assigned2 is false if sc->always_assign==true but the read doesn't pass the keep/discard filter; basically, it's equivalent to: (assigned && !r.discard)
+    bool use_pipe = (opt.pipe && (r.ofile.empty() || (!r.ofile.empty() && !r.ofile_keep))) || writeToSS; // Conditions under which we'll write to stdout
     // Conditions under which we'll write to separate barcode file (either write_barcode_separate_fastq specified previously or we need to write reads out to r.ofile even though user specified --pipe):
-    bool write_barcode_separate_fastq_ = write_barcode_separate_fastq || (!r.ofile.empty() && (opt.pipe && !opt.no_output_barcodes));
+    bool write_barcode_separate_fastq_ = write_barcode_separate_fastq || (!r.ofile.empty() && (opt.pipe && !no_output_barcodes));
     bool name_modded = false;
     std::string mod_name = "";
     if (opt.keep_fastq_comments) {
       name_modded = true; // In this option, we always start the fastq comment with a tab
     }
-    if ((assigned || r.discard) && opt.mod_names) {
+    if ((assigned || r.discard) && opt.mod_names && do_mod_name) {
       mod_name += (name_modded ? "\t" : "");
-      mod_name += "::" + sc.getNameString(r); // Barcode names
+      mod_name += "::" + sc->getNameString(r); // Barcode names
     }
-    if ((assigned || r.discard) && opt.seq_names && !r.identified_tags_seqs.empty()) {
+    if ((assigned || r.discard) && opt.seq_names && !r.identified_tags_seqs.empty() && do_mod_name) {
       mod_name += (name_modded ? "\t" : " ");
       mod_name += opt.sam_tags[0][0] + r.identified_tags_seqs; // Sequences of identified tags stitched together
       name_modded = true;
     }
-    if (assigned && opt.com_names && !sc.always_assign) {
+    if (assigned && opt.com_names && !sc->always_assign && do_mod_name) {
       mod_name += (name_modded ? "\t" : " ");
-      mod_name += opt.sam_tags[2][0] + std::to_string(sc.getID(r.id));
-      //mod_name += "\t" + opt.sam_tags[0][0] + sc.binaryToString(sc.getID(r.id), sc.getBarcodeLength())
+      mod_name += opt.sam_tags[2][0] + std::to_string(sc->getID(r.id));
+      //mod_name += "\t" + opt.sam_tags[0][0] + sc->binaryToString(sc->getID(r.id), sc->getBarcodeLength())
       name_modded = true;
-    } else if (assigned && opt.com_names && opt.remultiplex) { // Add remultiplexed ID to read name
+    } else if (assigned && opt.com_names && remultiplex && do_mod_name) { // Add remultiplexed ID to read name
       mod_name += (name_modded ? "\t" : " ");
-      mod_name += opt.sam_tags[2][0] + std::to_string(sc.getID(batch_id_mapping[flags[readnum]]));
-      name_modded = true;
-    }
-    if (assigned && opt.bc_names && !sc.always_assign) {
-      mod_name += (name_modded ? "\t" : " ");
-      mod_name += opt.sam_tags[4][0] + sc.binaryToString(sc.getID(r.id), sc.getBarcodeLength());
-      name_modded = true;
-    } else if (assigned && opt.bc_names && opt.remultiplex) { // Add remultiplexed ID to read name
-      mod_name += (name_modded ? "\t" : " ");
-      mod_name += opt.sam_tags[4][0] + sc.binaryToString(sc.getID(batch_id_mapping[flags[readnum]]), sc.getBarcodeLength());
+      mod_name += opt.sam_tags[2][0] + std::to_string(sc->getID(batch_id_mapping[flags[readnum]]));
       name_modded = true;
     }
-    if (assigned && r.subassign_id != -1) {
+    if (assigned && opt.bc_names && !sc->always_assign && do_mod_name) {
+      mod_name += (name_modded ? "\t" : " ");
+      mod_name += opt.sam_tags[4][0] + sc->binaryToString(sc->getID(r.id), sc->getBarcodeLength());
+      name_modded = true;
+    } else if (assigned && opt.bc_names && remultiplex && do_mod_name) { // Add remultiplexed ID to read name
+      mod_name += (name_modded ? "\t" : " ");
+      mod_name += opt.sam_tags[4][0] + sc->binaryToString(sc->getID(batch_id_mapping[flags[readnum]]), sc->getBarcodeLength());
+      name_modded = true;
+    }
+    if (assigned && r.subassign_id != -1 && do_mod_name) {
       mod_name += (name_modded ? "\t" : " ");
       mod_name += opt.sam_tags[3][0] + std::to_string(r.subassign_id);
       name_modded = true;
     }
-    if (opt.write_locations && !r.tag_locations.empty()) {
+    if (opt.write_locations && !r.tag_locations.empty() && do_mod_name) {
       mod_name += (name_modded ? "\t" : " ");
       mod_name += opt.sam_tags[5][0];
       for (int ri = 0; ri < r.tag_locations.size(); ri++) {
@@ -228,13 +509,13 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
       }
       name_modded = true;
     }
-    if (assigned2 && opt.x_names && !sc.umi_names.empty()) {
+    if (assigned2 && opt.x_names && !sc->umi_names.empty() && do_mod_name) {
       std::string mod_name2 = (name_modded ? "\t" : " ");
       mod_name2 += opt.sam_tags[1][0];
       bool umi_empty = true;
-      for (size_t umi_index = 0; umi_index < sc.umi_names.size(); umi_index++) { // Iterate through vector of all UMI names
+      for (size_t umi_index = 0; umi_index < sc->umi_names.size(); umi_index++) { // Iterate through vector of all UMI names
         std::string curr_umi = umi_vec[umi_index];
-        if (umi_index != 0 && !(opt.empty_remove && curr_umi.empty())) {
+        if (umi_index != 0 && !(empty_remove && curr_umi.empty())) {
           if (opt.sam_tags[1].size() >= umi_index+1) {
             mod_name2 += "\t" + opt.sam_tags[1][umi_index];
           } else {
@@ -253,60 +534,77 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
     if (mod_name == " " || mod_name == "\t") {
       mod_name = "";
     }
-    if (assigned && (write_barcode_separate_fastq_ || use_pipe) && (!sc.always_assign || (opt.remultiplex && assigned2)) && !opt.no_output_barcodes) { // Write out barcode read
+  
+    if (assigned && (write_barcode_separate_fastq_ || use_pipe) && (!sc->always_assign || (remultiplex && assigned2)) && !no_output_barcodes) { // Write out barcode read
       std::stringstream o;
       // Write out barcode read
-      o << start_char << std::string(names[i].first, names[i].second) << mod_name << "\n";
-      if (!opt.remultiplex) {
-        o << sc.binaryToString(sc.getID(r.id), sc.getBarcodeLength()) << "\n";
+      o << start_char << std::string(names[i].first, names[i].second) << mod_name << break_char;
+      if (!remultiplex) {
+        o << sc->binaryToString(sc->getID(r.id), sc->getBarcodeLength()) << break_char;
       } else { // Write out remultiplexing barcode
-        o << sc.binaryToString(sc.getID(batch_id_mapping[flags[readnum]]), sc.getBarcodeLength()) << "\n";
+        o << sc->binaryToString(sc->getID(batch_id_mapping[flags[readnum]]), sc->getBarcodeLength()) << break_char;
       }
       if (include_quals) {
-        o << "+" << "\n";
-        o << std::string(sc.getBarcodeLength(), sc.QUAL) << "\n";
+        o << "+" << break_char;
+        o << std::string(sc->getBarcodeLength(), sc->QUAL) << break_char;
       }
       const std::string& ostr = o.str();
       size_t ostr_len = ostr.length();
-      if (!opt.outbam || !r.ofile.empty()) { // Only write barcode read if we're not writing BAM files (or we're writing BAM files but we need to write the current read into a FASTQ file for the "keep" demultiplexing)
+      if (!outbam || !r.ofile.empty()) { // Only write barcode read if we're not writing BAM files (or we're writing BAM files but we need to write the current read into a FASTQ file for the "keep" demultiplexing)
         if (use_pipe && !write_barcode_separate_fastq_) {
-          if (!opt.no_output_) fwrite(ostr.c_str(), 1, ostr_len, stdout);
+          if (!opt.no_output_) {
+            if (!hasChild) fwrite(ostr.c_str(), 1, ostr_len, stdout);
+            else oss += ostr;
+            nseqs_pipe++;
+          }
         } else if (opt.gzip) {
-          gzwrite(r.ofile.empty() ? outb_gz : out_keep_gz[r.ofile][0], ostr.c_str(), ostr_len);
+          if (hasChild && sc->set_assign_nested) oss += ostr;
+          if (!hasChild) gzwrite(r.ofile.empty() ? outb_gz : out_keep_gz[r.ofile][0], ostr.c_str(), ostr_len);
+          else ns_store(ns, r.ofile.empty() ? outb_gz : out_keep_gz[r.ofile][0], ostr, ostr_len);
+          nseqs_pipe++;
         } else {
-          fwrite(ostr.c_str(), 1, ostr_len, r.ofile.empty() ? outb : out_keep[r.ofile][0]);
+          if (hasChild && sc->set_assign_nested) oss += ostr;
+          if (!hasChild) fwrite(ostr.c_str(), 1, ostr_len, r.ofile.empty() ? outb : out_keep[r.ofile][0]);
+          else ns_store(ns, ostr, ostr_len, r.ofile.empty() ? outb : out_keep[r.ofile][0]);
+          nseqs_pipe++;
         }
       }
     }
-    if (!sc.umi_names.empty() && assigned2 && !opt.no_x_out && !opt.outbam) { // Write out extracted UMIs as needed
-      for (int umi_index = 0; umi_index < sc.umi_names.size(); umi_index++) { // Iterate through vector of all UMI names
+    if (!sc->umi_names.empty() && assigned2 && !no_x_out && !outbam) { // Write out extracted UMIs as needed
+      for (int umi_index = 0; umi_index < sc->umi_names.size(); umi_index++) { // Iterate through vector of all UMI names
         std::string curr_umi = umi_vec[umi_index];
         if (curr_umi.empty()) {
-          if (opt.empty_remove) {
+          if (empty_remove) {
             continue; // Don't write anything
           }
           curr_umi = opt.empty_read_sequence;
         }
         std::stringstream o;
-        o << start_char << std::string(names[i].first, names[i].second) << mod_name << "\n";
-        o << curr_umi << "\n";
+        o << start_char << std::string(names[i].first, names[i].second) << mod_name << break_char;
+        o << curr_umi << break_char;
         if (include_quals) {
-          o << "+" << "\n";
-          o << std::string(curr_umi.length(), sc.QUAL) << "\n";
+          o << "+" << break_char;
+          o << std::string(curr_umi.length(), sc->QUAL) << break_char;
         }
         const std::string& ostr = o.str();
         size_t ostr_len = ostr.length();
         if (use_pipe) {
-          if (!opt.no_output_) fwrite(ostr.c_str(), 1, ostr_len, stdout);
+          if (!opt.no_output_) {
+            if (!hasChild) fwrite(ostr.c_str(), 1, ostr_len, stdout);
+            else oss += ostr;
+            nseqs_pipe++;
+          }
         } else if (opt.gzip && !outumi_gz.empty()) {
-          gzwrite(outumi_gz[umi_index], ostr.c_str(), ostr_len);
+          if (!hasChild) gzwrite(outumi_gz[umi_index], ostr.c_str(), ostr_len);
+          else ns_store(ns, outumi_gz[umi_index], ostr, ostr_len);
         } else if (!outumi.empty()) {
-          fwrite(ostr.c_str(), 1, ostr_len, outumi[umi_index]);
+          if (!hasChild) fwrite(ostr.c_str(), 1, ostr_len, outumi[umi_index]);
+          else ns_store(ns, ostr, ostr_len, outumi[umi_index]);
         }
       }
     }
     int jj = -1;
-    bool no_output = (!(assigned2) && !write_unassigned_fastq) || opt.x_only; // When to not output read sequences
+    bool no_output = (!(assigned2) && !write_unassigned_fastq) || x_only; // When to not output read sequences
     std::vector<const char*> s_(jmax, nullptr);
     std::vector<const char*> q_(jmax, nullptr);
     std::vector<int> l_(jmax,0);
@@ -318,7 +616,7 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
         l_[j] = seqs[i+j].second;
       }
     } else if (!no_output) { // If we need to make a substitution in the read
-      edited_s_vec = sc.getEditedRead(seqs, quals, i, jmax, r, include_quals);
+      edited_s_vec = sc->getEditedRead(seqs, quals, i, jmax, r, include_quals);
       for (int j = 0; j < jmax; j++) {
         s_[j] = edited_s_vec[j].first.c_str(); // sequence
         q_[j] = edited_s_vec[j].second.c_str(); // quality
@@ -332,70 +630,140 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
         }
       }
     }
+    std::vector< std::vector<insertion_info> > insertions_by_file(jmax); // For inserting "placement" strings
+    for (auto &placement : sc->placement_vec) { // Iterate through placements to extract placement strings from FASTQ header name comments
+      if (placement.output_pos == -1) continue;
+      const char* n = names[i+placement.file].first;
+      int nl = names[i+placement.file].second;
+      std::string r = extract_name_substring(n, nl, placement.pattern);
+      if (r.empty()) continue;
+      insertion_info ins;
+      ins.pos   = placement.output_pos;
+      ins.file = placement.output_file;
+      ins.value = r;
+      if (placement.output_file >= 0 && placement.output_file < jmax) insertions_by_file[placement.output_file].push_back(ins);
+    }
     for (int j = 0; j < jmax; j++) {
       if (no_output) {
         break;
       }
-      if (!opt.select_output_files[j]) {
+      if (!hasChild && j < opt.select_output_files.size() && !opt.select_output_files[j]) {
         continue;
       }
+      
       jj++;
       std::stringstream o;
       const char* s = s_[j];
+      const char* q = q_[j];
       int l = l_[j];
       const char* n = names[i+j].first;
       int nl = names[i+j].second;
-      const char* q = q_[j];
+      auto &v = insertions_by_file[j];
+      std::sort(v.begin(), v.end(), 
+                [](const insertion_info &a, const insertion_info &b) {
+                  return a.pos < b.pos;
+                }
+      );
       // Write out read
-      bool embed_final_barcode = assigned && jj == 0 && !write_barcode_separate_fastq_ && !use_pipe && (!sc.always_assign || opt.remultiplex) && !opt.no_output_barcodes;
+      bool embed_final_barcode = assigned && jj == 0 && !write_barcode_separate_fastq_ && !use_pipe && (!sc->always_assign || remultiplex) && !no_output_barcodes;
+      std::string embed_placement_str;
       o << start_char;
-      o << std::string(n,nl) << mod_name << "\n";
-      if (embed_final_barcode) {
-        if (!opt.remultiplex) {
-          o << sc.binaryToString(sc.getID(r.id), sc.getBarcodeLength());
-        } else {
-          o << sc.binaryToString(sc.getID(batch_id_mapping[flags[readnum]]), sc.getBarcodeLength());
+      o << std::string(n,nl) << mod_name << break_char;
+      // Insert placement begin
+      std::string o_str_inserted;
+      std::string q_str_inserted;
+      bool do_insertion = false;
+      if (v.size() != 0) {
+        for (int idx = static_cast<int>(v.size()) - 1; idx >= 0; idx--) {
+          if (v[idx].file != j) continue;
+          if (do_insertion == false) { 
+            o_str_inserted = std::string(s,l);
+            if (include_quals) q_str_inserted = std::string(q,l);
+          }
+          do_insertion = true;
+          int pos = v[idx].pos;
+          const std::string &val = v[idx].value;
+          // Make sure pos is within the string bounds (or clamp it).
+          // If you want to allow inserting beyond the end, handle that logic here.
+          if (pos < 0) pos = 0;
+          if (pos > static_cast<int>(o_str_inserted.size())) {
+            pos = static_cast<int>(o_str_inserted.size());
+          }
+          // Insert
+          o_str_inserted.insert(pos, val); // std::string insert
+          if (include_quals) {
+            q_str_inserted.insert(pos, std::string(val.length(), sc->QUAL)); // std::string insert
+          }
         }
-      } else if (l == 0 && !opt.empty_read_sequence.empty()) {
+        if (o_str_inserted.empty()) do_insertion = false;
+      }
+      // End insert placement
+      if (embed_final_barcode) {
+        if (!remultiplex) {
+          o << sc->binaryToString(sc->getID(r.id), sc->getBarcodeLength());
+        } else {
+          o << sc->binaryToString(sc->getID(batch_id_mapping[flags[readnum]]), sc->getBarcodeLength());
+        }
+      } else if (l == 0 && !opt.empty_read_sequence.empty() && !do_insertion) {
         o << opt.empty_read_sequence;
-      } else if (l == 0 && opt.empty_remove) {
+      } else if (l == 0 && empty_remove && !do_insertion) {
         continue; // Don't write anything
       }
-      o << std::string(s,l) << "\n";
+      if (do_insertion) o << o_str_inserted << break_char;
+      else o << std::string(s,l) << break_char;
       if (include_quals) {
-        o << "+" << "\n";
+        o << "+" << break_char;
         if (embed_final_barcode) {
-          o << std::string(sc.getBarcodeLength(), sc.QUAL);
+          o << std::string(sc->getBarcodeLength(), sc->QUAL);
         } else if (l == 0 && !opt.empty_read_sequence.empty()) {
-          o << std::string(opt.empty_read_sequence.length(), sc.QUAL);
+          o << std::string(opt.empty_read_sequence.length(), sc->QUAL);
         }
-        o << std::string(q,l) << "\n";
+        if (do_insertion) o << q_str_inserted << break_char;
+        else o << std::string(q,l) << break_char;
       }
-      
       const std::string& ostr = o.str();
       size_t ostr_len = ostr.length();
       if (assigned2) {
-        if (opt.outbam && r.ofile.empty()) {
+        if (outbam && r.ofile.empty()) {
           writeBam(ostr, nl, jmax == 2 ? jj+1 : 0);
-        } else if (use_pipe && !opt.outbam) {
-          if (!opt.no_output_) fwrite(ostr.c_str(), 1, ostr_len, stdout);
+        } else if (use_pipe && !outbam) {
+          if (!opt.no_output_) {
+            if (!hasChild) fwrite(ostr.c_str(), 1, ostr_len, stdout);
+            else oss += ostr;
+            nseqs_pipe++;
+          }
         } else {
           if (opt.gzip) {
-            gzwrite(r.ofile.empty() ? out_gz[jj] : out_keep_gz[r.ofile][j+1], ostr.c_str(), ostr_len);
+            if (!hasChild) gzwrite(r.ofile.empty() ? out_gz[jj] : out_keep_gz[r.ofile][j+1], ostr.c_str(), ostr_len);
+            else ns_store(ns, r.ofile.empty() ? out_gz[jj] : out_keep_gz[r.ofile][j+1], ostr, ostr_len);
           } else {
             // note: we use j+1 for out_keep and out_keep_gz because the zeroth index is the barcodes file
-            fwrite(ostr.c_str(), 1, ostr_len, r.ofile.empty() ? out[jj] : out_keep[r.ofile][j+1]);
+            if (!hasChild) fwrite(ostr.c_str(), 1, ostr_len, r.ofile.empty() ? out[jj] : out_keep[r.ofile][j+1]);
+            else ns_store(ns, ostr, ostr_len, r.ofile.empty() ? out[jj] : out_keep[r.ofile][j+1]);
           }
         }
       } else {
-        if (opt.gzip) {
-          gzwrite(outu_gz[jj], ostr.c_str(), ostr_len);
-        } else {
-          fwrite(ostr.c_str(), 1, ostr_len, outu[jj]);
+        if (opt.gzip && outu_gz[jj] != nullptr) {
+          if (!hasChild) gzwrite(outu_gz[jj], ostr.c_str(), ostr_len);
+          else ns_store(ns, outu_gz[jj], ostr, ostr_len);
+        } else if (!opt.gzip && outu[jj] != nullptr) {
+          if (!hasChild) fwrite(ostr.c_str(), 1, ostr_len, outu[jj]);
+          else ns_store(ns, ostr, ostr_len, outu[jj]);
         }
       }
     }
     i += incf;
+  }
+  
+  if (hasChild) {
+    
+    
+    ns.sc = sc;
+    ns.nseqs_pipe = nseqs_pipe;
+    ns.isParent = isParent;
+    ns.readnum = readnum;
+
+
   }
 }
 
@@ -537,7 +905,7 @@ ReadProcessor::ReadProcessor(const ProgramOptions& opt, MasterProcessor& mp) :
    if (full) {
      quals.reserve(bufsize/50);
    }
-   comments = mp.opt.keep_fastq_comments;
+   comments = mp.opt.keep_fastq_comments || !mp.opt.from_header_str.empty();
    rv.reserve(1000);
    clear();
 }
@@ -596,15 +964,24 @@ void ReadProcessor::operator()() {
       }
       // release the reader lock
     }
-    
     // process our sequences
     processBuffer();
-
+    
     // update the results, MP acquires the lock
     int nfiles = mp.nfiles;
     mp.update(seqs.size() / nfiles, rv, seqs, names, quals, flags, readbatch_id);
+    // Write out remaining things that might appear in the nesting framework
+    if (mp.use_ns_queue) {
+      std::lock_guard<std::mutex> lock(mp.ns_queue_lock);
+      while (!mp.ns_queue.empty()) {
+        auto& front = mp.ns_queue.front();
+        ns_write(front);
+        mp.ns_queue.pop();
+      }
+    }
     clear();
     if (mp.opt.max_num_reads != 0 && mp.numreads >= mp.opt.max_num_reads) {
+      mp.cv.notify_all();
       return;
     }
   }
@@ -621,21 +998,76 @@ void ReadProcessor::processBuffer() {
   std::vector<const char*> s(jmax, nullptr);
   std::vector<int> l(jmax,0);
   std::vector<const char*> q(full ? jmax : 0, nullptr);
+  
+  std::vector< std::vector<insertion_info> > insertions_by_file(jmax); // For inserting "placement" strings
 
 
   for (int i = 0; i + incf < seqs.size(); i++) {
+    // BEGIN PLACEMENT
+    std::vector<std::string> insertion_placement_vec;
+    bool do_insertion = false;
+    if ((!mp.opt.from_header_str.empty() || !mp.opt.random_str.empty()) && !mp.sc.placement_umis.empty()) {
+      insertions_by_file.clear();
+      for (auto &placement : mp.sc.placement_vec) { // Iterate through placements to extract placement strings from FASTQ header name comments
+        if (placement.output_pos != -1) continue;
+        const char* n = names[i+placement.file].first;
+        int nl = names[i+placement.file].second;
+        std::string r = extract_name_substring(n, nl, placement.pattern);
+        if (r.empty()) continue;
+        insertion_info ins;
+        ins.pos   = placement.output_pos;
+        ins.file = placement.output_file;
+        ins.value = r;
+        if (placement.output_file >= 0 && placement.output_file < jmax) insertions_by_file[placement.output_file].push_back(ins);
+      }
+    }
+    // END PLACEMENT
     for (int j = 0; j < jmax; j++) {
       s[j] = seqs[i+j].first;
       l[j] = seqs[i+j].second;      
       if (full) {
         q[j] = quals[i+j].first;
       }
+      // BEGIN PLACEMENT
+      if ((!mp.opt.from_header_str.empty() || !mp.opt.random_str.empty()) && !mp.sc.placement_umis.empty()) {
+        const char* n = names[i+j].first;
+        int nl = names[i+j].second;
+        auto &v = insertions_by_file[j];
+        std::sort(v.begin(), v.end(), 
+                  [](const insertion_info &a, const insertion_info &b) {
+                    return a.pos < b.pos;
+                  }
+        );
+        std::string o_str_inserted;
+        if (v.size() != 0) {
+          for (int idx = static_cast<int>(v.size()) - 1; idx >= 0; idx--) {
+            if (v[idx].file != j) continue;
+            if (do_insertion == false) { 
+              o_str_inserted = std::string(s[j],l[j]);
+            }
+            do_insertion = true;
+            int pos = v[idx].pos;
+            const std::string &val = v[idx].value;
+            // Make sure pos is within the string bounds (or clamp it).
+            // If you want to allow inserting beyond the end, handle that logic here.
+            if (pos < 0) pos = 0;
+            if (pos > static_cast<int>(o_str_inserted.size())) {
+              pos = static_cast<int>(o_str_inserted.size());
+            }
+            // Insert
+            o_str_inserted = val; // Note: We are NOT doing std::string insert here, we're just taking the raw sequence
+            insertion_placement_vec.push_back(std::move(o_str_inserted));
+          }
+        }
+      }
+      // END PLACEMENT
     }
     i += incf;
     numreads++;
     
     SplitCode::Results results;
-    mp.sc.processRead(s, l, jmax, results, q);
+    if (!do_insertion) insertion_placement_vec.clear();
+    mp.sc.processRead(s, l, jmax, results, q, insertion_placement_vec);
     if (mp.sc.isAssigned(results)) { // Only modify/trim the reads stored in seq if assigned
       mp.sc.modifyRead(seqs, quals, i-incf, results, true);
     }
