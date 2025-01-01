@@ -62,10 +62,9 @@ std::string extract_name_substring(const char* n_, int nl, const std::string& pa
       const std::string characters = "ATCG";
       std::random_device rd;
       std::mt19937 generator(42);
-      std::uniform_int_distribution<> distribution(0, characters.size() - 1);
       std::string randomString;
       for (size_t i = 0; i < len; ++i) {
-        randomString += characters[distribution(generator)];
+        randomString += characters[generator() % characters.size()];
       }
       return randomString;
     } else {
