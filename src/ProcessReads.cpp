@@ -536,19 +536,19 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
     }
   
     if (assigned && (write_barcode_separate_fastq_ || use_pipe) && (!sc->always_assign || (remultiplex && assigned2)) && !no_output_barcodes) { // Write out barcode read
-      std::stringstream o;
+      std::string o; o.reserve(1024);
       // Write out barcode read
-      o << start_char << std::string(names[i].first, names[i].second) << mod_name << break_char;
+      o += start_char + std::string(names[i].first, names[i].second) + mod_name + std::string(1, break_char);
       if (!remultiplex) {
-        o << sc->binaryToString(sc->getID(r.id), sc->getBarcodeLength()) << break_char;
+        o += sc->binaryToString(sc->getID(r.id), sc->getBarcodeLength()) + std::string(1, break_char);
       } else { // Write out remultiplexing barcode
-        o << sc->binaryToString(sc->getID(batch_id_mapping[flags[readnum]]), sc->getBarcodeLength()) << break_char;
+        o += sc->binaryToString(sc->getID(batch_id_mapping[flags[readnum]]), sc->getBarcodeLength()) + std::string(1, break_char);
       }
       if (include_quals) {
-        o << "+" << break_char;
-        o << std::string(sc->getBarcodeLength(), sc->QUAL) << break_char;
+        o += "+" + std::string(1, break_char);
+        o += std::string(sc->getBarcodeLength(), sc->QUAL) + std::string(1, break_char);
       }
-      const std::string& ostr = o.str();
+      const std::string& ostr = o;
       size_t ostr_len = ostr.length();
       if (!outbam || !r.ofile.empty()) { // Only write barcode read if we're not writing BAM files (or we're writing BAM files but we need to write the current read into a FASTQ file for the "keep" demultiplexing)
         if (use_pipe && !write_barcode_separate_fastq_) {
@@ -579,14 +579,14 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
           }
           curr_umi = opt.empty_read_sequence;
         }
-        std::stringstream o;
-        o << start_char << std::string(names[i].first, names[i].second) << mod_name << break_char;
-        o << curr_umi << break_char;
+        std::string o; o.reserve(1024);
+        o += start_char + std::string(names[i].first, names[i].second) + mod_name + std::string(1, break_char);
+        o += curr_umi + std::string(1, break_char);
         if (include_quals) {
-          o << "+" << break_char;
-          o << std::string(curr_umi.length(), sc->QUAL) << break_char;
+          o += "+" + std::string(1, break_char);
+          o += std::string(curr_umi.length(), sc->QUAL) + std::string(1, break_char);
         }
-        const std::string& ostr = o.str();
+        const std::string& ostr = o;
         size_t ostr_len = ostr.length();
         if (use_pipe) {
           if (!opt.no_output_) {
@@ -652,7 +652,7 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
       }
       
       jj++;
-      std::stringstream o;
+      std::string o; o.reserve(1024);
       const char* s = s_[j];
       const char* q = q_[j];
       int l = l_[j];
@@ -666,9 +666,8 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
       );
       // Write out read
       bool embed_final_barcode = assigned && jj == 0 && !write_barcode_separate_fastq_ && !use_pipe && (!sc->always_assign || remultiplex) && !no_output_barcodes;
-      std::string embed_placement_str;
-      o << start_char;
-      o << std::string(n,nl) << mod_name << break_char;
+      o += start_char;
+      o += std::string(n,nl) + mod_name + std::string(1, break_char);
       // Insert placement begin
       std::string o_str_inserted;
       std::string q_str_inserted;
@@ -700,28 +699,28 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
       // End insert placement
       if (embed_final_barcode) {
         if (!remultiplex) {
-          o << sc->binaryToString(sc->getID(r.id), sc->getBarcodeLength());
+          o += sc->binaryToString(sc->getID(r.id), sc->getBarcodeLength());
         } else {
-          o << sc->binaryToString(sc->getID(batch_id_mapping[flags[readnum]]), sc->getBarcodeLength());
+          o += sc->binaryToString(sc->getID(batch_id_mapping[flags[readnum]]), sc->getBarcodeLength());
         }
       } else if (l == 0 && !opt.empty_read_sequence.empty() && !do_insertion) {
-        o << opt.empty_read_sequence;
+        o += opt.empty_read_sequence;
       } else if (l == 0 && empty_remove && !do_insertion) {
         continue; // Don't write anything
       }
-      if (do_insertion) o << o_str_inserted << break_char;
-      else o << std::string(s,l) << break_char;
+      if (do_insertion) o += o_str_inserted + std::string(1, break_char);
+      else o += std::string(s,l) + std::string(1, break_char);
       if (include_quals) {
-        o << "+" << break_char;
+        o += "+" + std::string(1, break_char);
         if (embed_final_barcode) {
-          o << std::string(sc->getBarcodeLength(), sc->QUAL);
+          o += std::string(sc->getBarcodeLength(), sc->QUAL);
         } else if (l == 0 && !opt.empty_read_sequence.empty()) {
-          o << std::string(opt.empty_read_sequence.length(), sc->QUAL);
+          o += std::string(opt.empty_read_sequence.length(), sc->QUAL);
         }
-        if (do_insertion) o << q_str_inserted << break_char;
-        else o << std::string(q,l) << break_char;
+        if (do_insertion) o += q_str_inserted + std::string(1, break_char);
+        else o += std::string(q,l) + std::string(1, break_char);
       }
-      const std::string& ostr = o.str();
+      const std::string& ostr = o;
       size_t ostr_len = ostr.length();
       if (assigned2) {
         if (outbam && r.ofile.empty()) {
