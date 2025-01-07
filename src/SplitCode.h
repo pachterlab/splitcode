@@ -1,7 +1,7 @@
 #ifndef SPLITCODE_H
 #define SPLITCODE_H
 
-#define SPLITCODE_VERSION "0.31.1"
+#define SPLITCODE_VERSION "0.31.2"
 
 #include <string>
 #include <iostream>
@@ -1145,7 +1145,7 @@ struct SplitCode {
     std::pair<int16_t,int32_t> location2;
     uint16_t name_id;
     std::string prepend, append;
-    bool group1, group2, id1_present, id2_present, rev_comp, special_extraction, use_sub, use_read_sequence;
+    bool group1, group2, id1_present, id2_present, rev_comp, rev, comp, special_extraction, use_sub, use_read_sequence;
   };
   
   struct TrimTagSummary {
@@ -2808,6 +2808,8 @@ struct SplitCode {
     auto& padding_left = umi.padding_left;
     auto& padding_right = umi.padding_right;
     auto& rev_comp = umi.rev_comp;
+    auto& rev = umi.rev;
+    auto& comp = umi.comp;
     auto& special_extraction = umi.special_extraction;
     auto& use_sub = umi.use_sub;
     auto& use_read_sequence = umi.use_read_sequence;
@@ -2820,6 +2822,8 @@ struct SplitCode {
     int16_t file1 = -1, file2 = -1;
     int32_t pos1 = -1, pos2 = -1;
     rev_comp = false;
+    rev = false;
+    comp = false;
     name1_present = false;
     name2_present = false;
     special_extraction = false;
@@ -2835,8 +2839,16 @@ struct SplitCode {
         return false; // malformed
       }
       std::string umi_name = s.substr(umi_open+1,umi_close-umi_open-1);
-      // Find tilde at beginning (denoting reverse complement)
-      if (umi_name.length() > 1 && umi_name[0] == '~') {
+      // Find tilde at beginning (denoting reverse complement, reverse, or complement)
+      if (umi_name.length() > 3 && umi_name[0] == '~' && umi_name[1] == 'r' && umi_name[2] == '~') {
+        umi_name = umi_name.substr(3);
+        rev = true;
+      }
+      else if (umi_name.length() > 3 && umi_name[0] == '~' && umi_name[1] == 'c' && umi_name[2] == '~') {
+        umi_name = umi_name.substr(3);
+        comp = true;
+      }
+      else if (umi_name.length() > 1 && umi_name[0] == '~') {
         umi_name = umi_name.substr(1);
         rev_comp = true;
       }
@@ -3227,7 +3239,7 @@ struct SplitCode {
     auto extract_no_chain = this->extract_no_chain;
     auto& extract_no_chain_set = this->extract_no_chain_set;
     auto& umi_names = this->umi_names;
-    auto revcomp = [](const std::string s) {
+    auto revcomp = [](const std::string& s) {
       std::string r(s);
       std::transform(s.rbegin(), s.rend(), r.begin(), [](char c) {
         switch(c) {
@@ -3241,7 +3253,24 @@ struct SplitCode {
       });
       return r;
     };
-    auto addToUmiData = [extract_no_chain, &extract_no_chain_set, &umi_names, &umi_data, &revcomp](const UMI& u, const std::string& extracted_umi) {
+    auto rev_ = [](const std::string &s) {
+      return std::string{s.rbegin(), s.rend()};
+    };
+    auto comp_ = [](const std::string &s) {
+      std::string result(s);
+      std::transform(result.begin(), result.end(), result.begin(),
+                     [](char c) {
+                       switch (c) {
+                       case 'A': return 'T';
+                       case 'T': return 'A';
+                       case 'C': return 'G';
+                       case 'G': return 'C';
+                       default:  return 'N';
+                       }
+                     });
+      return result;
+    };
+    auto addToUmiData = [extract_no_chain, &extract_no_chain_set, &umi_names, &umi_data, &revcomp, &rev_, &comp_](const UMI& u, const std::string& extracted_umi) {
       bool extract_no_chain_ = extract_no_chain;
       if (extract_no_chain_ && !extract_no_chain_set.empty()) {
         extract_no_chain_ = false;
@@ -3249,7 +3278,18 @@ struct SplitCode {
           extract_no_chain_ = true;
         }
       }
-      umi_data[u.name_id] += extract_no_chain_ && !umi_data[u.name_id].empty() ? "" : (!u.rev_comp ? u.prepend+extracted_umi+u.append : u.prepend+revcomp(extracted_umi)+u.append);
+      if (!(extract_no_chain_ && !umi_data[u.name_id].empty())) {
+        if (u.rev_comp) {
+          umi_data[u.name_id] += u.prepend+revcomp(extracted_umi)+u.append;
+        } else if (u.rev) {
+          umi_data[u.name_id] += u.prepend+rev_(extracted_umi)+u.append;
+        } else if (u.comp) {
+          umi_data[u.name_id] += u.prepend+comp_(extracted_umi)+u.append;
+        } else {
+          umi_data[u.name_id] += u.prepend+extracted_umi+u.append;
+        }
+        
+      }
     };
 
     const auto& umi_vec_name = umi_name_map.find(tag_name_id) != umi_name_map.end() ? umi_name_map[tag_name_id] : std::vector<UMI>(0);
@@ -3510,7 +3550,7 @@ struct SplitCode {
     auto extract_no_chain = this->extract_no_chain;
     auto& extract_no_chain_set = this->extract_no_chain_set;
     auto& umi_names = this->umi_names;
-    auto revcomp = [](const std::string s) {
+    auto revcomp = [](const std::string& s) {
       std::string r(s);
       std::transform(s.rbegin(), s.rend(), r.begin(), [](char c) {
         switch(c) {
@@ -3524,7 +3564,24 @@ struct SplitCode {
       });
       return r;
     };
-    auto addToUmiData = [extract_no_chain, &extract_no_chain_set, &umi_names, &umi_data, &revcomp](const UMI& u, const std::string& extracted_umi) {
+    auto rev_ = [](const std::string &s) {
+      return std::string{s.rbegin(), s.rend()};
+    };
+    auto comp_ = [](const std::string &s) {
+      std::string result(s);
+      std::transform(result.begin(), result.end(), result.begin(),
+                     [](char c) {
+                       switch (c) {
+                       case 'A': return 'T';
+                       case 'T': return 'A';
+                       case 'C': return 'G';
+                       case 'G': return 'C';
+                       default:  return 'N';
+                       }
+                     });
+      return result;
+    };
+    auto addToUmiData = [extract_no_chain, &extract_no_chain_set, &umi_names, &umi_data, &revcomp, &rev_, &comp_](const UMI& u, const std::string& extracted_umi) {
       bool extract_no_chain_ = extract_no_chain;
       if (extract_no_chain_ && !extract_no_chain_set.empty()) {
         extract_no_chain_ = false;
@@ -3532,7 +3589,18 @@ struct SplitCode {
           extract_no_chain_ = true;
         }
       }
-      umi_data[u.name_id] += extract_no_chain_ && !umi_data[u.name_id].empty() ? "" : (!u.rev_comp ? u.prepend+extracted_umi+u.append : u.prepend+revcomp(extracted_umi)+u.append);
+      if (!(extract_no_chain_ && !umi_data[u.name_id].empty())) {
+        if (u.rev_comp) {
+          umi_data[u.name_id] += u.prepend+revcomp(extracted_umi)+u.append;
+        } else if (u.rev) {
+          umi_data[u.name_id] += u.prepend+rev_(extracted_umi)+u.append;
+        } else if (u.comp) {
+          umi_data[u.name_id] += u.prepend+comp_(extracted_umi)+u.append;
+        } else {
+          umi_data[u.name_id] += u.prepend+extracted_umi+u.append;
+        }
+        
+      }
     };
     const auto &u = extract_seq_names_umi;
     auto extract_min_len = u.length_range_start;
@@ -3547,7 +3615,7 @@ struct SplitCode {
     auto extract_no_chain = this->extract_no_chain;
     auto& extract_no_chain_set = this->extract_no_chain_set;
     auto& umi_names = this->umi_names;
-    auto revcomp = [](const std::string s) {
+    auto revcomp = [](const std::string& s) {
       std::string r(s);
       std::transform(s.rbegin(), s.rend(), r.begin(), [](char c) {
         switch(c) {
@@ -3561,7 +3629,24 @@ struct SplitCode {
       });
       return r;
     };
-    auto addToUmiData = [extract_no_chain, &extract_no_chain_set, &umi_names, &umi_data, &revcomp](const UMI& u, const std::string& extracted_umi) {
+    auto rev_ = [](const std::string &s) {
+      return std::string{s.rbegin(), s.rend()};
+    };
+    auto comp_ = [](const std::string &s) {
+      std::string result(s);
+      std::transform(result.begin(), result.end(), result.begin(),
+                     [](char c) {
+                       switch (c) {
+                       case 'A': return 'T';
+                       case 'T': return 'A';
+                       case 'C': return 'G';
+                       case 'G': return 'C';
+                       default:  return 'N';
+                       }
+                     });
+      return result;
+    };
+    auto addToUmiData = [extract_no_chain, &extract_no_chain_set, &umi_names, &umi_data, &revcomp, &rev_, &comp_](const UMI& u, const std::string& extracted_umi) {
       bool extract_no_chain_ = extract_no_chain;
       if (extract_no_chain_ && !extract_no_chain_set.empty()) {
         extract_no_chain_ = false;
@@ -3569,7 +3654,17 @@ struct SplitCode {
           extract_no_chain_ = true;
         }
       }
-      umi_data[u.name_id] += extract_no_chain_ && !umi_data[u.name_id].empty() ? "" : (!u.rev_comp ? u.prepend+extracted_umi+u.append : u.prepend+revcomp(extracted_umi)+u.append);
+      if (!(extract_no_chain_ && !umi_data[u.name_id].empty())) {
+        if (u.rev_comp) {
+          umi_data[u.name_id] += u.prepend+revcomp(extracted_umi)+u.append;
+        } else if (u.rev) {
+          umi_data[u.name_id] += u.prepend+rev_(extracted_umi)+u.append;
+        } else if (u.comp) {
+          umi_data[u.name_id] += u.prepend+comp_(extracted_umi)+u.append;
+        } else {
+          umi_data[u.name_id] += u.prepend+extracted_umi+u.append;
+        }
+      }
     };
     int i = 0;
     for (auto & pumi : placement_umis) {
