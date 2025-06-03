@@ -1828,6 +1828,8 @@ struct SplitCode {
           this->barcode_prefix = value;
         } else if (field == "@barcode-encode") {
           this->optimize_assignment_str = value;
+          FAKE_BARCODE_LEN = FAKE_BARCODE_LEN_DEFAULT + fake_bc_len_offset;
+          fake_bc_len_offset = 0;
         } else if (field == "@sub-assign") {
           if (!this->sub_assign_vec.empty()) {
             std::cerr << "Error: The file \"" << config_file << "\" specifies @sub-assign which was already previously set" << std::endl;
