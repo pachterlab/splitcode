@@ -505,6 +505,20 @@ NCACTN" > $test_dir/test_unmasked.2.fa
 
 checkcmdoutput "$splitcode --unmask $test_dir/test_unmasked.1.fa $test_dir/test_unmasked.2.fa \"\"" b98fba82fc4a92c49d916ab97a8463bc
 
+# Check @remove
+
+echo "@remove:" > $test_dir/config_with_remove.txt
+echo "tag1" >> $test_dir/config_with_remove.txt
+echo "" >> $test_dir/config_with_remove.txt
+echo "id tag" >> $test_dir/config_with_remove.txt
+echo "tag1 AAA" >> $test_dir/config_with_remove.txt
+echo "@read1" > $test_dir/remove_input.fastq
+echo "AAA" >> $test_dir/remove_input.fastq
+echo "+" >> $test_dir/remove_input.fastq
+echo ";;;" >> $test_dir/remove_input.fastq
+
+checkcmdoutput "$splitcode --trim-only -c $test_dir/config_with_remove.txt --mod-names --out-fasta --nFastqs=1 --pipe $test_dir/remove_input.fastq" d41d8cd98f00b204e9800998ecf8427e
+
 # Check extract ^...^ and ^^...^^
 
 checkcmdoutput "$splitcode --trim-only -x \"0:1<^AAA^umi[3]>\" -p $test_dir/test_bound.fa" 5827f14f608ed69bd38b12602c8fdeea
