@@ -1753,9 +1753,7 @@ struct SplitCode {
         ss >> field >> value;
         if (_keep || _keep_grp || _remove || _remove_grp) { // Read continuous multi-line value (until an empty line)
           std::string sline = field + " " + value;
-          while (ss >> value) {
-            sline = " " + value;
-          }
+          sline.erase(std::find_if(sline.rbegin(), sline.rend(), [](unsigned char ch){ return !std::isspace(ch); }).base(), sline.end());
           value = sline + "\n";
           if (_keep) _keep_str += value;
           if (_keep_grp) _keep_grp_str += value;
