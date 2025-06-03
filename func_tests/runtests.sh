@@ -519,6 +519,24 @@ echo ";;;" >> $test_dir/remove_input.fastq
 
 checkcmdoutput "$splitcode --trim-only -c $test_dir/config_with_remove.txt --mod-names --out-fasta --nFastqs=1 --pipe $test_dir/remove_input.fastq" d41d8cd98f00b204e9800998ecf8427e
 
+# Check barcode-encode in config file
+
+echo "@assign" > $test_dir/bcencode.txt
+echo "@barcode-encode X,X,X,X,X,X,X,X,X,X,X,X,X,X,X,X" >> $test_dir/bcencode.txt
+echo "" >> $test_dir/bcencode.txt
+echo "tags groups" >> $test_dir/bcencode.txt
+echo "A X" >> $test_dir/bcencode.txt
+echo "T X" >> $test_dir/bcencode.txt
+echo "C X" >> $test_dir/bcencode.txt
+echo "G X" >> $test_dir/bcencode.txt
+
+echo "@read1" > $test_dir/bcencode.fastq
+echo "AAAAAAAAAAAAAAAA" >> $test_dir/bcencode.fastq
+echo "+" >> $test_dir/bcencode.fastq
+echo "AAAAAAAAAAAAAAAA" >> $test_dir/bcencode.fastq
+
+checkcmdoutput "$splitcode -m /dev/null --bclen=30 -c $test_dir/bcencode.txt --mod-names --out-fasta --nFastqs=1 --pipe $test_dir/bcencode.fastq" 6c300074e39d272b4fee6a75fae3e8b4
+
 # Check extract ^...^ and ^^...^^
 
 checkcmdoutput "$splitcode --trim-only -x \"0:1<^AAA^umi[3]>\" -p $test_dir/test_bound.fa" 5827f14f608ed69bd38b12602c8fdeea
