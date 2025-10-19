@@ -116,7 +116,11 @@ std::string argv_to_string(int argc, char *argv[]) {
 }
 
 void PrintVersion() {
-  cout << "splitcode, version " << 	SPLITCODE_VERSION << endl;
+  cout << "splitcode, version " << 	SPLITCODE_VERSION;
+#if SPLITCODE_CPP_VERSION >= 201703L
+  cout << ".";
+#endif
+  cout << endl;
 }
 
 void usage() {
