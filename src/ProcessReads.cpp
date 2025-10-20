@@ -727,7 +727,20 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
       size_t ostr_len = ostr.length();
       if (assigned2) {
         if (outbam && r.ofile.empty()) {
-          writeBam(ostr, nl, jmax == 2 ? jj+1 : 0);
+          int pairing = (jmax == 2 ? jj+1 : 0);
+          if (opt.select_output_files.size() > 0) { 
+              int num_select_output_files = 0;
+              int pairing_ = 0;
+              for (int i = 0; i < opt.select_output_files.size(); i++) {
+                 if (opt.select_output_files[i]) num_select_output_files++;
+                 if (opt.select_output_files[j] && i == j) {
+                     if (num_select_output_files == 1) pairing_ = 1;
+                     else pairing_ = 2;
+                 }
+              }
+              if (num_select_output_files == 2) pairing = pairing_;
+          }
+          writeBam(ostr, nl, pairing);
         } else if (use_pipe && !outbam) {
           if (!opt.no_output_) {
             if (!hasChild) fwrite(ostr.c_str(), 1, ostr_len, stdout);
