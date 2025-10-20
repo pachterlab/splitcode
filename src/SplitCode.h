@@ -2634,10 +2634,18 @@ struct SplitCode {
       if (line.size() == 0) {
         continue;
       }
+      auto tab_pos = line.find('\t');
       std::stringstream s(line);
       if (!discard) {
         std::string a,b;
         s >> a >> b;
+        if (tab_pos != std::string::npos) { // Tab found, so enforce tab-delimeted parsing
+          a = line.substr(0, tab_pos);
+          b = line.substr(tab_pos + 1);
+          b.erase(b.begin(), std::find_if(b.begin(), b.end(), [](unsigned char ch) {
+            return !std::isspace(ch);
+          })); // Trim all leading whitespaces
+        }
         line = a;
         if (!b.empty()) {
           ofile = b;
@@ -2704,10 +2712,18 @@ struct SplitCode {
       if (line.size() == 0) {
         continue;
       }
+      auto tab_pos = line.find('\t');
       std::stringstream s(line);
       if (!discard) {
         std::string a,b;
         s >> a >> b;
+        if (tab_pos != std::string::npos) { // Tab found, so enforce tab-delimeted parsing
+          a = line.substr(0, tab_pos);
+          b = line.substr(tab_pos + 1);
+          b.erase(b.begin(), std::find_if(b.begin(), b.end(), [](unsigned char ch) {
+            return !std::isspace(ch);
+          })); // Trim all leading whitespaces
+        }
         line = a;
         if (!b.empty()) {
           ofile = b;

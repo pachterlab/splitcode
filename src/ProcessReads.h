@@ -172,7 +172,17 @@ public:
               out_keep_gz[f.second].push_back(nullptr);
               continue;
             }
-            out_keep_gz[f.second].push_back(gzopen((f.second + "_" + (i == 0 ? "barcodes" : (opt.keep_r1_r2 ? "R" + std::to_string(i) : std::to_string(i-1))) + suffix_gz).c_str(), gz_out_str));
+            std::string out_keep_name = (f.second + "_" + (i == 0 ? "barcodes" : (opt.keep_r1_r2 ? "R" + std::to_string(i) : std::to_string(i-1))));
+            if (i != 0 && f.second.find(',') != std::string::npos) {
+                std::stringstream ss(f.second);
+                std::string item;
+                std::vector<std::string> v;
+                while (std::getline(ss, item, ',')) { if (!item.empty()) v.push_back(item); }
+                if (v.size() == nfiles) {
+                    out_keep_name = v[i-1];
+                }
+            }
+            out_keep_gz[f.second].push_back(gzopen((out_keep_name + suffix_gz).c_str(), gz_out_str));
           }
         }
       } else {
@@ -187,7 +197,17 @@ public:
               out_keep[f.second].push_back(nullptr);
               continue;
             }
-            out_keep[f.second].push_back(fopen((f.second + "_" + (i == 0 ? "barcodes" : (opt.keep_r1_r2 ? "R" + std::to_string(i) : std::to_string(i-1))) + suffix).c_str(), "wb"));
+            std::string out_keep_name = (f.second + "_" + (i == 0 ? "barcodes" : (opt.keep_r1_r2 ? "R" + std::to_string(i) : std::to_string(i-1))));
+            if (i != 0 && f.second.find(',') != std::string::npos) {
+                std::stringstream ss(f.second);
+                std::string item;
+                std::vector<std::string> v;
+                while (std::getline(ss, item, ',')) { if (!item.empty()) v.push_back(item); }
+                if (v.size() == nfiles) {
+                    out_keep_name = v[i-1];
+                }
+            }
+            out_keep[f.second].push_back(fopen((out_keep_name + suffix).c_str(), "wb"));
           }
         }
       }
@@ -208,8 +228,17 @@ public:
               out_keep_gz[f.second].push_back(nullptr);
               continue;
             }
-            
-            out_keep_gz[f.second].push_back(gzopen((f.second + "_" + (i == 0 ? "barcodes" : (opt.keep_r1_r2 ? "R" + std::to_string(i) : std::to_string(i-1))) + suffix_gz).c_str(), gz_out_str));
+            std::string out_keep_name = (f.second + "_" + (i == 0 ? "barcodes" : (opt.keep_r1_r2 ? "R" + std::to_string(i) : std::to_string(i-1))));
+            if (i != 0 && f.second.find(',') != std::string::npos) {
+                std::stringstream ss(f.second);
+                std::string item;
+                std::vector<std::string> v;
+                while (std::getline(ss, item, ',')) { if (!item.empty()) v.push_back(item); }
+                if (v.size() == nfiles) {
+                    out_keep_name = v[i-1];
+                }
+            }
+            out_keep_gz[f.second].push_back(gzopen((out_keep_name + suffix_gz).c_str(), gz_out_str));
           }
         }
       } else {
@@ -224,7 +253,17 @@ public:
               out_keep[f.second].push_back(nullptr);
               continue;
             }
-            out_keep[f.second].push_back(fopen((f.second + "_" + (i == 0 ? "barcodes" : (opt.keep_r1_r2 ? "R" + std::to_string(i) : std::to_string(i-1))) + suffix).c_str(), "wb"));
+            std::string out_keep_name = (f.second + "_" + (i == 0 ? "barcodes" : (opt.keep_r1_r2 ? "R" + std::to_string(i) : std::to_string(i-1))));
+            if (i != 0 && f.second.find(',') != std::string::npos) {
+                std::stringstream ss(f.second);
+                std::string item;
+                std::vector<std::string> v;
+                while (std::getline(ss, item, ',')) { if (!item.empty()) v.push_back(item); }
+                if (v.size() == nfiles) {
+                    out_keep_name = v[i-1];
+                }
+            }
+            else out_keep[f.second].push_back(fopen((out_keep_name + suffix).c_str(), "wb"));
           }
         }
       }
