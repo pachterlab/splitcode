@@ -1027,6 +1027,9 @@ struct SplitCode {
     }*/
     if (do_qc) {
       qc.resize(names.size());
+      for (size_t i = 0; i < qc.size(); i++) {
+        qc[i].resize(4,0);
+      }
     }
     
     // Double check the early termination
@@ -4125,8 +4128,7 @@ struct SplitCode {
     if (do_qc && !u.empty()) { // Now, store the QC
       for (auto &q : qc_vec) {
         auto& qc_ = qc[q.first];
-        qc_.resize(q.second+1, 0);
-        qc_[q.second]++;
+        qc_[q.second > 3 ? 3 : q.second]++;
       }
     }
   }
