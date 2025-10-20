@@ -184,6 +184,7 @@ struct SplitCode {
     }
     this->random_replacement = sc->random_replacement;
     this->optimize_assignment_str = sc->optimize_assignment_str;
+    this->sub_optimize_assignment_str = sc->sub_optimize_assignment_str;
     this->opt_show_not_found = sc->opt_show_not_found;
     setNFiles(nFiles);
   }
@@ -731,8 +732,36 @@ struct SplitCode {
           }
         }
       }
-      auto rtable = buildRadixTable(optimize_assignment_vec, optimize_assignment_group_map);
+      rtable = buildRadixTable(optimize_assignment_vec, optimize_assignment_group_map);
     }
+    if (!sub_optimize_assignment_str.empty() && !this->always_assign) {
+      sub_optimize_assignment_tag_map.resize(names.size(), 0);
+      std::stringstream ss(sub_optimize_assignment_str);
+      std::string gname;
+      while (std::getline(ss, gname, ',')) {
+        const auto& itnames = std::find(group_names.begin(), group_names.end(), gname);
+        if (itnames == group_names.end()) {
+          std::cerr << "Error: Could not process \"" << sub_optimize_assignment_str << "\" because group \"" << gname << "\" does not exist" << std::endl;
+          exit(1);
+        } else {
+          sub_optimize_assignment_vec.push_back(itnames - group_names.begin());
+        }
+      }
+      for (auto group : sub_optimize_assignment_vec) { // Populate the map
+        if (sub_optimize_assignment_group_map[group] != 0) continue;
+        for (size_t tag_id = 0; tag_id < tags_vec.size(); tag_id++) {
+          auto& tag = tags_vec[tag_id];
+          if (group == tag.group) {
+            if (sub_optimize_assignment_group_map[group] == 0) {
+              sub_optimize_assignment_group_map[group]++; // To account for allowing the tag at the position not being found
+            }
+            sub_optimize_assignment_tag_map[tag.name_id] = (sub_optimize_assignment_group_map[group]++) - 1; // Create a mapping from tag ID to 0,1,2,3,4,5,etc. within a group
+          }
+        }
+      }
+      sub_rtable = buildRadixTable(sub_optimize_assignment_vec, sub_optimize_assignment_group_map);
+    }
+
     
     // Fill in k-mer sizes by location (e.g. search for k-mers of length n at positions a-b in file c):
     // (we have to be sure to merge overlapping intervals and having intervals in sorted order which is what most of what the code below does)
@@ -1833,6 +1862,13 @@ struct SplitCode {
           this->optimize_assignment_str = value;
           FAKE_BARCODE_LEN = FAKE_BARCODE_LEN_DEFAULT + fake_bc_len_offset;
           fake_bc_len_offset = 0;
+        } else if (field == "@sub-barcode-encode") {
+          size_t len = 0;
+          if (this->optimize_assignment_str.empty()) {
+                  std::cerr << "Error: The file \"" << config_file << "\" specifies @sub-barcode-encode without first setting @barcode-encode" << std::endl;
+                  return false;
+          }
+          this->sub_optimize_assignment_str = value;
         } else if (field == "@sub-assign") {
           if (!this->sub_assign_vec.empty()) {
             std::cerr << "Error: The file \"" << config_file << "\" specifies @sub-assign which was already previously set" << std::endl;
@@ -4124,6 +4160,31 @@ struct SplitCode {
       } else {
         results.discard = true;
       }
+     // user specifies sub-barcode-encode so we need to handle that
+      if (sub_optimize_assignment_vec.size() > 0 && group_v.size() > 0 && !sub_rtable.empty()) { // TODO
+        std::vector<uint32_t> u__; // tag IDs (zero-indexed within group)
+        u__.reserve(results.name_ids.size());
+          int x = 0;
+          for (int i = 0; i < optimize_assignment_vec.size(); i++) {
+                  if (sub_optimize_assignment_vec[x] == optimize_assignment_vec[i]) {
+              if (sub_optimize_assignment_vec[x] == group_v[i]) {
+                u__.push_back(sub_optimize_assignment_tag_map[results.name_ids[i]]);
+              }
+              x++;
+                  }
+              if (x >= sub_optimize_assignment_vec.size()) break;
+          }
+        bool sub_is_assigned = (u__.size() == sub_optimize_assignment_vec.size());
+        if (!sub_is_assigned) {
+          results.subassign_id = -1;
+          results.discard = true;
+        } else {
+          int id = (int64_t) encodeMixedRadix(u__, sub_rtable);
+          results.subassign_id = id;
+        }
+      } else if (!sub_rtable.empty()) {
+        results.discard = true;
+      }
     }
     if (do_qc && !u.empty()) { // Now, store the QC
       for (auto &q : qc_vec) {
@@ -4428,6 +4489,7 @@ struct SplitCode {
   }
   
   std::string fetchNextBarcodeMapping_helper() {
+    const std::vector<TagRadixInfo>& rtable = (!sub_rtable.empty()) ? sub_rtable : this->rtable;
     if (rtable.size() != 0) {
       int i = curr_barcode_mapping_i;
       if (i >= rtable.size()) {
@@ -4776,7 +4838,8 @@ struct SplitCode {
     
     // We'll keep a running product
     uint64_t runningProduct = 1;
-    
+   
+    std::vector<TagRadixInfo> rtable; 
     rtable.reserve(optimize_assignment_vec.size());
 
     for (auto groupId : optimize_assignment_vec) {
@@ -4837,6 +4900,10 @@ struct SplitCode {
   std::vector<size_t> optimize_assignment_tag_map; // map tag IDs to zero-indexed tag numbers for optimized barcode encoding assignment
   std::vector<uint32_t> optimize_assignment_vec; // vector of group IDs
   std::unordered_map<uint32_t, size_t> optimize_assignment_group_map; // map group IDs to number of tags in that group
+  std::vector<TagRadixInfo> sub_rtable; // For encoding
+  std::vector<size_t> sub_optimize_assignment_tag_map; // map tag IDs to zero-indexed tag numbers for optimized barcode encoding assignment
+  std::vector<uint32_t> sub_optimize_assignment_vec; // vector of group IDs
+  std::unordered_map<uint32_t, size_t> sub_optimize_assignment_group_map; // map group IDs to number of tags in that group
   
   std::vector<std::pair<uint32_t,std::pair<bool,std::string>>> before_after_vec;
   
@@ -4871,6 +4938,7 @@ struct SplitCode {
   
   std::string barcode_prefix;
   std::string optimize_assignment_str;
+  std::string sub_optimize_assignment_str;
   std::string trim_5_str, trim_3_str;
   std::string extract_str;
   std::string extract_str_og; // The extraction sequence supplied on command-line

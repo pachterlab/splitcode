@@ -480,7 +480,6 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
     if (assigned && opt.com_names && !sc->always_assign && do_mod_name) {
       mod_name += (name_modded ? "\t" : " ");
       mod_name += opt.sam_tags[2][0] + std::to_string(sc->getID(r.id));
-      //mod_name += "\t" + opt.sam_tags[0][0] + sc->binaryToString(sc->getID(r.id), sc->getBarcodeLength())
       name_modded = true;
     } else if (assigned && opt.com_names && remultiplex && do_mod_name) { // Add remultiplexed ID to read name
       mod_name += (name_modded ? "\t" : " ");
@@ -489,14 +488,16 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
     }
     if (assigned && opt.bc_names && !sc->always_assign && do_mod_name) {
       mod_name += (name_modded ? "\t" : " ");
-      mod_name += opt.sam_tags[4][0] + sc->binaryToString(sc->getID(r.id), sc->getBarcodeLength());
+      mod_name += opt.sam_tags[4][0];
+      if (!sc->sub_optimize_assignment_str.empty()) mod_name += sc->binaryToString(sc->getID(r.subassign_id), sc->getBarcodeLength());
+      mod_name += sc->binaryToString(sc->getID(r.id), sc->getBarcodeLength());
       name_modded = true;
     } else if (assigned && opt.bc_names && remultiplex && do_mod_name) { // Add remultiplexed ID to read name
       mod_name += (name_modded ? "\t" : " ");
       mod_name += opt.sam_tags[4][0] + sc->binaryToString(sc->getID(batch_id_mapping[flags[readnum]]), sc->getBarcodeLength());
       name_modded = true;
     }
-    if (assigned && r.subassign_id != -1 && do_mod_name) {
+    if (assigned && r.subassign_id != -1 && do_mod_name && sc->sub_optimize_assignment_str.empty()) {
       mod_name += (name_modded ? "\t" : " ");
       mod_name += opt.sam_tags[3][0] + std::to_string(r.subassign_id);
       name_modded = true;
@@ -540,6 +541,7 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
       // Write out barcode read
       o += start_char + std::string(names[i].first, names[i].second) + mod_name + std::string(1, break_char);
       if (!remultiplex) {
+        if (!sc->sub_optimize_assignment_str.empty()) o += sc->binaryToString(sc->getID(r.subassign_id), sc->getBarcodeLength());
         o += sc->binaryToString(sc->getID(r.id), sc->getBarcodeLength()) + std::string(1, break_char);
       } else { // Write out remultiplexing barcode
         o += sc->binaryToString(sc->getID(batch_id_mapping[flags[readnum]]), sc->getBarcodeLength()) + std::string(1, break_char);
@@ -699,6 +701,7 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
       // End insert placement
       if (embed_final_barcode) {
         if (!remultiplex) {
+          if (!sc->sub_optimize_assignment_str.empty()) o += sc->binaryToString(sc->getID(r.subassign_id), sc->getBarcodeLength());
           o += sc->binaryToString(sc->getID(r.id), sc->getBarcodeLength());
         } else {
           o += sc->binaryToString(sc->getID(batch_id_mapping[flags[readnum]]), sc->getBarcodeLength());

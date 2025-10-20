@@ -90,7 +90,9 @@ checkcmdoutput "$splitcode -B "B,D,E" --bclen=20 -c $test_dir/config_fastassign_
 checkcmdoutput "cat $test_dir/unassign.fq" d41d8cd98f00b204e9800998ecf8427e
 checkcmdoutput "cat $test_dir/mx.txt" b95e8b332c8a0a7ffc0f91118e754302
 
+# Test some --sub-barcode-encode
 
+checkcmdoutput "$splitcode --assign --x-only --nFastqs=2 --empty N -x \"0:0<R1>0:-1,<R1[10]>{adapter},{adapter}<R1[1-65]>,2:0<R2[1-65]>\" --gzip --mod-names --bclen=20 -t 1 -c $test_dir/config_sm.txt --mapping=/dev/null --pipe $test_dir/smR1.fastq.gz $test_dir/smR2.fastq.gz" 8fc440842f4e2922976cdc1b165008b1
 
 # Test lift workflow
 
