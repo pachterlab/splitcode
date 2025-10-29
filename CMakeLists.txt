@@ -47,48 +47,46 @@ endif()
 
 add_subdirectory(src)
 
-if (BUILD_FUNCTESTING)
+if(BUILD_FUNCTESTING)
     add_subdirectory(func_tests)
     message("Functional testing enabled.")
     add_custom_target(test
-    COMMAND /bin/bash ./func_tests/runtests.sh
-    DEPENDS ./src/splitcode
+        COMMAND /bin/bash ./func_tests/runtests.sh
+        DEPENDS ./src/splitcode
     )
 endif(BUILD_FUNCTESTING)
 
 include(ExternalProject)
 
 
-
-if (NOT ZLIBNG_DISABLE)
+if(NOT ZLIBNG_DISABLE)
     message("zlib-ng enabled.")
     set(ZLIBNG "ON")
     ExternalProject_Add(zlib-ng
-    PREFIX ${PROJECT_SOURCE_DIR}/ext/zlib-ng
-    SOURCE_DIR ${PROJECT_SOURCE_DIR}/ext/zlib-ng
-    BUILD_IN_SOURCE 1
-    CONFIGURE_COMMAND mkdir -p zlib-ng && cd zlib-ng && cmake .. -DZLIB_COMPAT=ON -DZLIB_ENABLE_TESTS=OFF -DCMAKE_INSTALL_PREFIX=${PREFIX}
-    BUILD_COMMAND cd zlib-ng && make
-    INSTALL_COMMAND ""
+        PREFIX ${PROJECT_SOURCE_DIR}/ext/zlib-ng
+        SOURCE_DIR ${PROJECT_SOURCE_DIR}/ext/zlib-ng
+        BUILD_IN_SOURCE 1
+        CONFIGURE_COMMAND
+            mkdir -p zlib-ng && cd zlib-ng &&
+            cmake .. -DZLIB_COMPAT=ON -DZLIB_ENABLE_TESTS=OFF -DCMAKE_INSTALL_PREFIX=${PREFIX}
+        BUILD_COMMAND cd zlib-ng && make
+        INSTALL_COMMAND ""
     )
-endif(ZLIBNG_DISABLE)
+endif(NOT ZLIBNG_DISABLE)
 
 
-if (USE_HTSLIB)
+if(USE_HTSLIB)
     message("using htslib")
     ExternalProject_Add(htslib
-    PREFIX ${PROJECT_SOURCE_DIR}/ext/htslib
-    SOURCE_DIR ${PROJECT_SOURCE_DIR}/ext/htslib
-    BUILD_IN_SOURCE 1
-    CONFIGURE_COMMAND ""
-    BUILD_COMMAND make lib-static
-    INSTALL_COMMAND ""
+        PREFIX ${PROJECT_SOURCE_DIR}/ext/htslib
+        SOURCE_DIR ${PROJECT_SOURCE_DIR}/ext/htslib
+        BUILD_IN_SOURCE 1
+        CONFIGURE_COMMAND ""
+        BUILD_COMMAND make lib-static
+        INSTALL_COMMAND ""
     )
 else()
     set(NO_HTSLIB "ON")
     add_compile_definitions("NO_HTSLIB=ON")
     message("not using htslib")
 endif()
-
-
-
