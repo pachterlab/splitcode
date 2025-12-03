@@ -94,16 +94,6 @@ checkcmdoutput "cat $test_dir/mx.txt" b95e8b332c8a0a7ffc0f91118e754302
 
 checkcmdoutput "$splitcode --assign --x-only --nFastqs=2 --empty N -x \"0:0<R1>0:-1,<R1[10]>{adapter},{adapter}<R1[1-65]>,2:0<R2[1-65]>\" --gzip --mod-names --bclen=20 -t 1 -c $test_dir/config_sm.txt --mapping=/dev/null --pipe $test_dir/smR1.fastq.gz $test_dir/smR2.fastq.gz" 8fc440842f4e2922976cdc1b165008b1
 
-# Test lift workflow
-
-checkcmdoutput "$splitcode --lift $test_dir/vcf_validation.fa.gz $test_dir/test_1.vcf.gz CAST_EiJ --kmer-length=31 --kmer-output=$test_dir/test.kmers.1.txt" 7e9c1d67efdf7113bfab367cb5d2d640
-checkcmdoutput "$splitcode --lift $test_dir/vcf_validation.fa.gz $test_dir/test_2.vcf.gz CAST_EiJ --rename --kmer-length=31 --kmer-output=$test_dir/test.kmers.2.txt" c9a91833da19b20383d6bd1d3e32ff8f
-checkcmdoutput "cat $test_dir/test.kmers.1.txt" 54d189f4549f6b35ea80ec5c167332b7
-checkcmdoutput "cat $test_dir/test.kmers.2.txt" 9982de087ed358724580836600cc9ba7
-checkcmdoutput "$splitcode --lift $test_dir/vcf_validation.fa.gz $test_dir/test_2.vcf.gz CAST_EiJ --diploid --kmer-length=31 --kmer-output=$test_dir/test.kmers.2.txt" 6c33bd3ba7cd9aaefeca5cbaa272cdfe
-checkcmdoutput "cat $test_dir/test.kmers.2.txt" a4c73b67a0ad6e5094ff7f2dfdda15bc
-checkcmdoutput "$splitcode --lift --snv-only $test_dir/vcf_validation.fa.gz $test_dir/test_2.vcf.gz CAST_EiJ" 4bdcaf9f34da45033d477651d8845bf2
-checkcmdoutput "$splitcode --lift --kmer-sj $test_dir/vcf_validation.fa.gz $test_dir/example.SJ.tab --kmer-length=31 --kmer-header=X_ --kmer-header-num" 1e88d0b72323a6c11faa73e19007fc5f
 
 
 # Test from-name, random, and revcomp
@@ -238,6 +228,13 @@ checkcmdoutput "$splitcode --trim-only --pipe -q 10 --qtrim-3 -x \"0:2<umi1>0:-1
 checkcmdoutput "$splitcode --trim-only --pipe -q 10 --qtrim-3 -s $test_dir/test_summary.txt -x \"0:2<umi1>0:-1\" -5 1 -3 2 $test_dir/test.fq" 0d99695915b46e66e0dace6ce33fed44
 cmdexec "wc $test_dir/test_summary.txt"
 checkcmdoutput "$splitcode --trim-only --pipe -q 10 --qtrim-3 --qtrim-pre -5 5 -E ATCG $test_dir/test.fq" 1b5a09bd343382ee78c9aa51245557c2
+
+# Some fixes (Dec. 2025)
+
+checkcmdoutput "$splitcode --trim-only --pipe -c $test_dir/config.tsv --loc-names --out-fasta --nFastqs 1 $test_dir/input.fastq" a4508f24c69838b07cec04978def09ca
+checkcmdoutput "$splitcode --trim-only --pipe -c $test_dir/config_.tsv --loc-names --out-fasta --nFastqs 1 $test_dir/input_.fastq" 200fb9106e47c741b1891e4b2fedef05
+checkcmdoutput "$splitcode --trim-only --pipe -c $test_dir/config__.tsv --loc-names --out-fasta --nFastqs 1 $test_dir/input__.fastq" 4caa199550f26000ac787821cc62668c
+checkcmdoutput "$splitcode --trim-only --pipe -c $test_dir/config___.tsv --loc-names --out-fasta --nFastqs 1 $test_dir/input___.fastq" 209698dea910ed4d4cd05dbce0889800
 
 # Adapter trimming tests
 
@@ -553,4 +550,14 @@ TATTATGGTCCCCCCCCTTCGTGGAATCTAGCTGACTTGTGACTAGCTDGGGGGGGGGG" > $test_dir/test_te
 
 checkcmdoutput "$splitcode --assign  -m /dev/null --mod-names -g PART,RPM,RPM,ODD,Y -i Part,RTBC2,RTBC4,Odd2Bo1,NYBot1_Stg -b TGACTTG,TTTTTTT,GGGGGGG,TTCGTGGAATCTAGC,TATTATGGT --maxFindsG=Y:1 -p $test_dir/test_term.fq" 79ad1ca9184b274e1396b5f2220cbade
 
+# Test lift workflow
+
+checkcmdoutput "$splitcode --lift $test_dir/vcf_validation.fa.gz $test_dir/test_1.vcf.gz CAST_EiJ --kmer-length=31 --kmer-output=$test_dir/test.kmers.1.txt" 7e9c1d67efdf7113bfab367cb5d2d640
+checkcmdoutput "$splitcode --lift $test_dir/vcf_validation.fa.gz $test_dir/test_2.vcf.gz CAST_EiJ --rename --kmer-length=31 --kmer-output=$test_dir/test.kmers.2.txt" c9a91833da19b20383d6bd1d3e32ff8f
+checkcmdoutput "cat $test_dir/test.kmers.1.txt" 54d189f4549f6b35ea80ec5c167332b7
+checkcmdoutput "cat $test_dir/test.kmers.2.txt" 9982de087ed358724580836600cc9ba7
+checkcmdoutput "$splitcode --lift $test_dir/vcf_validation.fa.gz $test_dir/test_2.vcf.gz CAST_EiJ --diploid --kmer-length=31 --kmer-output=$test_dir/test.kmers.2.txt" 6c33bd3ba7cd9aaefeca5cbaa272cdfe
+checkcmdoutput "cat $test_dir/test.kmers.2.txt" a4c73b67a0ad6e5094ff7f2dfdda15bc
+checkcmdoutput "$splitcode --lift --snv-only $test_dir/vcf_validation.fa.gz $test_dir/test_2.vcf.gz CAST_EiJ" 4bdcaf9f34da45033d477651d8845bf2
+checkcmdoutput "$splitcode --lift --kmer-sj $test_dir/vcf_validation.fa.gz $test_dir/example.SJ.tab --kmer-length=31 --kmer-header=X_ --kmer-header-num" 1e88d0b72323a6c11faa73e19007fc5f
 
