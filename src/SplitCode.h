@@ -1,7 +1,7 @@
 #ifndef SPLITCODE_H
 #define SPLITCODE_H
 
-#define SPLITCODE_VERSION "0.31.4"
+#define SPLITCODE_VERSION "0.31.5"
 
 #include <string>
 #include <iostream>
@@ -2257,7 +2257,7 @@ struct SplitCode {
           if (updated_name_id != name_id_curr) {
             return false; // multiple tags of different names
           }
-          if (updated_error >= error_prev) { // Choose smallest error first when deciding if to update to larger k
+          if (true /* updated_error >= error_prev */) { // Edit: Always update to larger k if tags have same name (regardless of mismatch error)
             updated_tag_id = tag_id_curr;
             updated_k = curr_k; // Update to larger k
             updated_error = error_prev;
@@ -4979,7 +4979,7 @@ struct SplitCode {
   std::vector<placement_struct> placement_vec;
   std::string from_header_str;
   
-  std::vector<std::unordered_set<size_t>> k_expansions; // Keeps track of all possible substring/k-mer lengths for each file (file number is the index)
+  std::vector<std::set<size_t>> k_expansions; // Keeps track of all possible substring/k-mer lengths for each file (file number is the index)
   
   bool init;
   bool discard_check;

@@ -1,0 +1,41 @@
+@read1 5prime tagT
+TTTTTTTTTT
++
+;;;;;;;;;;
+@read2 5prime tagT with 3prime substitution
+TTTTTTTTTC
++
+;;;;;;;;;;
+@read3 5prime tagT with interior substitution
+TTTCTTTTTT
++
+;;;;;;;;;;
+@read4 5prime tagT with interior substitution within first 3 bp
+TTCTTTTTTT
++
+;;;;;;;;;;
+@read5 5prime tagT with interior substitution within first 3 bp
+TCTTTTTTTT
++
+;;;;;;;;;;
+@read6 5prime tagT with 5prime substitution
+CTTTTTTTTT
++
+;;;;;;;;;;
+@read7 5prime tagT with 5prime and 3prime substitutions
+CTTTTTTTTC
++
+;;;;;;;;;;
+@read8 5prime tagT with 5prime and interior substitutions
+CTTTTTTCTT
++
+;;;;;;;;;;
+@read9 5prime tagA with 5prime and interior substitutions; like read3
+AAACAAAAAA
++
+;;;;;;;;;;
+@read10 5prime tagG with 5prime and interior substitutions; like read3
+GGGCGGGGGG
++
+;;;;;;;;;;
+
