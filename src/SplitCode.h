@@ -4979,7 +4979,7 @@ struct SplitCode {
   std::vector<placement_struct> placement_vec;
   std::string from_header_str;
   
-  std::vector<std::unordered_set<size_t>> k_expansions; // Keeps track of all possible substring/k-mer lengths for each file (file number is the index)
+  std::vector<std::set<size_t>> k_expansions; // Keeps track of all possible substring/k-mer lengths for each file (file number is the index)
   
   bool init;
   bool discard_check;
