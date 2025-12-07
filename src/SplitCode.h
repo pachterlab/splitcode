@@ -3,6 +3,7 @@
 
 #define SPLITCODE_VERSION "0.31.5"
 
+#include <atomic>
 #include <string>
 #include <iostream>
 #include <vector>
@@ -84,6 +85,7 @@ struct SplitCode {
     thisIsParent = true;
     isNested = false;
     opt_show_not_found = false;
+    qc_rows = 0;
   }
   
   SplitCode(int nFiles, SplitCode* sc) { // nesting
@@ -143,6 +145,7 @@ struct SplitCode {
     num_reads_assigned = 0;
     summary_n_reads_filtered = 0;
     summary_n_reads_filtered_assigned = 0;
+    qc_rows = 0;
     this->summary_file = sc->summary_file;
 
     this->trim_5_str = ""; // Only applies to parent
@@ -216,6 +219,7 @@ struct SplitCode {
     no_tags = false;
     thisIsParent = true;
     isNested = false;
+    qc_rows = 0;
     this->summary_file = summary_file;
     this->trim_5_str = trim_5_str;
     this->trim_3_str = trim_3_str;
@@ -458,13 +462,23 @@ struct SplitCode {
     if (do_qc) {
       of << "\t" << "\"tag_qc\": " << "[" << "\n";
       bool first = true;
-      for (int i = 0; i < qc.size(); i++) {
+      /*for (int i = 0; i < qc.size(); i++) {
         if (qc[i].size() == 0) continue;
         for (int j = 0; j < qc[i].size(); j++) {
           if (!first) of << ",";
           if (!first) of << "\n";
           first = false;
-          of << "\t\t{\"tag\": \"" << names[i] << "\", \"distance\": " << j << ", \"count\": " << qc[i][j] << "}";
+          of << "\t\t{\"tag\": \"" << names[i] << "\", \"distance\": " << j << ", \"count\": " << *(qc[i][j]) << "}";
+        }
+      }*/
+      for (std::size_t i = 0; i < qc_rows; ++i) {
+        for (std::size_t j = 0; j < QC_COLS; ++j) {
+          auto count = qc_at(i, j).load(std::memory_order_relaxed);
+          if (!first) of << ",\n";
+          first = false;
+          of << "\t\t{\"tag\": \"" << names[i]
+             << "\", \"distance\": " << j
+             << ", \"count\": " << count << "}";
         }
       }
       if (!first) of << "\n";
@@ -1055,9 +1069,18 @@ struct SplitCode {
       }
     }*/
     if (do_qc) {
-      qc.resize(names.size());
-      for (size_t i = 0; i < qc.size(); i++) {
-        qc[i].resize(4,0);
+      /*qc.resize(names.size());
+      for (auto &row : qc) {
+        row.clear();
+        row.reserve(4);
+        for (int j = 0; j < 4; ++j) {
+          row.emplace_back(std::make_unique<std::atomic<unsigned long long>>(0ULL));
+        }
+      }*/
+      qc_rows = names.size();
+      qc = std::make_unique<std::atomic<unsigned long long>[]>(qc_rows * QC_COLS);
+      for (std::size_t i = 0; i < qc_rows * QC_COLS; ++i) {
+        qc[i].store(0, std::memory_order_relaxed);
       }
     }
     
@@ -1074,6 +1097,10 @@ struct SplitCode {
     }
     
     init = true;
+  }
+  
+  inline std::atomic<unsigned long long> &qc_at(std::size_t row, std::size_t col) {
+    return qc[row * QC_COLS + col];
   }
   
   struct VectorHasher {
@@ -4214,8 +4241,11 @@ struct SplitCode {
     }
     if (do_qc && !u.empty()) { // Now, store the QC
       for (auto &q : qc_vec) {
-        auto& qc_ = qc[q.first];
-        qc_[q.second > 3 ? 3 : q.second]++;
+        //auto& qc_ = qc[q.first];
+        //(*(qc_[q.second > 3 ? 3 : q.second]))++;
+        std::size_t row = q.first;
+        std::size_t col = q.second > 3 ? 3 : q.second;
+        qc_at(row, col).fetch_add(1, std::memory_order_relaxed);
       }
     }
   }
@@ -4945,7 +4975,10 @@ struct SplitCode {
   std::unordered_map<std::vector<uint32_t>, std::string, VectorHasher> groupmapinv_keep;
   std::unordered_map<std::vector<uint32_t>, int, VectorHasher> groupmapinv_discard;
   
-  std::vector<std::vector<uint64_t>> qc; // outer vector index = tag name id; vector indices = tag edit distance; value = count
+  //std::vector<std::vector<std::unique_ptr<std::atomic<unsigned long long>>>> qc; // outer vector index = tag name id; vector indices = tag edit distance; value = count
+  std::unique_ptr<std::atomic<unsigned long long>[]> qc;
+  std::size_t qc_rows;
+  static constexpr std::size_t QC_COLS = 4;
   bool do_qc; // Should we do QC (i.e. do tag-level statistics?)
   
   std::unordered_map<uint32_t,int> min_finds_map;
