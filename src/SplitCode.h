@@ -1126,6 +1126,7 @@ struct SplitCode {
   struct Results {
     std::vector<uint32_t> name_ids;
     std::vector<std::string> umi_data;
+    std::vector<std::string> umi_qual;
     std::vector<std::pair<int,std::pair<int,int>>> modtrim;
     std::vector<std::pair<int,std::pair<int,std::pair<std::string,int>>>> modsubs;
     std::vector<int32_t> og_len;
@@ -1144,6 +1145,7 @@ struct SplitCode {
     std::string ofile;
     std::string identified_tags_seqs;
     std::string identified_tags_seqs_; // In case we want to store the actual read sequence (via use_read_sequence) or the substitution sequence (via use_sub)
+    std::string identified_tags_quals_; // In case we want to store the actual read sequence qualities (via use_read_sequence)
   };
   
   struct SeqString {
@@ -2082,7 +2084,7 @@ struct SplitCode {
     return true;
   }
   
-  bool getTag(std::string& seq, uint32_t& tag_id, int file, int pos, int& k, int& error, int l, bool look_for_initiator = false,
+  bool getTag(const std::string& seq, uint32_t& tag_id, int file, int pos, int& k, int& error, int l, bool look_for_initiator = false,
               bool search_tag_name_after = false, bool search_group_after = false, uint32_t search_id_after = -1,
               bool search_tag_before = false, uint32_t group_curr_ = -1, uint32_t name_id_curr_ = -1, int end_pos_curr = 0) {
     checkInit();
@@ -3289,8 +3291,8 @@ struct SplitCode {
     bool invalid;
   };
   
-  void doUMIExtraction(std::string& seq, int pos, int k, int file, int readLength, std::map<int16_t, std::vector<int32_t>>& umi_seen, std::map<int16_t, std::vector<int32_t>>& umi_seen_copy,
-                       std::vector<std::string>& umi_data, uint32_t tag_name_id, uint32_t tag_group_id, std::pair<int16_t,int32_t> location = std::make_pair(-1,-1), int64_t tag_id_ = -1) {
+  void doUMIExtraction(std::string& seq, std::string& qual, int pos, int k, int file, int readLength, std::map<int16_t, std::vector<int32_t>>& umi_seen, std::map<int16_t, std::vector<int32_t>>& umi_seen_copy,
+                       std::vector<std::string>& umi_data, std::vector<std::string>& umi_qual, uint32_t tag_name_id, uint32_t tag_group_id, std::pair<int16_t,int32_t> location = std::make_pair(-1,-1), int64_t tag_id_ = -1) {
     auto extract_no_chain = this->extract_no_chain;
     auto& extract_no_chain_set = this->extract_no_chain_set;
     auto& umi_names = this->umi_names;
@@ -3325,7 +3327,7 @@ struct SplitCode {
                      });
       return result;
     };
-    auto addToUmiData = [extract_no_chain, &extract_no_chain_set, &umi_names, &umi_data, &revcomp, &rev_, &comp_](const UMI& u, const std::string& extracted_umi) {
+    auto addToUmiData = [extract_no_chain, &extract_no_chain_set, &umi_names, &umi_data, &umi_qual, &revcomp, &rev_, &comp_](const UMI& u, const std::string& extracted_umi, const std::string& extracted_qual) {
       bool extract_no_chain_ = extract_no_chain;
       if (extract_no_chain_ && !extract_no_chain_set.empty()) {
         extract_no_chain_ = false;
@@ -3336,12 +3338,16 @@ struct SplitCode {
       if (!(extract_no_chain_ && !umi_data[u.name_id].empty())) {
         if (u.rev_comp) {
           umi_data[u.name_id] += u.prepend+revcomp(extracted_umi)+u.append;
+          if (!umi_qual.empty() && extracted_umi.size() == extracted_qual.size()) umi_qual[u.name_id] += std::string(u.prepend.size(), QUAL)+rev_(extracted_qual)+std::string(u.append.size(), QUAL);
         } else if (u.rev) {
           umi_data[u.name_id] += u.prepend+rev_(extracted_umi)+u.append;
+          if (!umi_qual.empty() && extracted_umi.size() == extracted_qual.size()) umi_qual[u.name_id] += std::string(u.prepend.size(), QUAL)+rev_(extracted_qual)+std::string(u.append.size(), QUAL);
         } else if (u.comp) {
           umi_data[u.name_id] += u.prepend+comp_(extracted_umi)+u.append;
+          if (!umi_qual.empty() && extracted_umi.size() == extracted_qual.size()) umi_qual[u.name_id] += std::string(u.prepend.size(), QUAL)+(extracted_qual)+std::string(u.append.size(), QUAL);
         } else {
           umi_data[u.name_id] += u.prepend+extracted_umi+u.append;
+          if (!umi_qual.empty() && extracted_umi.size() == extracted_qual.size()) umi_qual[u.name_id] += std::string(u.prepend.size(), QUAL)+(extracted_qual)+std::string(u.append.size(), QUAL);
         }
         
       }
@@ -3367,13 +3373,16 @@ struct SplitCode {
           auto extract_min_len = u.length_range_start;
           auto extract_max_len = u.length_range_end;
           std::string extracted_umi;
+          std::string extracted_qual;
           if (u.use_read_sequence) { // Extract whatever was in the read itself
             extracted_umi = seq.substr(pos, k);
+            extracted_qual = qual.substr(pos, k);
           } else { // Extract what the original tag sequence or tag substitution sequence was
             extracted_umi = u.use_sub && !tags_vec[tag_id_].substitution.empty() ? (tags_vec[tag_id_].substitution == "-" ? "" : tags_vec[tag_id_].substitution) : tags_vec[tag_id_].seq;
+            extracted_qual = std::string(extracted_umi.size(), QUAL); // Insert fake quality scores
           }
           if (extract_max_len == 0 || (extracted_umi.length() >= extract_min_len && extracted_umi.length() <= extract_max_len)) { // if a length range is supplied, just make sure the extracted string fits within the range
-            addToUmiData(u, extracted_umi);
+            addToUmiData(u, extracted_umi, extracted_qual);
           }
         }
         continue; // Nothing more to do since this is a special UMI, proceed onto next UMI associated with current tag
@@ -3394,7 +3403,8 @@ struct SplitCode {
             }
             if (extract_len != 0) {
               std::string extracted_umi = seq.substr(extract_start, extract_len);
-              addToUmiData(u, extracted_umi);
+              std::string extracted_qual = qual.substr(extract_start, extract_len);
+              addToUmiData(u, extracted_umi, extracted_qual);
             }
           } else { // Second location present; push_back the UMI onto the "seen" list to mark that the first barcode was read
             if (u.location2.first == file) { // Make sure correct file
@@ -3421,7 +3431,8 @@ struct SplitCode {
             }
             if (extract_len != 0) {
               std::string extracted_umi = seq.substr(extract_start-extract_len, extract_len);
-              addToUmiData(u, extracted_umi);
+              std::string extracted_qual = qual.substr(extract_start-extract_len, extract_len);
+              addToUmiData(u, extracted_umi, extracted_qual);
             }
           } else {
             // [location]<umi[length_range_start-length_range_end]>[padding]{bc}: extract the UMI between location and barcode
@@ -3448,7 +3459,8 @@ struct SplitCode {
             }
             if (extract_len != 0) {
               std::string extracted_umi = seq.substr(extract_start_left, extract_len);
-              addToUmiData(u, extracted_umi);
+              std::string extracted_qual = qual.substr(extract_start_left, extract_len);
+              addToUmiData(u, extracted_umi, extracted_qual);
             }
           }
         } else { // UMI is sandwiched between two barcodes
@@ -3473,7 +3485,8 @@ struct SplitCode {
             }
             if (extract_len != 0) {
               std::string extracted_umi = seq.substr(extract_start_left, extract_len);
-              addToUmiData(u, extracted_umi);
+              std::string extracted_qual = qual.substr(extract_start_left, extract_len);
+              addToUmiData(u, extracted_umi, extracted_qual);
               // Remove UMI from seen list:
               auto& mm = umi_seen[u.id];
               auto it = std::find(mm.begin(), mm.end(), p);
@@ -3502,7 +3515,8 @@ struct SplitCode {
               }
               if (extract_len != 0) {
                 std::string extracted_umi = seq.substr(extract_start, extract_len);
-                addToUmiData(u, extracted_umi);
+                std::string extracted_qual = qual.substr(extract_start, extract_len);
+                addToUmiData(u, extracted_umi, extracted_qual);
               }
             } else {
               // Do nothing
@@ -3530,7 +3544,8 @@ struct SplitCode {
               }
               if (extract_len != 0) {
                 std::string extracted_umi = seq.substr(extract_start-extract_len, extract_len);
-                addToUmiData(u, extracted_umi);
+                std::string extracted_qual = qual.substr(extract_start-extract_len, extract_len);
+                addToUmiData(u, extracted_umi, extracted_qual);
               }
             } else { // UMI is sandwiched between two locations
               auto p = u.location1.second;
@@ -3556,7 +3571,8 @@ struct SplitCode {
               }
               if (extract_len != 0) {
                 std::string extracted_umi = seq.substr(extract_start_left, extract_len);
-                addToUmiData(u, extracted_umi);
+                std::string extracted_qual = qual.substr(extract_start_left, extract_len);
+                addToUmiData(u, extracted_umi, extracted_qual);
               }
             }
           } else { // UMI is sandwiched between a barcode (1st) and location (2nd)
@@ -3583,7 +3599,8 @@ struct SplitCode {
               }
               if (extract_len != 0) {
                 std::string extracted_umi = seq.substr(extract_start_left, extract_len);
-                addToUmiData(u, extracted_umi);
+                std::string extracted_qual = qual.substr(extract_start_left, extract_len);
+                addToUmiData(u, extracted_umi, extracted_qual);
                 // Remove UMI from seen list:
                 auto& mm = umi_seen[u.id];
                 auto it = std::find(mm.begin(), mm.end(), p);
@@ -3601,7 +3618,7 @@ struct SplitCode {
     }
   }
   
-  void doUMIExtractionSeqNames(const std::string& identified_tags_seq, std::vector<std::string>& umi_data) {
+  void doUMIExtractionSeqNames(const std::string& identified_tags_seq, std::string& qual, std::vector<std::string>& umi_data, std::vector<std::string>& umi_qual) {
     auto extract_no_chain = this->extract_no_chain;
     auto& extract_no_chain_set = this->extract_no_chain_set;
     auto& umi_names = this->umi_names;
@@ -3636,7 +3653,7 @@ struct SplitCode {
                      });
       return result;
     };
-    auto addToUmiData = [extract_no_chain, &extract_no_chain_set, &umi_names, &umi_data, &revcomp, &rev_, &comp_](const UMI& u, const std::string& extracted_umi) {
+    auto addToUmiData = [extract_no_chain, &extract_no_chain_set, &umi_names, &umi_data, &umi_qual, &revcomp, &rev_, &comp_](const UMI& u, const std::string& extracted_umi, const std::string& extracted_qual) {
       bool extract_no_chain_ = extract_no_chain;
       if (extract_no_chain_ && !extract_no_chain_set.empty()) {
         extract_no_chain_ = false;
@@ -3647,22 +3664,26 @@ struct SplitCode {
       if (!(extract_no_chain_ && !umi_data[u.name_id].empty())) {
         if (u.rev_comp) {
           umi_data[u.name_id] += u.prepend+revcomp(extracted_umi)+u.append;
+          if (!umi_qual.empty() && extracted_umi.size() == extracted_qual.size()) umi_qual[u.name_id] += std::string(u.prepend.size(), QUAL)+rev_(extracted_qual)+std::string(u.append.size(), QUAL);
         } else if (u.rev) {
           umi_data[u.name_id] += u.prepend+rev_(extracted_umi)+u.append;
+          if (!umi_qual.empty() && extracted_umi.size() == extracted_qual.size()) umi_qual[u.name_id] += std::string(u.prepend.size(), QUAL)+rev_(extracted_qual)+std::string(u.append.size(), QUAL);
         } else if (u.comp) {
           umi_data[u.name_id] += u.prepend+comp_(extracted_umi)+u.append;
+          if (!umi_qual.empty() && extracted_umi.size() == extracted_qual.size()) umi_qual[u.name_id] += std::string(u.prepend.size(), QUAL)+(extracted_qual)+std::string(u.append.size(), QUAL);
         } else {
           umi_data[u.name_id] += u.prepend+extracted_umi+u.append;
+          if (!umi_qual.empty() && extracted_umi.size() == extracted_qual.size()) umi_qual[u.name_id] += std::string(u.prepend.size(), QUAL)+(extracted_qual)+std::string(u.append.size(), QUAL);
         }
-        
       }
     };
     const auto &u = extract_seq_names_umi;
     auto extract_min_len = u.length_range_start;
     auto extract_max_len = u.length_range_end;
     const std::string& extracted_umi = identified_tags_seq;
+    const std::string& extracted_qual = qual;
     if (extract_max_len == 0 || (extracted_umi.length() >= extract_min_len && extracted_umi.length() <= extract_max_len)) { // if a length range is supplied, just make sure the extracted string fits within the range
-      addToUmiData(u, extracted_umi);
+      addToUmiData(u, extracted_umi, extracted_qual);
     }
   }
   
@@ -3826,8 +3847,10 @@ struct SplitCode {
       group_v.reserve(16);
     }
     auto& umi_data = results.umi_data;
+    auto& umi_qual = results.umi_qual;
     if (do_extract) {
       umi_data.resize(umi_names.size());
+      umi_qual.resize(umi_names.size());
     }
     int n = std::min(jmax, (int)kmer_size_locations.size());
     results.og_len.reserve(jmax);
@@ -3864,6 +3887,8 @@ struct SplitCode {
       readLength = l[file];
       bool look_for_initiator = initiator_files[file];
       std::string seq(s[file], readLength);
+      std::string qual;
+      if (!q.empty()) qual = std::string(q[file], readLength);
       bool found_weird_base = false; // non-ATCG bases
       uint32_t rando;
       for (auto& c: seq) {
@@ -3909,7 +3934,7 @@ struct SplitCode {
               if (it_umi_loc->first.second == -1) {
                 umi_loc_check_end = true;
               } else {
-                doUMIExtraction(seq, it_umi_loc->first.second, 0, file, readLength, umi_seen, umi_seen_copy, umi_data, 0, 0, std::make_pair(file, it_umi_loc->first.second));
+                doUMIExtraction(seq, qual, it_umi_loc->first.second, 0, file, readLength, umi_seen, umi_seen_copy, umi_data, umi_qual, 0, 0, std::make_pair(file, it_umi_loc->first.second));
                 if (pos != it_umi_loc->first.second) { // Don't update copy if we're at the current pos (since we don't want the current location, which may be added/deleted in umi_seen, to affect the barcode-based UMI extraction)
                   umi_seen_copy = umi_seen;
                 }
@@ -3984,6 +4009,7 @@ struct SplitCode {
             if (extract_seq_names && (extract_seq_names_umi.use_read_sequence || extract_seq_names_umi.use_sub)) {
               if (extract_seq_names_umi.use_read_sequence) { // Extract whatever was in the read itself
                 results.identified_tags_seqs_ += seq.substr(pos, k);
+                if (!qual.empty()) results.identified_tags_quals_ += qual.substr(pos, k);
               } else { // Extract what the original tag sequence or tag substitution sequence was
                 results.identified_tags_seqs_ += extract_seq_names_umi.use_sub && !tag.substitution.empty() ? (tag.substitution == "-" ? "" : tag.substitution) : tag.seq;
               }
@@ -3997,7 +4023,7 @@ struct SplitCode {
             // ^Note: We needed to do pos+trim_5, not pos, because pos is w.r.t. trimmed sequenced
           }
           if (do_extract) { // UMI extraction
-            doUMIExtraction(seq, pos, k, file, readLength, umi_seen, umi_seen_copy, umi_data, tag.name_id, tag.group, std::make_pair(-1,-1), tag_id);
+            doUMIExtraction(seq, qual, pos, k, file, readLength, umi_seen, umi_seen_copy, umi_data, umi_qual, tag.name_id, tag.group, std::make_pair(-1,-1), tag_id);
           }
           if (tag.trim == left) {
             left_trim = pos+k+tag.trim_offset;
@@ -4034,14 +4060,14 @@ struct SplitCode {
             if (it_umi_loc->first.second == -1) {
               umi_loc_check_end = true;
             } else {
-              doUMIExtraction(seq, it_umi_loc->first.second, 0, file, readLength, umi_seen, umi_seen_copy, umi_data, 0, 0, std::make_pair(file, it_umi_loc->first.second));
+              doUMIExtraction(seq, qual, it_umi_loc->first.second, 0, file, readLength, umi_seen, umi_seen_copy, umi_data, umi_qual, 0, 0, std::make_pair(file, it_umi_loc->first.second));
             }
           }
           umi_seen_copy = umi_seen;
           it_umi_loc++;
         }
         if (umi_loc_check_end) { // If we have -1 (denoting the end of the read)
-          doUMIExtraction(seq, -1, 0, file, readLength, umi_seen, umi_seen_copy, umi_data, 0, 0, std::make_pair(file, -1));
+          doUMIExtraction(seq, qual, -1, 0, file, readLength, umi_seen, umi_seen_copy, umi_data, umi_qual, 0, 0, std::make_pair(file, -1));
         }
       }
       // Modify (trim) the reads
@@ -4084,7 +4110,7 @@ struct SplitCode {
       }
     }
     if (do_extract && extract_seq_names) {
-      doUMIExtractionSeqNames(extract_seq_names_umi.use_read_sequence || extract_seq_names_umi.use_sub ? results.identified_tags_seqs_ : results.identified_tags_seqs, umi_data);
+      doUMIExtractionSeqNames(extract_seq_names_umi.use_read_sequence || extract_seq_names_umi.use_sub ? results.identified_tags_seqs_ : results.identified_tags_seqs, results.identified_tags_quals_, umi_data, umi_qual);
     }
     if (do_extract && insertion_placement_vec.size() != 0) {
       doUMIExtractionPlacement(insertion_placement_vec, umi_data);

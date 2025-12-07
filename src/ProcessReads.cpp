@@ -458,6 +458,7 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
       continue;
     }
     auto& umi_vec = r.umi_data;
+    auto& umi_qual_vec = r.umi_qual;
     bool assigned = sc->isAssigned(r); // Note: r.discard and assigned will both true be in the case of sc->always_assign==true but the read doesn't pass our keep/discard filter (if !sc->always_assign, assigned will be false if r.discard is false)
     bool assigned2 = sc->isAssigned(r, true); // Unlike assigned, assigned2 is false if sc->always_assign==true but the read doesn't pass the keep/discard filter; basically, it's equivalent to: (assigned && !r.discard)
     bool use_pipe = (opt.pipe && (r.ofile.empty() || (!r.ofile.empty() && !r.ofile_keep))) || writeToSS; // Conditions under which we'll write to stdout
@@ -548,7 +549,8 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
       }
       if (include_quals) {
         o += "+" + std::string(1, break_char);
-        o += std::string(sc->getBarcodeLength(), sc->QUAL) + std::string(1, break_char);
+        if (!sc->sub_optimize_assignment_str.empty()) o += std::string(sc->getBarcodeLength(), sc->QUAL);
+        o += std::string(sc->getBarcodeLength(), sc->QUAL) + std::string(1, break_char); // TODO: here's the culprit; maybe need sub-assign ID?
       }
       const std::string& ostr = o;
       size_t ostr_len = ostr.length();
@@ -586,7 +588,11 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
         o += curr_umi + std::string(1, break_char);
         if (include_quals) {
           o += "+" + std::string(1, break_char);
-          o += std::string(curr_umi.length(), sc->QUAL) + std::string(1, break_char);
+          if (umi_qual_vec[umi_index].size() == curr_umi.size()) {
+            o += umi_qual_vec[umi_index] + std::string(1, break_char);
+          } else {
+            o += std::string(curr_umi.length(), sc->QUAL) + std::string(1, break_char);
+          }
         }
         const std::string& ostr = o;
         size_t ostr_len = ostr.length();
@@ -716,6 +722,7 @@ void MasterProcessor::writeOutput(std::vector<SplitCode::Results>& rv,
       if (include_quals) {
         o += "+" + std::string(1, break_char);
         if (embed_final_barcode) {
+          if (!sc->sub_optimize_assignment_str.empty()) o += std::string(sc->getBarcodeLength(), sc->QUAL);
           o += std::string(sc->getBarcodeLength(), sc->QUAL);
         } else if (l == 0 && !opt.empty_read_sequence.empty()) {
           o += std::string(opt.empty_read_sequence.length(), sc->QUAL);
