@@ -34,6 +34,35 @@
 #define KSEQ_INIT_READY
 KSEQ_INIT(gzFile, gzread)
 #endif
+  
+// Create directories recursively if they don't exist (exiting if not possible)
+// C++17 and above only
+#if SPLITCODE_CPP_VERSION < 201703L
+void ensure_parent_directories(const std::string& filepath) { } // Empty
+#else
+#include <filesystem>
+#include <system_error>
+inline void ensure_parent_directories(const std::string& filepath) {
+  if (filepath.length() == 0) return;
+  namespace fs = std::filesystem;
+  fs::path p(filepath);
+  fs::path parent = p.parent_path();
+  // No parent (e.g. "out.txt") → nothing to do
+  if (parent.empty()) {
+    return;
+  }
+  std::error_code ec;
+  fs::create_directories(parent, ec); // creates all missing parents; no-op if they exist
+  if (ec) {
+    std::fprintf(stderr,
+                 "Error: Failed to create directory '%s': %s\n",
+                 parent.string().c_str(),
+                 ec.message().c_str());
+    std::exit(1);
+  }
+}
+#endif
+  
  
 class MasterProcessor;
 
@@ -130,6 +159,7 @@ public:
     std::string compress_level_str = "wb" + std::to_string(opt.compress_level);
     const char* gz_out_str = compress_level_str.c_str();
     for (auto f : opt.output_files) {
+      ensure_parent_directories(f);
       if (opt.gzip) {
         out_gz.push_back(gzopen(f.c_str(), gz_out_str));
       } else {
@@ -137,6 +167,7 @@ public:
       }
     }
     for (auto f : opt.unassigned_files) {
+      ensure_parent_directories(f);
       if (opt.gzip) {
         if (f.length() == 0) outu_gz.push_back(nullptr);
         else outu_gz.push_back(gzopen(f.c_str(), gz_out_str));
@@ -147,6 +178,7 @@ public:
     }
     if (!opt.pipe && !opt.no_x_out && !opt.no_output) {
       for (auto f : sc.get_umi_names()) {
+        ensure_parent_directories(f+suffix);
         if (opt.gzip) {
           outumi_gz.push_back(gzopen((f+suffix_gz).c_str(), gz_out_str));
         } else {
@@ -182,6 +214,7 @@ public:
                     out_keep_name = v[i-1];
                 }
             }
+            ensure_parent_directories(out_keep_name+suffix_gz);
             out_keep_gz[f.second].push_back(gzopen((out_keep_name + suffix_gz).c_str(), gz_out_str));
           }
         }
@@ -207,6 +240,7 @@ public:
                     out_keep_name = v[i-1];
                 }
             }
+            ensure_parent_directories(out_keep_name+suffix);
             out_keep[f.second].push_back(fopen((out_keep_name + suffix).c_str(), "wb"));
           }
         }
@@ -238,6 +272,7 @@ public:
                     out_keep_name = v[i-1];
                 }
             }
+            ensure_parent_directories(out_keep_name+suffix_gz);
             out_keep_gz[f.second].push_back(gzopen((out_keep_name + suffix_gz).c_str(), gz_out_str));
           }
         }
@@ -263,7 +298,10 @@ public:
                     out_keep_name = v[i-1];
                 }
             }
-            else out_keep[f.second].push_back(fopen((out_keep_name + suffix).c_str(), "wb"));
+            else { 
+              ensure_parent_directories(out_keep_name+suffix);
+              out_keep[f.second].push_back(fopen((out_keep_name + suffix).c_str(), "wb"));
+            }
           }
         }
       }
@@ -271,6 +309,7 @@ public:
     write_output_fastq = opt.output_fastq_specified || opt.pipe || opt.x_only;
     write_unassigned_fastq = outu.size() > 0 || outu_gz.size() > 0;
     if (write_barcode_separate_fastq) {
+      ensure_parent_directories(opt.outputb_file);
       if (opt.gzip) {
         outb_gz = gzopen(opt.outputb_file.c_str(), gz_out_str);
       } else {
