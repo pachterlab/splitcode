@@ -850,9 +850,21 @@ void MasterProcessor::writeBam(const std::string& ostr, int readNameLen, int rea
     nlen += rname_original_len; // Add the original --mod-names back in if --mod-names-bam is specified
   }
 
-  static char buf1[32768];
-  static char buf2[32768];
-  bam1_t b1;
+  const int lseq = (slen+1)>>1;
+  size_t tag_bytes = 0;
+  for (const auto& bam_tag : bam_tags) {
+    if (bam_tag.length() < 5) continue;
+    if (bam_tag[2] != ':' || bam_tag[4] != ':') continue;
+    if (bam_tag[3] == 'Z') {
+      tag_bytes += 3 + (bam_tag.length()+1-5);
+    } else if (bam_tag[3] == 'i') {
+      tag_bytes += 7;
+    }
+  }
+  const size_t data_capacity = static_cast<size_t>(nlen + lseq + qlen) + tag_bytes;
+  std::vector<uint8_t> buffer(data_capacity);
+
+  bam1_t b1{};
   bam1_core_t core1;
   core1.tid = -1;
   core1.pos = -1;
@@ -871,11 +883,10 @@ void MasterProcessor::writeBam(const std::string& ostr, int readNameLen, int rea
     core1.flag |= BAM_FPAIRED | BAM_FREAD2;
   }
   b1.core = std::move(core1);
-  uint8_t* buf = (uint8_t*)&buf1[0];
+  uint8_t* buf = buffer.data();
   memcpy(buf, name, nlen);
   int p = core1.l_qname;
   // copy the sequence
-  int lseq = (slen+1)>>1;
   uint8_t *seqp = (uint8_t *) (buf+p);
   memset(seqp,0,lseq);
   for (int i = 0; i < slen; ++i) {
@@ -888,24 +899,22 @@ void MasterProcessor::writeBam(const std::string& ostr, int readNameLen, int rea
   }
   p += qlen;
   b1.l_data = p;
-  b1.m_data = core1.l_qname + ((core1.l_qseq+2)>>1) + core1.l_qseq;
+  b1.m_data = static_cast<int>(buffer.size());
   b1.data = buf; // structure: qname-cigar-seq-qual-aux
   for (auto& bam_tag: bam_tags) { // XX:X:XXXX
     if (bam_tag.length() < 5) continue;
-    b1.data[b1.l_data] = bam_tag[0];
-    b1.data[b1.l_data+1] = bam_tag[1];
     if (bam_tag[2] != ':') continue;
     if (bam_tag[4] != ':') continue;
+    b1.data[b1.l_data] = bam_tag[0];
+    b1.data[b1.l_data+1] = bam_tag[1];
     b1.data[b1.l_data+2] = bam_tag[3];
     if (bam_tag[3] == 'Z') { // The value of our BAM tag is a string
       memcpy(b1.data + b1.l_data + 3, bam_tag.c_str()+5, bam_tag.length()+1-5);
       b1.l_data += 3+bam_tag.length()+1-5;
-      b1.m_data += 3+bam_tag.length()+1-5;
     } else if (bam_tag[3] == 'i') { // The value of our BAM tag is an integer
       int val = std::atoi(bam_tag.c_str()+5);
       memcpy(b1.data + b1.l_data + 3, &val, 4);
       b1.l_data += 7;
-      b1.m_data += 7;
     }
   }
   int ret = 0;
@@ -1324,5 +1333,3 @@ FastqSequenceReader::FastqSequenceReader(FastqSequenceReader&& o) :
   o.seq.resize(nfiles, nullptr);
   o.state = false;
 }
-
-
