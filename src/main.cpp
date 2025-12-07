@@ -594,7 +594,8 @@ void ParseOptions(int argc, char **argv, ProgramOptions& opt) {
       break;
     }
     case 'x': {
-      opt.extract_str = optarg;
+      if (!opt.extract_str.empty()) opt.extract_str += ",";
+      opt.extract_str += optarg;
       break;
     }
     case 'P': {
