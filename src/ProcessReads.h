@@ -38,7 +38,7 @@ KSEQ_INIT(gzFile, gzread)
 // Create directories recursively if they don't exist (exiting if not possible)
 // C++17 and above only
 #if SPLITCODE_CPP_VERSION < 201703L
-void ensure_parent_directories(const std::string& filepath) { } // Empty
+inline void ensure_parent_directories(const std::string& filepath) { } // Empty
 #else
 #include <filesystem>
 #include <system_error>
